@@ -1,5 +1,9 @@
 <div align="center">
 
+<img src="docs/assets/hero_banner.gif" alt="Biometric Few-Shot Verification — Signature, Face, Fingerprint scanning demo" width="900">
+
+<br>
+
 # 🔐 Biometric Few-Shot Verification Framework
 
 **Siamese Networks × Prototypical Networks × Multi-Modal Biometrics**
