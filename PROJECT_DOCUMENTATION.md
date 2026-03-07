@@ -50,7 +50,8 @@ The foundation of the project is a robust data ingestion and preprocessing pipel
 We use a unified backbone strategy. The underlying feature extractor (encoder) is shared regardless of the biometric modality.
 
 1. **The Backbone (`backbone.py`)**
-   - **`ResNetEncoder`:** Re-engineers standard PyTorch ResNet-18 models. We replace the input layer from 3-channel (RGB) to 1-channel (Grayscale). If pretrained weights are used, the original RGB weights are averaged into a single channel. The final fully connected classification layer is stripped off and replaced with an embedding pipeline (Linear -> ReLU -> Dropout -> Linear -> **L2 Normalization**).
+   - **`ResNetEncoder`:** Re-engineers standard PyTorch ResNet-18 models. We replace the input layer from 3-channel (RGB) to 1-channel (Grayscale). If pretrained weights are used, the original RGB weights are averaged into a single channel. The final fully connected classification layer is stripped off and replaced with an embedding pipeline (`Linear(512→256)` → `ReLU` → `Dropout(0.3)` → `Linear(256→128)` → **L2 Normalization**).
+   - **`LightCNNEncoder`:** A lightweight 4-block CNN alternative (Conv→BN→ReLU→MaxPool ×4) for faster experimentation and smoke tests. Outputs L2-normalized 128-d embeddings from a `Linear(256→128)` projection.
    - **L2 Normalization:** Forces all embeddings onto a hypersphere, ensuring distance calculations rely purely on cosine/euclidean angles rather than the magnitude of activations.
 
 2. **The Siamese Network (`siamese.py`)**
@@ -62,8 +63,10 @@ We use a unified backbone strategy. The underlying feature extractor (encoder) i
    - **Use Case:** "Few-shot Verification". (Given 5 known enrollments, does this new query match?)
 
 ### C. Losses (`losses/losses.py`)
-1. **Contrastive Loss:** Used for Siamese networks. Pushes embeddings of the same person together (distance -> 0) and pulls embeddings of different people apart up to a certain `margin` (distance -> margin).
-2. **Prototypical Loss:** Automatically computes log-softmax distances over the prototypes, effectively acting as a dynamic cross-entropy loss over the generated classes in the current episode.
+1. **Contrastive Loss:** Used for Siamese networks. Pushes embeddings of the same person together (distance → 0) and pulls embeddings of different people apart up to a certain `margin` (distance → margin).
+2. **Triplet Loss:** An alternative to Contrastive Loss that operates on (anchor, positive, negative) triplets. Enforces that `d(anchor, positive) < d(anchor, negative) + margin`.
+3. **Prototypical Loss:** Computes log-softmax over negative distances to prototypes, effectively acting as a dynamic cross-entropy loss over the generated classes in the current episode.
+4. **Binary Cross-Entropy Loss:** An alternative for Siamese networks that uses the classifier head's sigmoid similarity score directly, treating verification as binary classification.
 
 ---
 
@@ -106,10 +109,12 @@ The project relies on `.yaml` configuration files inside `configs/`. This avoids
 - *Configs control:* Backbone choice, embedding dimensions, learning rates, margins, batch sizes, dataset paths, and early-stopping patience.
 
 **Requirements:**
-- `torch`, `torchvision`, `torchaudio` (CUDA or DirectML depending on the hardware target).
-- `albumentations` and `opencv-python-headless` (for image loading/augmentation).
-- `scikit-learn`, `matplotlib`, `seaborn` (for evaluation metrics and plotting).
-- `tqdm`, `pyyaml` (for UX and configuration).
+- `torch>=2.1.0`, `torchvision>=0.16.0`, `torch-directml>=0.2.0` (CUDA or DirectML depending on the hardware target).
+- `albumentations>=1.3.0` and `opencv-python>=4.8.0` (for image loading/augmentation).
+- `scikit-learn>=1.3.0`, `matplotlib>=3.7.0`, `seaborn>=0.12.0` (for evaluation metrics and plotting).
+- `tqdm>=4.65.0`, `pyyaml>=6.0` (for UX and configuration).
+- `tensorboard>=2.14.0` (for optional training logging).
+- `numpy>=1.24.0`, `Pillow>=10.0.0` (core array/image processing).
 
 ---
 

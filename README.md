@@ -92,7 +92,7 @@ Traditional biometric systems need **thousands** of images per person to learn i
                            ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                   RESNET-18 BACKBONE                            │
-│          1-ch Grayscale → 512-d Features → 128-d Embedding     │
+│    1-ch Grayscale → 512-d → 256 → ReLU → Dropout → 128-d      │
 │                      (L2 Normalized)                            │
 └──────────┬───────────────────────────────────────┬──────────────┘
            │                                       │
@@ -162,6 +162,7 @@ LAP/
 ├── evaluate.py                    # 📊 Evaluation entry point
 ├── colab_train.py                 # ☁️ All-in-one Colab training script
 ├── download_datasets.py           # 📥 Automated dataset downloader
+├── utils.py                       # 🔧 Device detection (DirectML/CUDA/CPU)
 ├── requirements.txt               # 📦 Python dependencies
 └── PROJECT_DOCUMENTATION.md       # 📖 Full engineering documentation
 ```
