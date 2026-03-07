@@ -79,7 +79,11 @@ def load_model(config, checkpoint_path, device):
 def evaluate_siamese(model, dataset, test_data, device, k_shot=5,
                      num_pairs=500):
     """
-    Evaluate Siamese network by generating genuine/impostor pairs.
+    Evaluate Siamese network with k-shot enrollment per subject.
+    
+    For each subject, uses k genuine samples as support.
+    Compares remaining genuine and forgery queries against each
+    support sample and averages the similarity scores.
     
     Returns genuine and impostor similarity scores.
     """
@@ -87,36 +91,90 @@ def evaluate_siamese(model, dataset, test_data, device, k_shot=5,
     impostor_scores = []
     subjects = list(test_data.keys())
 
-    sampler = PairSampler(test_data, batch_size=num_pairs, neg_ratio=0.5)
-    batch = sampler.sample_batch()
+    for subj in tqdm(subjects, desc=f"Evaluating Siamese (k={k_shot})"):
+        genuine = test_data[subj]['genuine']
+        forgery = test_data[subj].get('forgery', [])
 
-    with torch.no_grad():
-        for path1, path2, label in tqdm(batch, desc="Evaluating Siamese"):
-            img1 = torch.FloatTensor(dataset.load_image(path1)).unsqueeze(0)
-            img2 = torch.FloatTensor(dataset.load_image(path2)).unsqueeze(0)
-            img1, img2 = img1.to(device), img2.to(device)
+        if len(genuine) < k_shot + 1:
+            continue
 
-            output = model(img1, img2)
-            score = output['similarity'].item()
+        # Support: k genuine enrollment samples
+        support_paths = genuine[:k_shot]
 
-            if label == 1:
-                genuine_scores.append(score)
-            else:
-                impostor_scores.append(score)
+        with torch.no_grad():
+            # Preload support images
+            support_imgs = []
+            for sp in support_paths:
+                img = torch.FloatTensor(dataset.load_image(sp)).unsqueeze(0)
+                support_imgs.append(img)
+
+            # Test remaining genuine
+            for query_path in genuine[k_shot:]:
+                query = torch.FloatTensor(
+                    dataset.load_image(query_path)
+                ).unsqueeze(0).to(device)
+                scores = []
+                for simg in support_imgs:
+                    output = model(simg.to(device), query)
+                    scores.append(output['similarity'].item())
+                genuine_scores.append(np.mean(scores))
+
+            # Test forgery samples
+            for query_path in forgery:
+                query = torch.FloatTensor(
+                    dataset.load_image(query_path)
+                ).unsqueeze(0).to(device)
+                scores = []
+                for simg in support_imgs:
+                    output = model(simg.to(device), query)
+                    scores.append(output['similarity'].item())
+                impostor_scores.append(np.mean(scores))
+
+            # Cross-subject negatives if no forgeries
+            if len(forgery) == 0:
+                other_subjects = [s for s in subjects if s != subj]
+                for other_subj in np.random.choice(
+                    other_subjects, min(5, len(other_subjects)), replace=False
+                ):
+                    other_genuine = test_data[other_subj]['genuine']
+                    if other_genuine:
+                        p = np.random.choice(other_genuine)
+                        query = torch.FloatTensor(
+                            dataset.load_image(p)
+                        ).unsqueeze(0).to(device)
+                        scores = []
+                        for simg in support_imgs:
+                            output = model(simg.to(device), query)
+                            scores.append(output['similarity'].item())
+                        impostor_scores.append(np.mean(scores))
 
     return genuine_scores, impostor_scores
+
+
+def _proto_score(query_emb, prototype, distance_type):
+    """Compute similarity score for Prototypical evaluation."""
+    if distance_type == 'cosine':
+        # Cosine similarity (embeddings already L2-normalized)
+        sim = torch.mm(query_emb, prototype.t()).squeeze().item()
+        return (sim + 1.0) / 2.0  # map [-1, 1] → [0, 1]
+    else:
+        # Euclidean: closer = higher score
+        dist = torch.sqrt(((query_emb - prototype) ** 2).sum(dim=1) + 1e-8)
+        return 1.0 / (1.0 + dist.item())
 
 
 def evaluate_prototypical(model, dataset, test_data, device, k_shot=5,
                           num_episodes=100):
     """
     Evaluate Prototypical network with k-shot verification episodes.
+    Respects model.distance_type (cosine vs euclidean).
     """
     genuine_scores = []
     impostor_scores = []
     subjects = list(test_data.keys())
+    distance_type = getattr(model, 'distance_type', 'euclidean')
 
-    for subj in tqdm(subjects, desc="Evaluating Prototypical"):
+    for subj in tqdm(subjects, desc=f"Evaluating Prototypical (k={k_shot})"):
         genuine = test_data[subj]['genuine']
         forgery = test_data[subj].get('forgery', [])
 
@@ -138,17 +196,14 @@ def evaluate_prototypical(model, dataset, test_data, device, k_shot=5,
             for p in genuine[k_shot:]:
                 img = torch.FloatTensor(dataset.load_image(p)).unsqueeze(0).to(device)
                 query_emb = model.encoder(img)
-                dist = torch.sqrt(((query_emb - prototype) ** 2).sum(dim=1) + 1e-8)
-                # Convert distance to similarity (closer = higher score)
-                score = 1.0 / (1.0 + dist.item())
+                score = _proto_score(query_emb, prototype, distance_type)
                 genuine_scores.append(score)
 
             # Test forgery samples
             for p in forgery:
                 img = torch.FloatTensor(dataset.load_image(p)).unsqueeze(0).to(device)
                 query_emb = model.encoder(img)
-                dist = torch.sqrt(((query_emb - prototype) ** 2).sum(dim=1) + 1e-8)
-                score = 1.0 / (1.0 + dist.item())
+                score = _proto_score(query_emb, prototype, distance_type)
                 impostor_scores.append(score)
 
             # Cross-subject negatives (if not enough forgeries)
@@ -162,10 +217,7 @@ def evaluate_prototypical(model, dataset, test_data, device, k_shot=5,
                         p = np.random.choice(other_genuine)
                         img = torch.FloatTensor(dataset.load_image(p)).unsqueeze(0).to(device)
                         query_emb = model.encoder(img)
-                        dist = torch.sqrt(
-                            ((query_emb - prototype) ** 2).sum(dim=1) + 1e-8
-                        )
-                        score = 1.0 / (1.0 + dist.item())
+                        score = _proto_score(query_emb, prototype, distance_type)
                         impostor_scores.append(score)
 
     return genuine_scores, impostor_scores

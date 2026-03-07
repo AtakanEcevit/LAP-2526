@@ -6,7 +6,7 @@ model:
   embedding_dim: 128
   pretrained: true
   in_channels: 1
-  distance: euclidean
+  distance: cosine          # 'cosine' (recommended with L2-norm) or 'euclidean'
 
 dataset:
   modality: face
@@ -14,7 +14,7 @@ dataset:
   root_dir: data/raw/faces/att_faces
 
 training:
-  epochs: 50
+  epochs: 10
   n_way: 5
   k_shot: 5
   q_query: 5

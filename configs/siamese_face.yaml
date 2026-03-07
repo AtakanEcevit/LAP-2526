@@ -13,12 +13,12 @@ dataset:
   root_dir: data/raw/faces/att_faces
 
 training:
-  epochs: 50
+  epochs: 10
   batch_size: 32
   lr: 0.0001
   weight_decay: 0.00001
-  loss: contrastive
-  margin: 1.0
+  loss: bce                 # 'bce' (recommended) or 'contrastive'
+  margin: 2.0               # only used if loss=contrastive
   scheduler: step
   lr_step: 20
   lr_gamma: 0.5

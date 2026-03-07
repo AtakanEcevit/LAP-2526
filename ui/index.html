@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description"
+        content="Biometric Few-Shot Verification System — Verify identities using signatures, faces, and fingerprints with AI-powered few-shot learning.">
+    <title>Biometric Verification System</title>
+    <link rel="stylesheet" href="/css/style.css">
+</head>
+
+<body>
+
+    <div class="app-container">
+
+        <!-- ── Header ──────────────────────────────────────────────── -->
+        <header class="app-header">
+            <h1>Biometric Verification</h1>
+            <p class="subtitle">Few-Shot Learning &bull; Signature &bull; Face &bull; Fingerprint</p>
+            <div class="status-badge" id="status-badge">
+                <span class="status-dot"></span>
+                <span id="status-text">Connecting...</span>
+            </div>
+        </header>
+
+        <!-- ── Tab Navigation ──────────────────────────────────────── -->
+        <nav class="tab-nav" role="tablist">
+            <button class="tab-btn active" data-tab="verify" role="tab" aria-selected="true">
+                <span class="tab-icon">&#128274;</span>
+                <span class="tab-text">Verify</span>
+            </button>
+            <button class="tab-btn" data-tab="compare" role="tab" aria-selected="false">
+                <span class="tab-icon">&#8596;</span>
+                <span class="tab-text">Compare</span>
+            </button>
+            <button class="tab-btn" data-tab="enroll" role="tab" aria-selected="false">
+                <span class="tab-icon">&#128100;</span>
+                <span class="tab-text">Enroll</span>
+            </button>
+        </nav>
+
+        <!-- ══════════════════════════════════════════════════════════
+         TAB 1: Verification
+         ══════════════════════════════════════════════════════════ -->
+        <section class="tab-content active" id="tab-verify">
+            <div class="glass-card">
+                <div class="card-title"><span class="icon">&#128274;</span> Identity Verification</div>
+
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2">
+                        <label for="verify-user">Enrolled User</label>
+                        <select id="verify-user">
+                            <option value="" disabled selected>Loading users...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="verify-user-info" style="margin-bottom: 16px; font-size: 0.8125rem; color: var(--text-muted);">
+                </div>
+
+                <div class="drop-zone" id="verify-drop">
+                    <input type="file" accept="image/*" id="verify-file">
+                    <span class="dz-icon">&#128247;</span>
+                    <span class="dz-text">Drop query image here or click to browse</span>
+                </div>
+
+                <div style="margin-top: 16px; text-align: center;">
+                    <button class="btn btn-primary btn-block" id="verify-btn" disabled>
+                        <span class="spinner" style="display:none" id="verify-spinner"></span>
+                        Verify Identity
+                    </button>
+                </div>
+            </div>
+
+            <div class="result-panel glass-card" id="verify-result">
+                <div class="result-verdict">
+                    <div class="verdict-icon" id="verify-verdict-icon"></div>
+                    <div class="verdict-label" id="verify-verdict-label"></div>
+                </div>
+                <div class="score-bar-container">
+                    <div class="score-bar-label">
+                        <span>0.0</span>
+                        <span id="verify-score-label">Score</span>
+                        <span>1.0</span>
+                    </div>
+                    <div class="score-bar-track">
+                        <div class="score-bar-fill" id="verify-score-fill"></div>
+                        <div class="threshold-marker" id="verify-threshold-marker"></div>
+                    </div>
+                </div>
+                <div class="score-stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="verify-stat-score">-</div>
+                        <div class="stat-label">Score</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="verify-stat-threshold">-</div>
+                        <div class="stat-label">Threshold</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="verify-stat-user">-</div>
+                        <div class="stat-label">User</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ══════════════════════════════════════════════════════════
+         TAB 2: Direct Comparison
+         ══════════════════════════════════════════════════════════ -->
+        <section class="tab-content" id="tab-compare">
+            <div class="glass-card">
+                <div class="card-title"><span class="icon">&#8596;</span> Direct Comparison</div>
+
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="compare-modality">Modality</label>
+                        <select id="compare-modality">
+                            <option value="signature">Signature</option>
+                            <option value="face">Face</option>
+                            <option value="fingerprint">Fingerprint</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="compare-model">Model</label>
+                        <select id="compare-model">
+                            <option value="siamese">Siamese</option>
+                            <option value="prototypical">Prototypical</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="compare-grid">
+                    <div class="drop-zone" id="compare-drop1">
+                        <input type="file" accept="image/*" id="compare-file1">
+                        <span class="dz-icon">&#128444;</span>
+                        <span class="dz-text">Image 1</span>
+                    </div>
+                    <div class="drop-zone" id="compare-drop2">
+                        <input type="file" accept="image/*" id="compare-file2">
+                        <span class="dz-icon">&#128444;</span>
+                        <span class="dz-text">Image 2</span>
+                    </div>
+                </div>
+
+                <div style="margin-top: 16px; text-align: center;">
+                    <button class="btn btn-primary btn-block" id="compare-btn" disabled>
+                        <span class="spinner" style="display:none" id="compare-spinner"></span>
+                        Compare Images
+                    </button>
+                </div>
+            </div>
+
+            <div class="result-panel glass-card" id="compare-result">
+                <div class="result-verdict">
+                    <div class="verdict-icon" id="compare-verdict-icon"></div>
+                    <div class="verdict-label" id="compare-verdict-label"></div>
+                </div>
+                <div class="score-bar-container">
+                    <div class="score-bar-label">
+                        <span>0.0</span>
+                        <span id="compare-score-label">Score</span>
+                        <span>1.0</span>
+                    </div>
+                    <div class="score-bar-track">
+                        <div class="score-bar-fill" id="compare-score-fill"></div>
+                        <div class="threshold-marker" id="compare-threshold-marker"></div>
+                    </div>
+                </div>
+                <div class="score-stats">
+                    <div class="stat-item">
+                        <div class="stat-value" id="compare-stat-score">-</div>
+                        <div class="stat-label">Score</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="compare-stat-threshold">-</div>
+                        <div class="stat-label">Threshold</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-value" id="compare-stat-verdict">-</div>
+                        <div class="stat-label">Verdict</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ══════════════════════════════════════════════════════════
+         TAB 3: Enrollment Manager
+         ══════════════════════════════════════════════════════════ -->
+        <section class="tab-content" id="tab-enroll">
+            <!-- New Enrollment -->
+            <div class="glass-card">
+                <div class="card-title"><span class="icon">&#10133;</span> New Enrollment</div>
+
+                <div class="form-row">
+                    <div class="form-group" style="flex: 2">
+                        <label for="enroll-user-id">User ID</label>
+                        <input type="text" id="enroll-user-id" placeholder="e.g., john_doe">
+                    </div>
+                    <div class="form-group">
+                        <label for="enroll-modality">Modality</label>
+                        <select id="enroll-modality">
+                            <option value="signature">Signature</option>
+                            <option value="face">Face</option>
+                            <option value="fingerprint">Fingerprint</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="enroll-model">Model</label>
+                        <select id="enroll-model">
+                            <option value="siamese">Siamese</option>
+                            <option value="prototypical">Prototypical</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="drop-zone" id="enroll-drop">
+                    <input type="file" accept="image/*" id="enroll-files" multiple>
+                    <span class="dz-icon">&#128194;</span>
+                    <span class="dz-text">Drop reference image(s) here or click to browse</span>
+                </div>
+
+                <div style="margin-top: 16px; text-align: center;">
+                    <button class="btn btn-primary btn-block" id="enroll-btn" disabled>
+                        <span class="spinner" style="display:none" id="enroll-spinner"></span>
+                        Enroll User
+                    </button>
+                </div>
+            </div>
+
+            <!-- User List -->
+            <div class="glass-card">
+                <div class="card-title"><span class="icon">&#128101;</span> Enrolled Users</div>
+                <div id="user-list-container">
+                    <div class="empty-state">
+                        <div class="empty-icon">&#128100;</div>
+                        <div>No users enrolled yet</div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </div>
+
+    <!-- Toast Container -->
+    <div class="toast-container" id="toast-container"></div>
+
+    <script src="/js/api.js"></script>
+    <script src="/js/app.js"></script>
+
+</body>
+
+</html>

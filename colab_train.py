@@ -577,6 +577,12 @@ class PrototypicalLoss(nn.Module):
             accuracy = (preds == query_labels).float().mean().item()
         return loss, accuracy
 
+
+class BinaryCrossEntropyLoss(nn.Module):
+    def forward(self, similarity, label):
+        label = label.float()
+        return F.binary_cross_entropy(similarity.squeeze(), label)
+
 # ═══════════════════════════════════════════════════════════════════════════
 # TRAINING ENGINE
 # ═══════════════════════════════════════════════════════════════════════════
@@ -615,61 +621,108 @@ class Trainer:
                                        cfg.get('distance', 'euclidean'))
 
     def _build_criterion(self):
+        loss_type = self.config['training'].get('loss', 'bce')
         if self.config['model']['type'] == 'siamese':
-            return ContrastiveLoss(margin=self.config['training'].get('margin', 1.0))
+            if loss_type == 'contrastive':
+                return ContrastiveLoss(margin=self.config['training'].get('margin', 2.0))
+            else:
+                return BinaryCrossEntropyLoss()
         return PrototypicalLoss()
+
+    def _run_siamese_batch(self, batch, dataset, training=True):
+        images1, images2, labels = [], [], []
+        for path1, path2, label in batch:
+            images1.append(dataset.load_image(path1))
+            images2.append(dataset.load_image(path2))
+            labels.append(label)
+        images1 = torch.FloatTensor(np.stack(images1)).to(self.device)
+        images2 = torch.FloatTensor(np.stack(images2)).to(self.device)
+        labels = torch.FloatTensor(labels).to(self.device)
+        if training:
+            self.optimizer.zero_grad()
+        output = self.model(images1, images2)
+        if isinstance(self.criterion, ContrastiveLoss):
+            loss = self.criterion(output['distance'], labels)
+        else:
+            loss = self.criterion(output['similarity'], labels)
+        if training:
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+            self.optimizer.step()
+        with torch.no_grad():
+            if isinstance(self.criterion, ContrastiveLoss):
+                preds = (output['distance'] < self.criterion.margin / 2).float()
+            else:
+                preds = (output['similarity'] > 0.5).float()
+            correct = (preds == labels).sum().item()
+        return loss.item(), correct, len(labels)
 
     def train_siamese_epoch(self, sampler, dataset, num_iterations=100):
         self.model.train()
         total_loss, total_correct, total_pairs = 0, 0, 0
         for i in range(num_iterations):
             batch = sampler.sample_batch()
-            images1, images2, labels = [], [], []
-            for path1, path2, label in batch:
-                images1.append(dataset.load_image(path1))
-                images2.append(dataset.load_image(path2))
-                labels.append(label)
-            images1 = torch.FloatTensor(np.stack(images1)).to(self.device)
-            images2 = torch.FloatTensor(np.stack(images2)).to(self.device)
-            labels = torch.FloatTensor(labels).to(self.device)
+            loss, correct, count = self._run_siamese_batch(batch, dataset, training=True)
+            total_loss += loss
+            total_correct += correct
+            total_pairs += count
+        return total_loss / num_iterations, total_correct / total_pairs if total_pairs > 0 else 0
+
+    def validate_siamese_epoch(self, sampler, dataset, num_iterations=20):
+        self.model.eval()
+        total_loss, total_correct, total_pairs = 0, 0, 0
+        with torch.no_grad():
+            for i in range(num_iterations):
+                batch = sampler.sample_batch()
+                loss, correct, count = self._run_siamese_batch(batch, dataset, training=False)
+                total_loss += loss
+                total_correct += correct
+                total_pairs += count
+        return total_loss / num_iterations, total_correct / total_pairs if total_pairs > 0 else 0
+
+    def _run_prototypical_batch(self, episode, dataset, training=True):
+        support_paths, query_paths = episode
+        support_images, support_labels = [], []
+        for path, ci in support_paths:
+            support_images.append(dataset.load_image(path))
+            support_labels.append(ci)
+        query_images, query_labels = [], []
+        for path, ci in query_paths:
+            query_images.append(dataset.load_image(path))
+            query_labels.append(ci)
+        support_images = torch.FloatTensor(np.stack(support_images)).to(self.device)
+        support_labels = torch.LongTensor(support_labels).to(self.device)
+        query_images = torch.FloatTensor(np.stack(query_images)).to(self.device)
+        query_labels = torch.LongTensor(query_labels).to(self.device)
+        if training:
             self.optimizer.zero_grad()
-            output = self.model(images1, images2)
-            loss = self.criterion(output['distance'], labels)
+        output = self.model(support_images, support_labels, query_images)
+        loss, acc = self.criterion(output['logits'], query_labels)
+        if training:
             loss.backward()
             torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
             self.optimizer.step()
-            total_loss += loss.item()
-            with torch.no_grad():
-                preds = (output['similarity'] > 0.5).float()
-                total_correct += (preds == labels).sum().item()
-                total_pairs += len(labels)
-        return total_loss / num_iterations, total_correct / total_pairs if total_pairs > 0 else 0
+        return loss.item(), acc
 
     def train_prototypical_epoch(self, sampler, dataset, num_episodes=100):
         self.model.train()
         total_loss, total_accuracy = 0, 0
         for i in range(num_episodes):
-            support_paths, query_paths = sampler.sample_episode()
-            support_images, support_labels = [], []
-            for path, ci in support_paths:
-                support_images.append(dataset.load_image(path))
-                support_labels.append(ci)
-            query_images, query_labels = [], []
-            for path, ci in query_paths:
-                query_images.append(dataset.load_image(path))
-                query_labels.append(ci)
-            support_images = torch.FloatTensor(np.stack(support_images)).to(self.device)
-            support_labels = torch.LongTensor(support_labels).to(self.device)
-            query_images = torch.FloatTensor(np.stack(query_images)).to(self.device)
-            query_labels = torch.LongTensor(query_labels).to(self.device)
-            self.optimizer.zero_grad()
-            output = self.model(support_images, support_labels, query_images)
-            loss, acc = self.criterion(output['logits'], query_labels)
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
-            self.optimizer.step()
-            total_loss += loss.item()
+            episode = sampler.sample_episode()
+            loss, acc = self._run_prototypical_batch(episode, dataset, training=True)
+            total_loss += loss
             total_accuracy += acc
+        return total_loss / num_episodes, total_accuracy / num_episodes
+
+    def validate_prototypical_epoch(self, sampler, dataset, num_episodes=20):
+        self.model.eval()
+        total_loss, total_accuracy = 0, 0
+        with torch.no_grad():
+            for i in range(num_episodes):
+                episode = sampler.sample_episode()
+                loss, acc = self._run_prototypical_batch(episode, dataset, training=False)
+                total_loss += loss
+                total_accuracy += acc
         return total_loss / num_episodes, total_accuracy / num_episodes
 
     def save_checkpoint(self, is_best=False):
@@ -688,53 +741,76 @@ class Trainer:
 
     def train(self, dataset):
         model_type = self.config['model']['type']
-        epochs = self.config['training'].get('epochs', 50)
+        epochs = self.config['training'].get('epochs', 100)
         patience = self.config['training'].get('patience', 15)
         iterations = self.config['training'].get('iterations_per_epoch', 100)
+        val_iterations = max(iterations // 5, 10)
+
         train_data, val_data, _ = dataset.split_subjects()
 
         if model_type == 'siamese':
             batch_size = self.config['training'].get('batch_size', 32)
-            sampler = PairSampler(train_data, batch_size=batch_size)
+            train_sampler = PairSampler(train_data, batch_size=batch_size)
+            val_sampler = PairSampler(val_data, batch_size=batch_size)
         else:
             n_way = self.config['training'].get('n_way', 5)
             k_shot = self.config['training'].get('k_shot', 5)
             q_query = self.config['training'].get('q_query', 5)
-            sampler = EpisodeSampler(train_data, n_way=n_way, k_shot=k_shot, q_query=q_query)
+            train_sampler = EpisodeSampler(train_data, n_way=n_way, k_shot=k_shot, q_query=q_query)
+            val_sampler = EpisodeSampler(val_data, n_way=n_way, k_shot=k_shot, q_query=q_query)
+
+        self.best_val_loss = float('inf')
 
         print(f"\n{'='*60}")
         print(f"  Training {model_type.upper()} Network")
         print(f"  Epochs: {epochs} | Patience: {patience} | Device: {self.device}")
+        print(f"  Train subjects: {len(train_data)} | Val subjects: {len(val_data)}")
         print(f"{'='*60}\n")
 
         for epoch in range(1, epochs + 1):
             self.epoch = epoch
             start_time = time.time()
+
+            # Training pass
             if model_type == 'siamese':
-                loss, acc = self.train_siamese_epoch(sampler, dataset, num_iterations=iterations)
+                train_loss, train_acc = self.train_siamese_epoch(
+                    train_sampler, dataset, num_iterations=iterations)
             else:
-                loss, acc = self.train_prototypical_epoch(sampler, dataset, num_episodes=iterations)
+                train_loss, train_acc = self.train_prototypical_epoch(
+                    train_sampler, dataset, num_episodes=iterations)
+
+            # Validation pass
+            if model_type == 'siamese':
+                val_loss, val_acc = self.validate_siamese_epoch(
+                    val_sampler, dataset, num_iterations=val_iterations)
+            else:
+                val_loss, val_acc = self.validate_prototypical_epoch(
+                    val_sampler, dataset, num_episodes=val_iterations)
+
             elapsed = time.time() - start_time
             self.scheduler.step()
 
-            is_best = loss < self.best_loss
+            is_best = val_loss < self.best_val_loss
             if is_best:
-                self.best_loss = loss
+                self.best_val_loss = val_loss
                 self.patience_counter = 0
             else:
                 self.patience_counter += 1
 
-            self.save_checkpoint(is_best=is_best)
+            if is_best:
+                self.save_checkpoint(is_best=True)
             lr = self.optimizer.param_groups[0]['lr']
-            print(f"Epoch {epoch:3d}/{epochs} | Loss: {loss:.4f} | Acc: {acc:.4f} | "
+            print(f"Epoch {epoch:3d}/{epochs} | "
+                  f"Train: {train_loss:.4f}/{train_acc:.4f} | "
+                  f"Val: {val_loss:.4f}/{val_acc:.4f} | "
                   f"LR: {lr:.6f} | {'[BEST]' if is_best else ''} | {elapsed:.1f}s")
 
             if self.patience_counter >= patience:
-                print(f"\n[Early Stopping] No improvement for {patience} epochs.")
+                print(f"\n[Early Stopping] No val improvement for {patience} epochs.")
                 break
 
         print(f"\n{'='*60}")
-        print(f"  Training complete. Best loss: {self.best_loss:.4f}")
+        print(f"  Training complete. Best val loss: {self.best_val_loss:.4f}")
         print(f"{'='*60}")
 
 # ═══════════════════════════════════════════════════════════════════════════
@@ -748,8 +824,8 @@ CONFIGS = [
                   'pretrained': True, 'in_channels': 1},
         'dataset': {'modality': 'signature', 'name': 'cedar',
                     'root_dir': 'data/raw/signatures/CEDAR'},
-        'training': {'epochs': 19, 'batch_size': 32, 'lr': 0.0001, 'weight_decay': 1e-5,
-                     'loss': 'contrastive', 'margin': 1.0, 'scheduler': 'step',
+        'training': {'epochs': 10, 'batch_size': 32, 'lr': 0.0001, 'weight_decay': 1e-5,
+                     'loss': 'bce', 'margin': 2.0, 'scheduler': 'step',
                      'lr_step': 20, 'lr_gamma': 0.5, 'patience': 15,
                      'iterations_per_epoch': 100},
         'results_dir': 'results/siamese_signature_cedar',
@@ -757,11 +833,11 @@ CONFIGS = [
     {
         'name': 'proto_signature_cedar',
         'model': {'type': 'prototypical', 'backbone': 'resnet', 'embedding_dim': 128,
-                  'pretrained': True, 'in_channels': 1, 'distance': 'euclidean'},
+                  'pretrained': True, 'in_channels': 1, 'distance': 'cosine'},
         'dataset': {'modality': 'signature', 'name': 'cedar',
                     'root_dir': 'data/raw/signatures/CEDAR'},
-        'training': {'epochs': 19, 'n_way': 5, 'k_shot': 5, 'q_query': 5,
-                     'lr': 0.001, 'weight_decay': 1e-5, 'scheduler': 'step',
+        'training': {'epochs': 10, 'n_way': 5, 'k_shot': 5, 'q_query': 5,
+                     'lr': 0.0001, 'weight_decay': 1e-5, 'scheduler': 'step',
                      'lr_step': 20, 'lr_gamma': 0.5, 'patience': 15,
                      'iterations_per_epoch': 100},
         'results_dir': 'results/proto_signature_cedar',
@@ -772,8 +848,8 @@ CONFIGS = [
                   'pretrained': True, 'in_channels': 1},
         'dataset': {'modality': 'face', 'name': 'att',
                     'root_dir': 'data/raw/faces/att_faces'},
-        'training': {'epochs': 19, 'batch_size': 32, 'lr': 0.0001, 'weight_decay': 1e-5,
-                     'loss': 'contrastive', 'margin': 1.0, 'scheduler': 'step',
+        'training': {'epochs': 10, 'batch_size': 32, 'lr': 0.0001, 'weight_decay': 1e-5,
+                     'loss': 'bce', 'margin': 2.0, 'scheduler': 'step',
                      'lr_step': 20, 'lr_gamma': 0.5, 'patience': 15,
                      'iterations_per_epoch': 100},
         'results_dir': 'results/siamese_face_att',
@@ -781,11 +857,11 @@ CONFIGS = [
     {
         'name': 'proto_face_att',
         'model': {'type': 'prototypical', 'backbone': 'resnet', 'embedding_dim': 128,
-                  'pretrained': True, 'in_channels': 1, 'distance': 'euclidean'},
+                  'pretrained': True, 'in_channels': 1, 'distance': 'cosine'},
         'dataset': {'modality': 'face', 'name': 'att',
                     'root_dir': 'data/raw/faces/att_faces'},
-        'training': {'epochs': 50, 'n_way': 5, 'k_shot': 3, 'q_query': 2,
-                     'lr': 0.001, 'weight_decay': 1e-5, 'scheduler': 'step',
+        'training': {'epochs': 10, 'n_way': 5, 'k_shot': 5, 'q_query': 5,
+                     'lr': 0.0001, 'weight_decay': 1e-5, 'scheduler': 'step',
                      'lr_step': 20, 'lr_gamma': 0.5, 'patience': 15,
                      'iterations_per_epoch': 100},
         'results_dir': 'results/proto_face_att',
@@ -796,8 +872,8 @@ CONFIGS = [
                   'pretrained': True, 'in_channels': 1},
         'dataset': {'modality': 'fingerprint', 'name': 'socofing',
                     'root_dir': 'data/raw/fingerprints/SOCOFing'},
-        'training': {'epochs': 50, 'batch_size': 32, 'lr': 0.0001, 'weight_decay': 1e-5,
-                     'loss': 'contrastive', 'margin': 1.0, 'scheduler': 'step',
+        'training': {'epochs': 10, 'batch_size': 32, 'lr': 0.0001, 'weight_decay': 1e-5,
+                     'loss': 'bce', 'margin': 2.0, 'scheduler': 'step',
                      'lr_step': 20, 'lr_gamma': 0.5, 'patience': 15,
                      'iterations_per_epoch': 100},
         'results_dir': 'results/siamese_fingerprint_socofing',
@@ -805,11 +881,11 @@ CONFIGS = [
     {
         'name': 'proto_fingerprint_socofing',
         'model': {'type': 'prototypical', 'backbone': 'resnet', 'embedding_dim': 128,
-                  'pretrained': True, 'in_channels': 1, 'distance': 'euclidean'},
+                  'pretrained': True, 'in_channels': 1, 'distance': 'cosine'},
         'dataset': {'modality': 'fingerprint', 'name': 'socofing',
                     'root_dir': 'data/raw/fingerprints/SOCOFing'},
-        'training': {'epochs': 50, 'n_way': 5, 'k_shot': 5, 'q_query': 5,
-                     'lr': 0.001, 'weight_decay': 1e-5, 'scheduler': 'step',
+        'training': {'epochs': 10, 'n_way': 5, 'k_shot': 5, 'q_query': 5,
+                     'lr': 0.0001, 'weight_decay': 1e-5, 'scheduler': 'step',
                      'lr_step': 20, 'lr_gamma': 0.5, 'patience': 15,
                      'iterations_per_epoch': 100},
         'results_dir': 'results/proto_fingerprint_socofing',
@@ -894,9 +970,15 @@ def run_all_training():
         else:
             print(f"  [FAIL] {name:40s} | {status}")
 
-    # Zip results for download
-    print("\nZipping results for download...")
-    shutil.make_archive('results_trained', 'zip', '.', 'results')
+    # Zip only best checkpoints (skip per-epoch checkpoints to avoid multi-GB zip)
+    print("\nZipping best checkpoints for download...")
+    import zipfile
+    with zipfile.ZipFile('results_trained.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
+        for config in CONFIGS:
+            results_dir = config.get('results_dir', 'results')
+            best_path = os.path.join(results_dir, 'checkpoints', 'best.pth')
+            if os.path.exists(best_path):
+                zf.write(best_path)
     print("Results saved to results_trained.zip")
     print("Download it from the Colab file browser (left sidebar) or run:")
     print("  from google.colab import files; files.download('results_trained.zip')")

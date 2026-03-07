@@ -13,14 +13,11 @@ def get_signature_augmentation(training=True):
     """
     if training:
         return A.Compose([
-            A.ShiftScaleRotate(
-                shift_limit=0.05, scale_limit=0.1, rotate_limit=5,
+            A.Affine(
+                shift_limit=0.05, scale=(0.9, 1.1), rotate=(-5, 5),
                 border_mode=0, p=0.5
             ),
-            A.ElasticTransform(
-                alpha=20, sigma=5, p=0.3
-            ),
-            A.GaussNoise(var_limit=(5, 25), p=0.3),
+            A.ElasticTransform(alpha=20, sigma=5, p=0.3),
             A.GaussianBlur(blur_limit=(3, 5), p=0.2),
             A.RandomBrightnessContrast(
                 brightness_limit=0.1, contrast_limit=0.1, p=0.3
@@ -37,14 +34,13 @@ def get_face_augmentation(training=True):
     if training:
         return A.Compose([
             A.HorizontalFlip(p=0.5),
-            A.ShiftScaleRotate(
-                shift_limit=0.05, scale_limit=0.05, rotate_limit=10,
+            A.Affine(
+                shift_limit=0.05, scale=(0.95, 1.05), rotate=(-10, 10),
                 border_mode=0, p=0.5
             ),
             A.RandomBrightnessContrast(
                 brightness_limit=0.2, contrast_limit=0.2, p=0.5
             ),
-            A.GaussNoise(var_limit=(5, 30), p=0.3),
             A.GaussianBlur(blur_limit=(3, 5), p=0.2),
         ])
     return A.Compose([])
@@ -57,14 +53,11 @@ def get_fingerprint_augmentation(training=True):
     """
     if training:
         return A.Compose([
-            A.ShiftScaleRotate(
-                shift_limit=0.03, scale_limit=0.05, rotate_limit=8,
+            A.Affine(
+                shift_limit=0.03, scale=(0.95, 1.05), rotate=(-8, 8),
                 border_mode=0, p=0.4
             ),
-            A.ElasticTransform(
-                alpha=15, sigma=4, p=0.2
-            ),
-            A.GaussNoise(var_limit=(5, 20), p=0.3),
+            A.ElasticTransform(alpha=15, sigma=4, p=0.2),
             A.RandomBrightnessContrast(
                 brightness_limit=0.1, contrast_limit=0.1, p=0.3
             ),

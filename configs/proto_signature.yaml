@@ -6,7 +6,7 @@ model:
   embedding_dim: 128
   pretrained: true
   in_channels: 1
-  distance: euclidean       # 'euclidean' or 'cosine'
+  distance: cosine          # 'cosine' (recommended with L2-norm) or 'euclidean'
 
 dataset:
   modality: signature
@@ -14,7 +14,7 @@ dataset:
   root_dir: data/raw/signatures/CEDAR
 
 training:
-  epochs: 50
+  epochs: 10
   n_way: 5
   k_shot: 5
   q_query: 5

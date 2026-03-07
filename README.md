@@ -11,7 +11,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.0.0-blue?style=for-the-badge)]()
+[![Version](https://img.shields.io/badge/Version-1.1.0-blue?style=for-the-badge)]()
 
 *A production-grade deep metric learning framework that verifies identities using as few as **1–5 samples** across signatures, faces, and fingerprints.*
 
@@ -61,6 +61,10 @@ Traditional biometric systems need **thousands** of images per person to learn i
 - t-SNE embedding visualizations
 - Multi k-shot evaluation (k = 1, 3, 5, 10)
 
+### 🛡️ Input Validation & Cross-Modality Protection
+- Heuristic-based quality checks block corrupt, blank, or tiny images.
+- Soft-warnings indicate modality mismatches (e.g., uploading a face instead of a signature) without strictly blocking edge cases.
+
 </td>
 <td width="50%">
 
@@ -87,6 +91,7 @@ Traditional biometric systems need **thousands** of images per person to learn i
                            ▼
 ┌─────────────────────────────────────────────────────────────────┐
 │                 PREPROCESSING PIPELINE                          │
+│  All        → Quality & Modality Validation (Heuristics)       │
 │  Signatures → Otsu Binarization + Inversion                    │
 │  Faces      → Histogram Equalization                           │
 │  Fingerprints → CLAHE Enhancement                              │
@@ -158,6 +163,17 @@ LAP/
 │   ├── metrics.py                 # EER, FAR, FRR, AUC, d-prime
 │   ├── visualize.py               # ROC, DET, t-SNE, score distributions
 │   └── benchmark.py               # Cross-config benchmark runner
+│
+├── 📂 inference/                  # Production inference API
+│   ├── api.py                     # FastAPI REST server
+│   ├── engine.py                  # Core inference logic & caching
+│   ├── validation.py              # Input validation & cross-modality checks
+│   └── enrollment_store.py        # User ID → prototype memory mapping
+│
+├── 📂 ui/                         # Web Frontend Diagnostics
+│   ├── index.html                 # Drag & drop Web UI
+│   ├── css/style.css              # Glassmorphism dark-theme styling
+│   └── js/app.js                  # API integration logic
 │
 ├── 📂 results/                    # 🚫 Git-ignored (checkpoints + figures)
 ├── 📂 data/raw/                   # 🚫 Git-ignored (dataset images)
@@ -522,6 +538,6 @@ Configs are YAML files in `configs/` controlling: backbone choice, embedding dim
 
 **Built with** ❤️ **using PyTorch**
 
-`v1.0.0`
+`v1.1.0`
 
 </div>
