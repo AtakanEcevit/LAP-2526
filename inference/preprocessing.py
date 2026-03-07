@@ -1,9 +1,8 @@
 """
-Standalone image preprocessor for inference.
+Image preprocessor for inference.
 
-Replicates the exact preprocessing from the training data loaders
-(CEDARDataset, ATTFaceDataset, SOCOFingDataset) without importing
-from the `data/` package, keeping the inference package self-contained.
+Uses the shared preprocessing functions from data.preprocessing
+(single source of truth) to ensure training/inference consistency.
 """
 
 import io
@@ -12,7 +11,8 @@ import cv2
 import torch
 from PIL import Image
 
-from inference.config import IMAGE_SIZES, VALID_MODALITIES
+from data.preprocessing import PREPROCESS_FN, IMAGE_SIZES
+from inference.config import VALID_MODALITIES
 
 
 def preprocess_image(image_input, modality: str) -> torch.Tensor:
@@ -43,13 +43,8 @@ def preprocess_image(image_input, modality: str) -> torch.Tensor:
     # ── Load to grayscale numpy array ────────────────────────────────────
     img = _load_grayscale(image_input)
 
-    # ── Modality-specific processing ─────────────────────────────────────
-    if modality == "signature":
-        img = _preprocess_signature(img)
-    elif modality == "face":
-        img = _preprocess_face(img)
-    elif modality == "fingerprint":
-        img = _preprocess_fingerprint(img)
+    # ── Modality-specific processing (shared with training loaders) ──────
+    img = PREPROCESS_FN[modality](img)
 
     # ── Resize to model's expected input size ────────────────────────────
     h, w = IMAGE_SIZES[modality]
@@ -89,35 +84,3 @@ def _load_grayscale(image_input) -> np.ndarray:
     # Convert to grayscale
     pil_img = pil_img.convert("L")
     return np.array(pil_img, dtype=np.uint8)
-
-
-def _preprocess_signature(img: np.ndarray) -> np.ndarray:
-    """
-    Signature preprocessing (matches CEDARDataset._preprocess):
-    Grayscale → Otsu binarization → conditional inversion.
-    """
-    # Otsu binarization
-    _, img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-    # Invert if background is dark (want: white background, dark ink)
-    if np.mean(img) < 127:
-        img = 255 - img
-
-    return img
-
-
-def _preprocess_face(img: np.ndarray) -> np.ndarray:
-    """
-    Face preprocessing (matches ATTFaceDataset._preprocess):
-    Grayscale → histogram equalization.
-    """
-    return cv2.equalizeHist(img)
-
-
-def _preprocess_fingerprint(img: np.ndarray) -> np.ndarray:
-    """
-    Fingerprint preprocessing (matches SOCOFingDataset._preprocess):
-    Grayscale → CLAHE (Contrast Limited Adaptive Histogram Equalization).
-    """
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    return clahe.apply(img)

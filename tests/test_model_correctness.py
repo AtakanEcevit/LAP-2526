@@ -177,8 +177,8 @@ class TestSiameseOutput:
 
         assert 'similarity' in output
         assert 'distance' in output
-        assert 'embedding1' in output
-        assert 'embedding2' in output
+        assert 'emb1' in output
+        assert 'emb2' in output
 
     def test_similarity_range(self):
         model = SiameseNetwork(

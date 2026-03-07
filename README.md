@@ -11,7 +11,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.1.0-blue?style=for-the-badge)]()
+[![Version](https://img.shields.io/badge/Version-1.2.0-blue?style=for-the-badge)]()
 
 *A production-grade deep metric learning framework that verifies identities using as few as **1–5 samples** across signatures, faces, and fingerprints.*
 
@@ -73,6 +73,12 @@ Traditional biometric systems need **thousands** of images per person to learn i
 - 🔵 **AMD DirectML** — Windows GPU support
 - ⚪ **CPU** — Automatic fallback
 - ☁️ **Google Colab** — One-click cloud training
+
+### 🔄 Validation-Based Training
+- Train/val/test subject-level splits
+- Best-model selection by validation loss
+- DataLoader-parallel batch iteration
+- Centralized dataset factory & preprocessing
 
 </td>
 </tr>
@@ -142,6 +148,10 @@ LAP/
 │
 ├── 📂 data/                       # Data pipeline
 │   ├── base_loader.py             # Abstract dataset with in-memory caching
+│   ├── dataset_factory.py         # Centralized get_dataset() entry point
+│   ├── preprocessing.py           # Shared preprocessing & IMAGE_SIZES registry
+│   ├── pair_dataset.py            # DataLoader wrapper for Siamese pairs
+│   ├── episode_dataset.py         # DataLoader wrapper for Proto episodes
 │   ├── signature_loader.py        # CEDAR + BHSig260 loaders
 │   ├── face_loader.py             # AT&T/ORL + LFW loaders
 │   ├── fingerprint_loader.py      # SOCOFing loader
@@ -157,7 +167,7 @@ LAP/
 │   └── losses.py                  # Contrastive, Prototypical, Triplet, BCE
 │
 ├── 📂 training/                   # Training engine
-│   └── trainer.py                 # Unified training loop with early stopping
+│   └── trainer.py                 # Unified training loop with validation split
 │
 ├── 📂 evaluation/                 # Evaluation & visualization
 │   ├── metrics.py                 # EER, FAR, FRR, AUC, d-prime
@@ -169,6 +179,14 @@ LAP/
 │   ├── engine.py                  # Core inference logic & caching
 │   ├── validation.py              # Input validation & cross-modality checks
 │   └── enrollment_store.py        # User ID → prototype memory mapping
+│
+├── 📂 tests/                      # Automated test suite
+│   ├── test_data_loading.py       # Dataset & DataLoader integration tests
+│   ├── test_dataloader_training.py# End-to-end training loop tests
+│   ├── test_model_correctness.py  # Model architecture & forward pass tests
+│   ├── test_preprocessing.py      # Preprocessing pipeline tests
+│   ├── test_validation.py         # Input validation tests
+│   └── ...                        # API, engine, enrollment store tests
 │
 ├── 📂 ui/                         # Web Frontend Diagnostics
 │   ├── index.html                 # Drag & drop Web UI
@@ -554,6 +572,6 @@ Configs are YAML files in `configs/` controlling: backbone choice, embedding dim
 
 **Built with** ❤️ **using PyTorch**
 
-`v1.1.0`
+`v1.2.0`
 
 </div>

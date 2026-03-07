@@ -22,13 +22,15 @@ class BiometricDataset(Dataset, ABC):
         - _preprocess(image): apply modality-specific preprocessing
     """
 
-    def __init__(self, root_dir, split="train", transform=None, k_shot=5):
+    def __init__(self, root_dir, split="train", transform=None, k_shot=5,
+                 max_cache_size=5000):
         """
         Args:
             root_dir: Root directory of the dataset
             split: 'train', 'val', or 'test'
             transform: Optional Albumentations transform pipeline
             k_shot: Number of support samples per class (for few-shot)
+            max_cache_size: Maximum number of preprocessed images to cache in RAM
         """
         self.root_dir = root_dir
         self.split = split
@@ -42,7 +44,8 @@ class BiometricDataset(Dataset, ABC):
         self.data = {}
         self.subjects = []
         self.all_samples = []  # List of (path, subject_id, is_genuine)
-        self._image_cache = {} # Cache preprocessed images in RAM
+        self._image_cache = {}  # Cache preprocessed images in RAM
+        self._max_cache_size = max_cache_size
 
         self._load_data()
         self._build_index()
@@ -79,22 +82,30 @@ class BiometricDataset(Dataset, ABC):
             if isinstance(img, Image.Image):
                 img = np.array(img, dtype=np.float32)
 
-            # Normalize to [0, 1]
+            # Always cast to float32 and normalize to [0, 1]
+            img = img.astype(np.float32)
             if img.max() > 1.0:
-                img = img.astype(np.float32) / 255.0
+                img /= 255.0
 
             # Add channel dimension if needed: (H, W) -> (1, H, W)
             if img.ndim == 2:
                 img = np.expand_dims(img, axis=0)
-            
+
+            # Evict oldest entry if cache is full
+            if len(self._image_cache) >= self._max_cache_size:
+                oldest_key = next(iter(self._image_cache))
+                del self._image_cache[oldest_key]
             self._image_cache[path] = img
 
         # Apply transforms on the fly (not cached!)
         if self.transform:
             transformed = self.transform(image=img.transpose(1, 2, 0) if img.ndim == 3 else img)
             img = transformed['image']
-            if img.ndim == 3 and img.shape[-1] == 1:
-                img = img.transpose(2, 0, 1)
+            # Guarantee (C, H, W) output regardless of albumentations behavior
+            if img.ndim == 2:
+                img = np.expand_dims(img, axis=0)   # (H,W) → (1,H,W)
+            elif img.ndim == 3 and img.shape[-1] in (1, 3):
+                img = img.transpose(2, 0, 1)         # (H,W,C) → (C,H,W)
 
         return img
 
@@ -128,8 +139,8 @@ class BiometricDataset(Dataset, ABC):
         n_train = int(n * train_ratio)
         n_val = int(n * val_ratio)
 
-        np.random.seed(42)
-        shuffled = np.random.permutation(self.subjects).tolist()
+        rng = np.random.RandomState(42)
+        shuffled = rng.permutation(self.subjects).tolist()
 
         train_subj = shuffled[:n_train]
         val_subj = shuffled[n_train:n_train + n_val]

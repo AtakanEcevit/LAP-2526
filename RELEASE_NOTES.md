@@ -1,3 +1,40 @@
+# Release Notes: v1.2.0 — "Training Pipeline Overhaul"
+
+This release fundamentally re-architects the training loop, introduces proper validation-based model selection, and consolidates duplicated data logic into single-source-of-truth modules.
+
+## 🔄 Validation-Based Training
+The training loop now performs a proper train/validation split before each run and selects the best checkpoint by **validation loss** instead of training loss.
+
+*   **Subject-Level Splits:** `split_subjects()` partitions identities — not images — into train/val/test buckets, preventing data leakage and ensuring fair evaluation.
+*   **Early Stopping on Val Loss:** Patience-based early stopping now monitors validation loss rather than training loss, producing more generalizable models.
+*   **Per-Epoch Validation Pass:** After each training epoch, a no-gradient validation sweep runs over the val split (with augmentation disabled) to track overfitting in real time.
+
+## ⚡ DataLoader-Parallel Batch Iteration
+Training has been moved from sequential per-pair / per-episode image loading to PyTorch `DataLoader`-based parallel iteration.
+
+*   **`SiamesePairDataset`** (`data/pair_dataset.py`): Wraps pre-sampled pairs so image loading, preprocessing, and augmentation happen in parallel DataLoader workers instead of the main thread.
+*   **`PrototypicalEpisodeDataset`** (`data/episode_dataset.py`): Flattens all episode images into a single DataLoader pass, then reconstructs per-episode support/query boundaries from the flat tensor output.
+*   **Configurable Workers:** `num_workers` and `prefetch_factor` are configurable via YAML; Windows auto-defaults to 0 workers (spawn overhead), Linux/Colab defaults to 2.
+
+## 🏭 Centralized Data Modules
+Duplicated dataset creation, preprocessing, and configuration logic has been consolidated.
+
+*   **`dataset_factory.py`**: Single `get_dataset(config)` function replaces four identical copies that were in `train.py`, `evaluate.py`, `calibrate_thresholds.py`, and `colab_train.py`.
+*   **`data/preprocessing.py`**: Canonical image sizes and modality-specific preprocessing functions (`preprocess_signature`, `preprocess_face`, `preprocess_fingerprint`) shared by both data loaders and the inference pipeline.
+
+## ☁️ Colab Script Refactoring
+*   **840 lines removed** from `colab_train.py` — the script now re-uses the same `Trainer` class and `dataset_factory` as the local pipeline instead of duplicating everything inline.
+
+## 🧪 New Test Coverage
+*   `test_data_loading.py` — dataset construction, DataLoader integration, and sampler correctness
+*   `test_dataloader_training.py` — end-to-end training loop smoke tests for both Siamese and Prototypical paths
+
+## ⚙️ Config Improvements
+*   Prototypical YAML configs now expose `n_way`, `k_shot`, and `q_query` parameters at the training level.
+*   All configs include a consolidated `results_dir` key.
+
+---
+
 # Release Notes: v1.1.0 - "Input Pipeline Hardening"
 
 We are proud to release `v1.1.0` of the **Biometric Few-Shot Verification** framework. This major update upgrades the framework from experimental research scripts into a production-ready deployable system, complete with a REST API, an interactive Web UI, and mission-critical data validation guardrails.

@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 from PIL import Image
 from data.base_loader import BiometricDataset
+from data.preprocessing import preprocess_face, IMAGE_SIZES
 
 
 class ATTFaceDataset(BiometricDataset):
@@ -29,7 +30,7 @@ class ATTFaceDataset(BiometricDataset):
     Ideal for few-shot experiments due to small size.
     """
 
-    IMG_SIZE = (105, 105)  # Resize to square for CNN
+    IMG_SIZE = IMAGE_SIZES["face"]  # Resize to square for CNN
 
     def _load_data(self):
         for subj_dir in sorted(os.listdir(self.root_dir)):
@@ -58,9 +59,7 @@ class ATTFaceDataset(BiometricDataset):
     def _preprocess(self, image):
         """Grayscale → histogram equalization → resize to 105×105."""
         img = np.array(image, dtype=np.uint8)
-
-        # Histogram equalization for lighting normalization
-        img = cv2.equalizeHist(img)
+        img = preprocess_face(img)
 
         # Resize to square
         img = cv2.resize(img, (self.IMG_SIZE[1], self.IMG_SIZE[0]),
@@ -83,7 +82,7 @@ class LFWDataset(BiometricDataset):
     For few-shot: we filter to identities with >= k_shot+2 images.
     """
 
-    IMG_SIZE = (105, 105)
+    IMG_SIZE = IMAGE_SIZES["face"]
 
     def __init__(self, root_dir, min_images=5, **kwargs):
         """
@@ -115,7 +114,7 @@ class LFWDataset(BiometricDataset):
     def _preprocess(self, image):
         """Grayscale → histogram equalization → resize to 105×105."""
         img = np.array(image, dtype=np.uint8)
-        img = cv2.equalizeHist(img)
+        img = preprocess_face(img)
         img = cv2.resize(img, (self.IMG_SIZE[1], self.IMG_SIZE[0]),
                          interpolation=cv2.INTER_AREA)
         return Image.fromarray(img)

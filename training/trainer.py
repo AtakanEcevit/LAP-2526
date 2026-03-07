@@ -4,19 +4,31 @@ Driven by YAML configs.
 """
 
 import os
+import sys
 import time
 import yaml
 import torch
 import torch.optim as optim
 import numpy as np
 from tqdm import tqdm
+from torch.utils.data import DataLoader
 
 from models.siamese import SiameseNetwork
 from models.prototypical import PrototypicalNetwork
 from losses.losses import ContrastiveLoss, PrototypicalLoss, BinaryCrossEntropyLoss
 from data.samplers import PairSampler, EpisodeSampler
+from data.pair_dataset import SiamesePairDataset
+from data.episode_dataset import PrototypicalEpisodeDataset
 from data.augmentations import get_augmentation
 from utils import get_device
+
+
+class _nullcontext:
+    """Minimal no-op context manager (like contextlib.nullcontext)."""
+    def __enter__(self):
+        return self
+    def __exit__(self, *args):
+        pass
 
 
 class Trainer:
@@ -47,9 +59,8 @@ class Trainer:
         self.scheduler = self._build_scheduler()
         self.criterion = self._build_criterion()
 
-        # Training state
         self.epoch = 0
-        self.best_loss = float('inf')
+        self.best_val_loss = float('inf')
         self.patience_counter = 0
 
         # Results directory
@@ -124,20 +135,41 @@ class Trainer:
             return PrototypicalLoss()
         raise ValueError(f"Cannot build criterion for config")
 
-    def _run_siamese_batch(self, batch, dataset, training=True):
-        """Run a single Siamese batch (shared between train and validate)."""
-        images1, images2, labels = [], [], []
-        for path1, path2, label in batch:
-            img1 = dataset.load_image(path1)
-            img2 = dataset.load_image(path2)
-            images1.append(img1)
-            images2.append(img2)
-            labels.append(label)
+    def _get_dataloader_kwargs(self):
+        """Build DataLoader keyword arguments from config.
 
-        images1 = torch.FloatTensor(np.stack(images1)).to(self.device)
-        images2 = torch.FloatTensor(np.stack(images2)).to(self.device)
-        labels = torch.FloatTensor(labels).to(self.device)
+        Returns dict with num_workers, prefetch_factor, and pin_memory.
+        Defaults to num_workers=2 for parallel I/O on Linux/Colab.
+        Windows auto-defaults to 0 unless explicitly overridden.
+        """
+        training_cfg = self.config.get('training', {})
+        num_workers = training_cfg.get('num_workers', 2)
 
+        # Windows uses 'spawn' which is slow — default to 0 unless explicit
+        if sys.platform == 'win32' and 'num_workers' not in training_cfg:
+            num_workers = 0
+
+        kwargs = {
+            'num_workers': num_workers,
+            'pin_memory': training_cfg.get('pin_memory', True) and self.device.type == 'cuda',
+        }
+
+        if num_workers > 0:
+            kwargs['prefetch_factor'] = training_cfg.get('prefetch_factor', 2)
+
+        return kwargs
+
+    # ── Siamese ──────────────────────────────────────────────────────────
+
+    def _run_siamese_batch(self, images1, images2, labels, training=True):
+        """Run a single Siamese forward/backward pass on pre-loaded tensors.
+
+        Args:
+            images1: (B, C, H, W) float tensor, already on device
+            images2: (B, C, H, W) float tensor, already on device
+            labels:  (B,) float tensor, already on device
+            training: if True, run backward + optimizer step
+        """
         if training:
             self.optimizer.zero_grad()
 
@@ -156,79 +188,78 @@ class Trainer:
         # Accuracy: use the SAME signal as the loss
         with torch.no_grad():
             if isinstance(self.criterion, ContrastiveLoss):
-                # Distance-based: below half-margin → same person
                 preds = (output['distance'] < self.criterion.margin / 2).float()
             else:
-                # Similarity-based: above 0.5 → same person
                 preds = (output['similarity'] > 0.5).float()
             correct = (preds == labels).sum().item()
 
         return loss.item(), correct, len(labels)
 
-    def train_siamese_epoch(self, sampler, dataset, num_iterations=100):
-        """Train one epoch for Siamese network."""
-        self.model.train()
+    def _run_siamese_epoch(self, sampler, dataset, num_iterations, training):
+        """Shared Siamese epoch logic for train and validate.
+
+        Pre-samples all pairs, wraps in SiamesePairDataset, and iterates
+        via DataLoader for parallel I/O.
+        """
+        if training:
+            self.model.train()
+        else:
+            self.model.eval()
+
+        all_pairs = sampler.sample_epoch(num_iterations)
+        pair_ds = SiamesePairDataset(all_pairs, dataset)
+        loader = DataLoader(
+            pair_ds,
+            batch_size=sampler.batch_size,
+            shuffle=False,  # already shuffled by sampler
+            drop_last=False,
+            **self._get_dataloader_kwargs(),
+        )
+
         total_loss = 0
         total_correct = 0
         total_pairs = 0
+        num_batches = 0
 
-        for i in range(num_iterations):
-            batch = sampler.sample_batch()
-            loss, correct, count = self._run_siamese_batch(
-                batch, dataset, training=True
-            )
-            total_loss += loss
-            total_correct += correct
-            total_pairs += count
-
-        avg_loss = total_loss / num_iterations
-        accuracy = total_correct / total_pairs if total_pairs > 0 else 0
-        return avg_loss, accuracy
-
-    def validate_siamese_epoch(self, sampler, dataset, num_iterations=20):
-        """Validate one epoch for Siamese network (no gradient updates)."""
-        self.model.eval()
-        total_loss = 0
-        total_correct = 0
-        total_pairs = 0
-
-        with torch.no_grad():
-            for i in range(num_iterations):
-                batch = sampler.sample_batch()
+        ctx = torch.no_grad() if not training else _nullcontext()
+        with ctx:
+            for images1, images2, labels in loader:
+                images1 = images1.to(self.device)
+                images2 = images2.to(self.device)
+                labels = labels.to(self.device)
                 loss, correct, count = self._run_siamese_batch(
-                    batch, dataset, training=False
+                    images1, images2, labels, training=training
                 )
                 total_loss += loss
                 total_correct += correct
                 total_pairs += count
+                num_batches += 1
 
-        avg_loss = total_loss / num_iterations
+        avg_loss = total_loss / num_batches if num_batches > 0 else 0
         accuracy = total_correct / total_pairs if total_pairs > 0 else 0
         return avg_loss, accuracy
 
-    def _run_prototypical_batch(self, episode, dataset, training=True):
-        """Run a single Prototypical episode (shared between train and validate)."""
-        support_paths, query_paths = episode
+    def train_siamese_epoch(self, sampler, dataset, num_iterations=100):
+        """Train one epoch for Siamese network."""
+        return self._run_siamese_epoch(sampler, dataset, num_iterations, training=True)
 
-        support_images = []
-        support_labels = []
-        for path, class_idx in support_paths:
-            img = dataset.load_image(path)
-            support_images.append(img)
-            support_labels.append(class_idx)
+    def validate_siamese_epoch(self, sampler, dataset, num_iterations=20):
+        """Validate one epoch for Siamese network (no gradient updates)."""
+        return self._run_siamese_epoch(sampler, dataset, num_iterations, training=False)
 
-        query_images = []
-        query_labels = []
-        for path, class_idx in query_paths:
-            img = dataset.load_image(path)
-            query_images.append(img)
-            query_labels.append(class_idx)
+    # ── Prototypical ──────────────────────────────────────────────────────
 
-        support_images = torch.FloatTensor(np.stack(support_images)).to(self.device)
-        support_labels = torch.LongTensor(support_labels).to(self.device)
-        query_images = torch.FloatTensor(np.stack(query_images)).to(self.device)
-        query_labels = torch.LongTensor(query_labels).to(self.device)
+    def _run_prototypical_batch(self, support_images, support_labels,
+                                query_images, query_labels, training=True):
+        """Run a single Prototypical episode on pre-loaded tensors.
 
+        Args:
+            support_images: (N_support, C, H, W) on device
+            support_labels: (N_support,) LongTensor on device
+            query_images:   (N_query, C, H, W) on device
+            query_labels:   (N_query,) LongTensor on device
+            training:       if True, run backward + optimizer step
+        """
         if training:
             self.optimizer.zero_grad()
 
@@ -242,42 +273,81 @@ class Trainer:
 
         return loss.item(), acc
 
-    def train_prototypical_epoch(self, sampler, dataset, num_episodes=100):
-        """Train one epoch for Prototypical network."""
-        self.model.train()
+    def _run_prototypical_epoch(self, sampler, dataset, num_episodes, training):
+        """Shared Prototypical epoch logic for train and validate.
+
+        Flattens all episodes into a single DataLoader for efficient
+        parallel loading, then reconstructs per-episode support/query
+        boundaries from the flat output.
+        """
+        if training:
+            self.model.train()
+        else:
+            self.model.eval()
+
+        all_episodes = sampler.sample_epoch(num_episodes)
+
+        # Flatten all episodes into one list for a single DataLoader pass.
+        # Track sizes so we can reconstruct episode boundaries afterward.
+        all_items = []           # flat list of (path, class_idx)
+        episode_support_sizes = []
+        episode_query_sizes = []
+        for support_paths, query_paths in all_episodes:
+            episode_support_sizes.append(len(support_paths))
+            episode_query_sizes.append(len(query_paths))
+            all_items.extend(support_paths)
+            all_items.extend(query_paths)
+
+        # Load all images in one DataLoader pass
+        flat_ds = PrototypicalEpisodeDataset(all_items, dataset)
+        loader = DataLoader(
+            flat_ds,
+            batch_size=len(all_items),  # load everything in one batch
+            shuffle=False,
+            **self._get_dataloader_kwargs(),
+        )
+        all_images, all_labels = next(iter(loader))
+        all_images = all_images.to(self.device)
+        all_labels = all_labels.to(self.device)
+
+        # Reconstruct per-episode support/query sets and run model
         total_loss = 0
         total_accuracy = 0
+        offset = 0
 
-        for i in range(num_episodes):
-            episode = sampler.sample_episode()
-            loss, acc = self._run_prototypical_batch(
-                episode, dataset, training=True
-            )
-            total_loss += loss
-            total_accuracy += acc
+        ctx = torch.no_grad() if not training else _nullcontext()
+        with ctx:
+            for ep_idx in range(num_episodes):
+                s_size = episode_support_sizes[ep_idx]
+                q_size = episode_query_sizes[ep_idx]
 
-        avg_loss = total_loss / num_episodes
-        avg_accuracy = total_accuracy / num_episodes
-        return avg_loss, avg_accuracy
+                support_images = all_images[offset:offset + s_size]
+                support_labels = all_labels[offset:offset + s_size]
+                offset += s_size
 
-    def validate_prototypical_epoch(self, sampler, dataset, num_episodes=20):
-        """Validate one epoch for Prototypical network (no gradient updates)."""
-        self.model.eval()
-        total_loss = 0
-        total_accuracy = 0
+                query_images = all_images[offset:offset + q_size]
+                query_labels = all_labels[offset:offset + q_size]
+                offset += q_size
 
-        with torch.no_grad():
-            for i in range(num_episodes):
-                episode = sampler.sample_episode()
                 loss, acc = self._run_prototypical_batch(
-                    episode, dataset, training=False
+                    support_images, support_labels,
+                    query_images, query_labels,
+                    training=training,
                 )
                 total_loss += loss
                 total_accuracy += acc
 
-        avg_loss = total_loss / num_episodes
-        avg_accuracy = total_accuracy / num_episodes
+        avg_loss = total_loss / num_episodes if num_episodes > 0 else 0
+        avg_accuracy = total_accuracy / num_episodes if num_episodes > 0 else 0
         return avg_loss, avg_accuracy
+
+    def train_prototypical_epoch(self, sampler, dataset, num_episodes=100):
+        """Train one epoch for Prototypical network."""
+        return self._run_prototypical_epoch(sampler, dataset, num_episodes, training=True)
+
+    def validate_prototypical_epoch(self, sampler, dataset, num_episodes=20):
+        """Validate one epoch for Prototypical network (no gradient updates)."""
+        return self._run_prototypical_epoch(sampler, dataset, num_episodes, training=False)
 
     def save_checkpoint(self, filename=None, is_best=False):
         """Save model checkpoint."""
@@ -288,7 +358,7 @@ class Trainer:
             'epoch': self.epoch,
             'model_state_dict': self.model.state_dict(),
             'optimizer_state_dict': self.optimizer.state_dict(),
-            'best_loss': self.best_loss,
+            'best_val_loss': self.best_val_loss,
             'config': self.config,
         }
 
@@ -305,17 +375,17 @@ class Trainer:
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self.epoch = checkpoint['epoch']
-        self.best_loss = checkpoint.get('best_loss', float('inf'))
+        self.best_val_loss = checkpoint.get('best_val_loss',
+                                              checkpoint.get('best_loss', float('inf')))
         self.model.to(self.device)
         print(f"[Trainer] Loaded checkpoint from epoch {self.epoch}")
 
-    def train(self, dataset, val_dataset=None):
+    def train(self, dataset):
         """
         Full training loop with validation-based best-model selection.
-        
+
         Args:
-            dataset: BiometricDataset for training
-            val_dataset: Optional validation dataset
+            dataset: BiometricDataset for training (split internally via split_subjects)
         """
         model_type = self.config['model']['type']
         epochs = self.config['training'].get('epochs', 100)
@@ -323,10 +393,14 @@ class Trainer:
         iterations = self.config['training'].get('iterations_per_epoch', 100)
         val_iterations = max(iterations // 5, 10)  # 20% of training iters
 
-        # Ensure augmentation is set for training (Fix 4)
+        # Prepare transforms for toggling between train and val
+        modality = self.config['dataset']['modality']
+        train_transform = get_augmentation(modality, training=True)
+        val_transform = get_augmentation(modality, training=False)
+
+        # Ensure augmentation is set for training
         if dataset.transform is None:
-            modality = self.config['dataset']['modality']
-            dataset.transform = get_augmentation(modality, training=True)
+            dataset.transform = train_transform
             print(f"[Trainer] Auto-applied {modality} training augmentation")
 
         # Create train and validation samplers
@@ -347,7 +421,7 @@ class Trainer:
                 val_data, n_way=n_way, k_shot=k_shot, q_query=q_query
             )
 
-        self.best_val_loss = float('inf')
+
 
         print(f"\n{'='*60}")
         print(f"  Training {model_type.upper()} Network")
@@ -360,7 +434,8 @@ class Trainer:
             self.epoch = epoch
             start_time = time.time()
 
-            # ── Training pass ──
+            # ── Training pass (with augmentation) ──
+            dataset.transform = train_transform
             if model_type == 'siamese':
                 train_loss, train_acc = self.train_siamese_epoch(
                     train_sampler, dataset, num_iterations=iterations
@@ -370,7 +445,8 @@ class Trainer:
                     train_sampler, dataset, num_episodes=iterations
                 )
 
-            # ── Validation pass ──
+            # ── Validation pass (no augmentation) ──
+            dataset.transform = val_transform
             if model_type == 'siamese':
                 val_loss, val_acc = self.validate_siamese_epoch(
                     val_sampler, dataset, num_iterations=val_iterations

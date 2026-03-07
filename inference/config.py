@@ -67,13 +67,9 @@ VALID_MODEL_TYPES = {"siamese", "prototypical"}
 
 
 # ── Image Sizes (H, W) per Modality ─────────────────────────────────────
-# Must match what the models were trained on.
+# Canonical source is data.preprocessing; re-exported here for convenience.
 
-IMAGE_SIZES = {
-    "signature":   (155, 220),
-    "face":        (105, 105),
-    "fingerprint": (96,  96),
-}
+from data.preprocessing import IMAGE_SIZES  # noqa: E402
 
 
 # ── Enrollment Storage ───────────────────────────────────────────────────

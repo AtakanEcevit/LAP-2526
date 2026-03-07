@@ -14,11 +14,8 @@ from tqdm import tqdm
 
 from models.siamese import SiameseNetwork
 from models.prototypical import PrototypicalNetwork
-from data.signature_loader import CEDARDataset, BHSig260Dataset
-from data.face_loader import ATTFaceDataset, LFWDataset
-from data.fingerprint_loader import SOCOFingDataset
-from data.augmentations import get_augmentation
-from data.samplers import PairSampler, EpisodeSampler
+
+from data.dataset_factory import get_dataset as _get_dataset_base
 from evaluation.metrics import compute_all_metrics
 from evaluation.visualize import (
     plot_roc_curve, plot_det_curve, plot_score_distribution, plot_tsne
@@ -28,26 +25,7 @@ from utils import get_device
 
 def get_dataset(config):
     """Create dataset (no augmentation for evaluation)."""
-    modality = config['dataset']['modality']
-    name = config['dataset']['name']
-    root_dir = config['dataset']['root_dir']
-    transform = get_augmentation(modality, training=False)
-
-    if modality == 'signature':
-        if name == 'cedar':
-            return CEDARDataset(root_dir, transform=transform)
-        elif name == 'bhsig260':
-            script = config['dataset'].get('script', 'Bengali')
-            return BHSig260Dataset(root_dir, script=script, transform=transform)
-    elif modality == 'face':
-        if name == 'att':
-            return ATTFaceDataset(root_dir, transform=transform)
-        elif name == 'lfw':
-            return LFWDataset(root_dir, min_images=5, transform=transform)
-    elif modality == 'fingerprint':
-        if name == 'socofing':
-            return SOCOFingDataset(root_dir, transform=transform)
-    raise ValueError(f"Unknown dataset: {modality}/{name}")
+    return _get_dataset_base(config, training=False)
 
 
 def load_model(config, checkpoint_path, device):
@@ -76,8 +54,7 @@ def load_model(config, checkpoint_path, device):
     return model
 
 
-def evaluate_siamese(model, dataset, test_data, device, k_shot=5,
-                     num_pairs=500):
+def evaluate_siamese(model, dataset, test_data, device, k_shot=5):
     """
     Evaluate Siamese network with k-shot enrollment per subject.
     
@@ -252,8 +229,7 @@ def main():
     parser.add_argument('--checkpoint', type=str, required=True)
     parser.add_argument('--k-shot', type=int, default=None,
                         help='Override k-shot from config')
-    parser.add_argument('--num-pairs', type=int, default=500,
-                        help='Number of test pairs for Siamese evaluation')
+
     args = parser.parse_args()
 
     with open(args.config, 'r') as f:
@@ -278,14 +254,21 @@ def main():
     k_shots = [args.k_shot] if args.k_shot else config.get('evaluation', {}).get('k_shots', [5])
 
     for k in k_shots:
+        # Guard: check if any test subject has enough samples for this k
+        feasible = [s for s in test_data if len(test_data[s]['genuine']) >= k + 1]
+        if len(feasible) == 0:
+            print(f"\n  [SKIP] k={k}: no test subjects have >= {k+1} genuine samples")
+            continue
+        if len(feasible) < len(test_data) // 2:
+            print(f"\n  [WARN] k={k}: only {len(feasible)}/{len(test_data)} subjects feasible")
+
         print(f"\n{'—'*40}")
         print(f"  Evaluating with k_shot = {k}")
         print(f"{'—'*40}")
 
         if model_type == 'siamese':
             genuine, impostor = evaluate_siamese(
-                model, dataset, test_data, device,
-                k_shot=k, num_pairs=args.num_pairs
+                model, dataset, test_data, device, k_shot=k
             )
         else:
             genuine, impostor = evaluate_prototypical(

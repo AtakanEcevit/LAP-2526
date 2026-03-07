@@ -28,14 +28,11 @@ from inference.config import MODEL_REGISTRY, _PROJECT_ROOT
 from evaluation.metrics import compute_eer, compute_all_metrics
 
 # Reuse dataset loaders from the training pipeline
-from data.signature_loader import CEDARDataset, BHSig260Dataset
-from data.face_loader import ATTFaceDataset, LFWDataset
-from data.fingerprint_loader import SOCOFingDataset
-from data.augmentations import get_augmentation
+from data.dataset_factory import get_dataset as _get_dataset_base
 from utils import get_device
 
 
-# ── Dataset factory (matches evaluate.py) ─────────────────────────────
+# ── Dataset factory ───────────────────────────────────────────────────
 
 def _get_dataset(modality, config_data):
     """Create dataset without augmentation for evaluation."""
@@ -43,31 +40,12 @@ def _get_dataset(modality, config_data):
     with open(config_data, "r") as f:
         config = yaml.safe_load(f)
 
-    name = config["dataset"]["name"]
-    root_dir = config["dataset"]["root_dir"]
-
     # Make root_dir absolute relative to project root
+    root_dir = config["dataset"]["root_dir"]
     if not os.path.isabs(root_dir):
-        root_dir = os.path.join(_PROJECT_ROOT, root_dir)
+        config["dataset"]["root_dir"] = os.path.join(_PROJECT_ROOT, root_dir)
 
-    transform = get_augmentation(modality, training=False)
-
-    if modality == "signature":
-        if name == "cedar":
-            return CEDARDataset(root_dir, transform=transform)
-        elif name == "bhsig260":
-            script = config["dataset"].get("script", "Bengali")
-            return BHSig260Dataset(root_dir, script=script, transform=transform)
-    elif modality == "face":
-        if name == "att":
-            return ATTFaceDataset(root_dir, transform=transform)
-        elif name == "lfw":
-            return LFWDataset(root_dir, min_images=5, transform=transform)
-    elif modality == "fingerprint":
-        if name == "socofing":
-            return SOCOFingDataset(root_dir, transform=transform)
-
-    raise ValueError(f"Unknown dataset config: {modality}/{name}")
+    return _get_dataset_base(config, training=False)
 
 
 # ── Score collection ──────────────────────────────────────────────────

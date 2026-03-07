@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 from PIL import Image
 from data.base_loader import BiometricDataset
+from data.preprocessing import preprocess_fingerprint, IMAGE_SIZES
 
 
 class SOCOFingDataset(BiometricDataset):
@@ -31,7 +32,7 @@ class SOCOFingDataset(BiometricDataset):
     Altered versions simulate forgery/spoofing attacks.
     """
 
-    IMG_SIZE = (96, 96)
+    IMG_SIZE = IMAGE_SIZES["fingerprint"]
 
     def _load_data(self):
         real_dir = os.path.join(self.root_dir, 'Real')
@@ -88,10 +89,7 @@ class SOCOFingDataset(BiometricDataset):
         preserves ridge/valley detail.
         """
         img = np.array(image, dtype=np.uint8)
-
-        # CLAHE for local contrast enhancement
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-        img = clahe.apply(img)
+        img = preprocess_fingerprint(img)
 
         # Resize
         img = cv2.resize(img, (self.IMG_SIZE[1], self.IMG_SIZE[0]),

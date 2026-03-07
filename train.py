@@ -9,37 +9,7 @@ import os
 import sys
 
 from training.trainer import Trainer
-from data.signature_loader import CEDARDataset, BHSig260Dataset
-from data.face_loader import ATTFaceDataset, LFWDataset
-from data.fingerprint_loader import SOCOFingDataset
-from data.augmentations import get_augmentation
-
-
-def get_dataset(config):
-    """Create dataset based on config."""
-    modality = config['dataset']['modality']
-    name = config['dataset']['name']
-    root_dir = config['dataset']['root_dir']
-
-    transform = get_augmentation(modality, training=True)
-
-    if modality == 'signature':
-        if name == 'cedar':
-            return CEDARDataset(root_dir, transform=transform)
-        elif name == 'bhsig260':
-            script = config['dataset'].get('script', 'Bengali')
-            return BHSig260Dataset(root_dir, script=script, transform=transform)
-    elif modality == 'face':
-        if name == 'att':
-            return ATTFaceDataset(root_dir, transform=transform)
-        elif name == 'lfw':
-            min_imgs = config['dataset'].get('min_images', 5)
-            return LFWDataset(root_dir, min_images=min_imgs, transform=transform)
-    elif modality == 'fingerprint':
-        if name == 'socofing':
-            return SOCOFingDataset(root_dir, transform=transform)
-
-    raise ValueError(f"Unknown dataset: {modality}/{name}")
+from data.dataset_factory import get_dataset
 
 
 def main():

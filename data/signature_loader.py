@@ -7,6 +7,7 @@ import cv2
 import numpy as np
 from PIL import Image
 from data.base_loader import BiometricDataset
+from data.preprocessing import preprocess_signature, IMAGE_SIZES
 
 
 class CEDARDataset(BiometricDataset):
@@ -21,7 +22,7 @@ class CEDARDataset(BiometricDataset):
     55 writers, 24 genuine + 24 forgery signatures each = 2,640 total images.
     """
 
-    IMG_SIZE = (155, 220)  # H x W
+    IMG_SIZE = IMAGE_SIZES["signature"]  # H x W
 
     def _load_data(self):
         genuine_dir = os.path.join(self.root_dir, 'full_org')
@@ -67,15 +68,9 @@ class CEDARDataset(BiometricDataset):
               f"{sum(len(v['forgery']) for v in self.data.values())} forgery")
 
     def _preprocess(self, image):
-        """Grayscale → binary (Otsu) → resize to 155×220."""
+        """Grayscale → CLAHE → resize to 155×220. Preserves gradient info."""
         img = np.array(image, dtype=np.uint8)
-
-        # Otsu binarization
-        _, img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-
-        # Invert if background is black (we want white background, dark ink)
-        if np.mean(img) < 127:
-            img = 255 - img
+        img = preprocess_signature(img)
 
         # Resize
         img = cv2.resize(img, (self.IMG_SIZE[1], self.IMG_SIZE[0]),
@@ -99,7 +94,7 @@ class BHSig260Dataset(BiometricDataset):
     Each writer: 24 genuine + 30 forgery signatures.
     """
 
-    IMG_SIZE = (155, 220)
+    IMG_SIZE = IMAGE_SIZES["signature"]
 
     def __init__(self, root_dir, script="Bengali", **kwargs):
         self.script = script
@@ -141,11 +136,9 @@ class BHSig260Dataset(BiometricDataset):
               f"{sum(len(v['forgery']) for v in self.data.values())} forgery")
 
     def _preprocess(self, image):
-        """Same as CEDAR: Grayscale → Otsu → resize."""
+        """Same as CEDAR: Grayscale → CLAHE → resize."""
         img = np.array(image, dtype=np.uint8)
-        _, img = cv2.threshold(img, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
-        if np.mean(img) < 127:
-            img = 255 - img
+        img = preprocess_signature(img)
         img = cv2.resize(img, (self.IMG_SIZE[1], self.IMG_SIZE[0]),
                          interpolation=cv2.INTER_AREA)
         return Image.fromarray(img)

@@ -39,6 +39,10 @@ Imagine you've seen a friend's face several times. You develop a mental image—
 * **What it does:** The project supports multiple hardware backends: NVIDIA CUDA GPUs (including free cloud GPUs via Google Colab), AMD GPUs via Microsoft DirectML, and standard CPUs. For practical training speed, a dedicated Google Colab integration script leverages powerful cloud GPUs (A100/T4) at no cost.
 * **Why it is useful:** It gives teams multiple options. Evaluation and inference run locally on any hardware, while training can be offloaded to free cloud GPUs for dramatically faster iteration—no expensive local hardware required.
 
+### E. Rigorous Self-Validation
+* **What it does:** During training, the system automatically sets aside a portion of the data it has *never seen* and continuously tests itself against it. The final model is the one that performed **best on this unseen data**, not simply the one that memorized its training examples the longest.
+* **Why it is useful:** This prevents the AI equivalent of "teaching to the test." The resulting model is far more reliable when deployed in the real world with genuinely new, unseen biometric samples.
+
 ---
 
 ## 4. What the System Produces (Outputs and Results)

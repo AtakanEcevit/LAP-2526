@@ -4,8 +4,6 @@ Pair and Episode samplers for Siamese and Prototypical training.
 
 import random
 import numpy as np
-import torch
-from torch.utils.data import Sampler
 
 
 class PairSampler:
@@ -29,8 +27,26 @@ class PairSampler:
         self.neg_ratio = neg_ratio
         self.subjects = list(dataset_data.keys())
 
+        # Pre-compute pools for efficient sampling
+        self._pos_subjects = [
+            s for s in self.subjects if len(dataset_data[s]['genuine']) >= 1
+        ]
+        self._has_forgeries = any(
+            len(dataset_data[s].get('forgery', [])) > 0 for s in self.subjects
+        )
+
+        # Validate we can produce pairs
+        if len(self._pos_subjects) < 1:
+            raise ValueError("No subjects with genuine samples found")
+        if len(self.subjects) < 2:
+            raise ValueError(
+                f"Need >= 2 subjects for negative pair sampling, got {len(self.subjects)}"
+            )
+
     def sample_batch(self):
         """
+        Returns exactly `batch_size` pairs.
+
         Returns:
             pairs: list of (path1, path2, label) tuples
                    label = 1 for same person, 0 for different/forgery
@@ -39,22 +55,22 @@ class PairSampler:
         n_neg = int(self.batch_size * self.neg_ratio)
         n_pos = self.batch_size - n_neg
 
-        # Positive pairs: same subject, both genuine
-        for _ in range(n_pos):
-            subj = random.choice(self.subjects)
+        # Positive pairs: same subject, both genuine (retry until full)
+        while len(pairs) < n_pos:
+            subj = random.choice(self._pos_subjects)
             genuine = self.data[subj]['genuine']
             if len(genuine) >= 2:
                 a, b = random.sample(genuine, 2)
                 pairs.append((a, b, 1))
-            elif len(genuine) == 1:
+            else:
                 # Duplicate if only 1 sample (will be augmented differently)
                 pairs.append((genuine[0], genuine[0], 1))
 
-        # Negative pairs
-        for _ in range(n_neg):
+        # Negative pairs (retry until full)
+        while len(pairs) < self.batch_size:
             strategy = random.random()
 
-            if strategy < 0.5:
+            if self._has_forgeries and strategy < 0.5:
                 # Strategy 1: genuine vs forgery (same subject)
                 subj = random.choice(self.subjects)
                 genuine = self.data[subj]['genuine']
@@ -72,6 +88,23 @@ class PairSampler:
 
         random.shuffle(pairs)
         return pairs
+
+    def sample_epoch(self, num_iterations):
+        """Pre-sample all pairs for one epoch.
+
+        Returns a flat list of (path1, path2, label) tuples suitable
+        for wrapping in a SiamesePairDataset.
+
+        Args:
+            num_iterations: number of batches to pre-sample
+
+        Returns:
+            list of (path1, path2, label) with length = num_iterations * batch_size
+        """
+        all_pairs = []
+        for _ in range(num_iterations):
+            all_pairs.extend(self.sample_batch())
+        return all_pairs
 
     def __iter__(self):
         while True:
@@ -145,33 +178,16 @@ class EpisodeSampler:
 
         return support_paths, query_paths
 
-    def sample_verification_episode(self):
-        """
-        Generate a binary verification episode (genuine vs forgery).
-        
+    def sample_epoch(self, num_episodes):
+        """Pre-sample all episodes for one epoch.
+
+        Args:
+            num_episodes: number of episodes to pre-sample
+
         Returns:
-            support_paths: list of (path, label) — K genuine samples from one subject
-            query_paths:   list of (path, label) — mix of genuine and forgery
-                           label: 1 = genuine, 0 = forgery
+            list of (support_paths, query_paths) tuples
         """
-        subj = random.choice(self.valid_subjects)
-        genuine = list(self.data[subj]['genuine'])
-        forgery = list(self.data[subj].get('forgery', []))
-
-        # Support: K genuine samples
-        support = random.sample(genuine, min(self.k_shot, len(genuine)))
-        support_paths = [(p, 1) for p in support]
-
-        # Query: mix of remaining genuine + forgery
-        remaining_genuine = [g for g in genuine if g not in support]
-        query_paths = [(p, 1) for p in remaining_genuine[:self.q_query]]
-
-        if forgery:
-            query_forgery = random.sample(forgery, min(self.q_query, len(forgery)))
-            query_paths.extend([(p, 0) for p in query_forgery])
-
-        random.shuffle(query_paths)
-        return support_paths, query_paths
+        return [self.sample_episode() for _ in range(num_episodes)]
 
     def __iter__(self):
         while True:

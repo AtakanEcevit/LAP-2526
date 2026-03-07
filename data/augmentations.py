@@ -1,5 +1,7 @@
 """
 Per-modality augmentation pipelines using Albumentations.
+
+Note: Uses translate_percent (not shift_limit) for Albumentations 2.0+ compatibility.
 """
 
 import albumentations as A
@@ -14,7 +16,8 @@ def get_signature_augmentation(training=True):
     if training:
         return A.Compose([
             A.Affine(
-                shift_limit=0.05, scale=(0.9, 1.1), rotate=(-5, 5),
+                translate_percent={"x": (-0.05, 0.05), "y": (-0.05, 0.05)},
+                scale=(0.9, 1.1), rotate=(-5, 5),
                 border_mode=0, p=0.5
             ),
             A.ElasticTransform(alpha=20, sigma=5, p=0.3),
@@ -35,7 +38,8 @@ def get_face_augmentation(training=True):
         return A.Compose([
             A.HorizontalFlip(p=0.5),
             A.Affine(
-                shift_limit=0.05, scale=(0.95, 1.05), rotate=(-10, 10),
+                translate_percent={"x": (-0.05, 0.05), "y": (-0.05, 0.05)},
+                scale=(0.95, 1.05), rotate=(-10, 10),
                 border_mode=0, p=0.5
             ),
             A.RandomBrightnessContrast(
@@ -54,7 +58,8 @@ def get_fingerprint_augmentation(training=True):
     if training:
         return A.Compose([
             A.Affine(
-                shift_limit=0.03, scale=(0.95, 1.05), rotate=(-8, 8),
+                translate_percent={"x": (-0.03, 0.03), "y": (-0.03, 0.03)},
+                scale=(0.95, 1.05), rotate=(-8, 8),
                 border_mode=0, p=0.4
             ),
             A.ElasticTransform(alpha=15, sigma=4, p=0.2),

@@ -95,6 +95,19 @@ The foundation of the project is a robust data ingestion and preprocessing pipel
 
    - **`EpisodeSampler`:** For Prototypical networks. Generates "N-way, K-shot" episodes (e.g., 5 random people, 5 support images each, and Q query images to test against).
 
+5. **Dataset Factory (`dataset_factory.py`)**
+
+   - **Responsibility:** A single `get_dataset(config)` entry point that creates the correct loader from a YAML config dict. Replaces duplicated factory logic that was in `train.py`, `evaluate.py`, `calibrate_thresholds.py`, and `colab_train.py`.
+
+6. **Shared Preprocessing (`preprocessing.py`)**
+
+   - **Responsibility:** Canonical image sizes (`IMAGE_SIZES`) and modality-specific preprocessing functions (`preprocess_signature`, `preprocess_face`, `preprocess_fingerprint`) shared by both data loaders and the inference pipeline.
+
+7. **DataLoader Wrappers (`pair_dataset.py`, `episode_dataset.py`)**
+
+   - **`SiamesePairDataset`:** Wraps pre-sampled pairs into a PyTorch `Dataset` so image loading, preprocessing, and augmentation run in parallel DataLoader workers instead of the main training thread.
+   - **`PrototypicalEpisodeDataset`:** Wraps pre-sampled episode paths for parallel loading. All episodes are flattened into a single DataLoader pass, then per-episode support/query boundaries are reconstructed from the flat tensor output.
+
 
 
 ### B. Model Architectures (`models/`)
@@ -151,29 +164,23 @@ We use a unified backbone strategy. The underlying feature extractor (encoder) i
 
 ### A. Training & Hardware Constraints
 
-The project is split into local execution logic and cloud execution logic due to hardware discovery during the project lifecycle.
+**Training Architecture (v1.2.0):**
 
+The `Trainer` class in `training/trainer.py` drives both Siamese and Prototypical training via a unified loop:
 
+- **Validation-Based Model Selection:** Before training, `split_subjects()` partitions identities (not images) into train/val/test sets. Each epoch runs a training pass (with augmentation) followed by a no-gradient validation pass (without augmentation). The best checkpoint is selected by **validation loss**, and early stopping monitors val loss with configurable patience.
+
+- **DataLoader-Parallel Iteration:** Image loading, preprocessing, and augmentation run in parallel via PyTorch `DataLoader` workers. For Siamese training, pre-sampled pairs are wrapped in `SiamesePairDataset`; for Prototypical training, all episode images are flattened into `PrototypicalEpisodeDataset` for a single efficient DataLoader pass.
+
+- **Configurable Workers:** `num_workers` and `prefetch_factor` are set via YAML config. Windows auto-defaults to 0 workers (due to `spawn` overhead); Linux/Colab defaults to 2.
 
 **The DirectML Challenge:**
 
-The user hardware (AMD RX 9070 XT) required Microsoft's `torch-directml` for GPU acceleration on Windows. We encountered a deep framework bug where standard PyTorch `BatchNorm2d` layers caused the backend to crash with a `UnicodeDecodeError` during the backward pass (traced to Turkish locale `cp1254` formatting expectations). 
+The user hardware (AMD RX 9070 XT) required Microsoft's `torch-directml` for GPU acceleration on Windows. We encountered a deep framework bug where standard PyTorch `BatchNorm2d` layers caused the backend to crash with a `UnicodeDecodeError` during the backward pass (traced to Turkish locale `cp1254` formatting expectations). DirectML remained prohibitively slow (hours per epoch) even with workarounds.
 
-* *Workaround 1:* We replaced `BatchNorm2d` with `nn.Identity` locally.
+**The Colab Solution (`colab_train.py`):**
 
-* *Workaround 2:* We forced environment variables `PYTHONUTF8=1`.
-
-* *Conclusion:* DirectML remained prohibitively slow (hours per epoch) even when fixed.
-
-
-
-**The Colab "All-in-One" Solution (`colab_train.py`):**
-
-To achieve realistic iteration speeds, the entire distributed codebase was packed into a single script designed to run on Google Colab's native CUDA GPUs (A100/T4).
-
-- **Auto-Discovery:** Analyzes extracted ZIP files to dynamically locate dataset roots (e.g., finding `full_org` or `s1` folders) to bypass flattening bugs caused by OS-level ZIP utilities.
-
-- **Batch Processing:** Runs sequential training across all 6 configurations (Siamese vs Proto across 3 datasets), downloading the `best.pth` checkpoints recursively. This reduced training times from hours to minutes.
+The Colab script has been refactored (840 lines removed) to re-use the same `Trainer` class and `dataset_factory` as the local pipeline. It auto-discovers dataset paths from extracted ZIP files and runs sequential training across all 6 configurations on Colab CUDA GPUs (A100/T4).
 
 
 
