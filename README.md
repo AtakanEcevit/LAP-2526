@@ -242,6 +242,22 @@ python evaluate.py \
 
 > 📁 Outputs (ROC plots, metrics, t-SNE maps) are saved to `results/*/figures/`
 
+### 5️⃣ Run the Production API & Web UI
+
+Start the FastAPI inference server to interact with the models via a graphical interface.
+
+```bash
+# Install additional API dependencies
+pip install -r requirements-api.txt
+
+# Start the backend server
+uvicorn inference.api:app --host 127.0.0.1 --port 8000
+```
+
+Once the server is running:
+- Open `ui/index.html` in any web browser to access the drag-and-drop diagnostic UI.
+- Navigate to `http://127.0.0.1:8000/docs` to view the interactive API documentation.
+
 ---
 
 ## ☁️ Cloud Training (Google Colab)
