@@ -339,10 +339,177 @@ Contributions are welcome! To get started:
 
 ## 📄 Documentation
 
+### 📋 Project Overview — *Non-Technical Stakeholder Summary*
+
+<details>
+<summary><b>Click to expand the Project Overview</b></summary>
+
+<br>
+
+#### 1. What This Project Does (The Big Picture)
+
+This project is an advanced Artificial Intelligence (AI) system designed to verify a person's identity using their unique physical or behavioral traits—specifically their **signatures**, **faces**, and **fingerprints**.
+
+Think of it like a highly trained digital security guard. When someone presents a signature on a document, a fingerprint on a scanner, or their face to a camera, this system can instantly compare it against known examples to determine if it is genuine or a forgery.
+
+#### 2. Why It Matters (The Problem It Solves)
+
+In the digital age, unauthorized access, identity theft, and forgery are major risks. Traditional AI security systems often require thousands of examples of a person's signature or face to learn how to recognize them accurately.
+
+This project solves that problem through a powerful capability called **"Few-Shot Learning."** This means the system can accurately verify an identity or detect a forgery even if it has only seen a tiny handful of genuine examples (sometimes as few as 1 to 5). This makes the system extremely practical for real-world scenarios where you cannot ask a user to provide hundreds of sample signatures or photos.
+
+#### 3. How It Works (Main Features Explained Simply)
+
+To ensure the highest accuracy, the system uses two distinct "brain architectures" (AI models) that approach the problem in different ways:
+
+**A. The "Direct Comparison" Approach (Siamese Networks)**
+Imagine holding a known genuine signature in your left hand and a new, questionable signature in your right hand. You examine them side-by-side to spot differences in loops, pressure, or shape.
+* **What it does:** It takes two samples, looks at them simultaneously, and calculates a directly measurable "similarity score."
+* **Why it is useful:** It is incredibly good at spotting direct discrepancies between a real sample and a high-quality forgery.
+
+**B. The "Mental Average" Approach (Prototypical Networks)**
+Imagine you've seen a friend's face several times. You develop a mental image—a "prototype"—of what they look like on average. If you see a person who looks slightly different, you compare them to that mental average to decide if it's really your friend.
+* **What it does:** It looks at the few genuine examples provided and creates a mathematical "average" (the prototype) of that person's traits. New samples are then compared to this single, robust average.
+* **Why it is useful:** It handles natural variations incredibly well. For example, if your signature looks slightly different when you are in a hurry, this system is less likely to accidentally reject it.
+
+**C. Multi-Modal Flexibility**
+* The system handles and switches between three distinct human traits: **Signatures** (handwriting patterns), **Faces** (facial geometry), and **Fingerprints** (microscopic ridge details).
+* This allows organizations to plug this single, unified framework into completely different environments (e.g., banking software for signatures, or a physical building turnstile for faces).
+
+**D. Flexible Hardware Support**
+* The project supports multiple hardware backends: NVIDIA CUDA GPUs (including free cloud GPUs via Google Colab), AMD GPUs via Microsoft DirectML, and standard CPUs. For practical training speed, a dedicated Google Colab integration script leverages powerful cloud GPUs (A100/T4) at no cost.
+
+#### 4. What the System Produces (Outputs and Results)
+
+When the system runs, it produces detailed, actionable outputs:
+
+* **Trained Security Models:** The final, packaged "brain" ready to be plugged into an app or software to start verifying users immediately.
+* **Similarity Scores & Thresholds:** For every scan or signature, the system provides a precise confidence score. Administrators can manually adjust the strictness threshold.
+* **Performance Visualizations:** The project automatically generates ROC and DET curves that visually prove how accurate the system is.
+* **Separation Maps (t-SNE Embeddings):** Intuitive visual maps showing genuine signatures cleanly separated from forgeries, providing proof of security to non-experts.
+
+> **Summary:** This project provides a flexible, highly accurate, and privacy-friendly way to verify identities and stop forgeries using only a fraction of the data traditional systems require.
+
+</details>
+
+---
+
+### 🔧 Engineering Documentation — *Full Technical Reference*
+
+<details>
+<summary><b>Click to expand the Engineering Documentation</b></summary>
+
+<br>
+
+This document serves as the comprehensive guide to the **Biometric Few-Shot Verification** project. It outlines the architecture, data pipelines, model designs, training methodologies, and evaluation processes.
+
+---
+
+#### 1. Project Overview & Objectives
+
+**The Problem:** Traditional biometric classification systems require thousands of images per class (person) to train effectively. In real-world security scenarios, you often only have 1 to 5 enrollments (images) of a person.
+
+**The Solution:** We implemented **Deep Metric Learning** approaches — specifically Siamese Networks and Prototypical Networks — which learn a generalized "distance metric" instead of memorizing specific people.
+
+**Core Modalities Supported:**
+1. **Signatures:** CEDAR dataset (Genuine vs. Forgery)
+2. **Faces:** AT&T (ORL) dataset and Labeled Faces in the Wild (LFW)
+3. **Fingerprints:** SOCOFing dataset (Real vs. Altered)
+
+---
+
+#### 2. System Architecture & Components
+
+##### A. Data Pipeline (`data/`)
+
+1. **`base_loader.py` (BiometricDataset)**
+   - Abstract base class defining the blueprint for all data loaders. Handles `__len__`, indexing genuine/forgery splits, applying Albumentations transforms, and an **in-memory caching system** that accelerates training by orders of magnitude.
+
+2. **Modality-Specific Loaders** (`signature_loader.py`, `face_loader.py`, `fingerprint_loader.py`)
+   - Each loader inherits from `BiometricDataset` and implements `_load_data()` and `_preprocess()`.
+   - **Pre-processing:**
+     - *Signatures:* Grayscale -> Otsu Binarization -> Conditional Inversion (if mean pixel < 127) -> Resized to 155x220
+     - *Faces:* Histogram Equalization (lighting normalization) -> Resized to 105x105
+     - *Fingerprints:* CLAHE (local contrast enhancement) -> Resized to 96x96
+
+3. **Augmentations (`augmentations.py`)**
+   - Signatures: elastic transforms, shift/scale/rotate, Gaussian noise
+   - Faces: horizontal flips, rotations, brightness/contrast shifts
+   - Fingerprints: conservative rotations, elastic transforms, Gaussian noise
+   - All: random brightness/contrast + Gaussian blurring
+
+4. **Samplers (`samplers.py`)**
+   - **`PairSampler`:** For Siamese networks. 50% Genuine / 50% Impostor pairs.
+   - **`EpisodeSampler`:** For Prototypical networks. N-way, K-shot episodes.
+
+##### B. Model Architectures (`models/`)
+
+1. **The Backbone (`backbone.py`)**
+   - **`ResNetEncoder`:** Modified ResNet-18 with 1-channel grayscale input, embedding pipeline: `Linear(512->256)` -> `ReLU` -> `Dropout(0.3)` -> `Linear(256->128)` -> **L2 Normalization**
+   - **`LightCNNEncoder`:** 4-block CNN alternative (Conv->BN->ReLU->MaxPool x4) for faster experimentation. Outputs L2-normalized 128-d embeddings.
+
+2. **The Siamese Network (`siamese.py`)**
+   - Takes two images, extracts embeddings, computes `|emb1 - emb2|`, and passes the absolute difference through a classifier head to output a similarity score (0.0 to 1.0).
+
+3. **The Prototypical Network (`prototypical.py`)**
+   - Encodes support images, averages them into a "Prototype" vector per class, then classifies queries by distance to each prototype (Euclidean or Cosine).
+
+##### C. Losses (`losses/losses.py`)
+
+1. **Contrastive Loss:** Pushes same-person embeddings together, pulls different-person apart to a margin.
+2. **Triplet Loss:** Enforces `d(anchor, positive) < d(anchor, negative) + margin`.
+3. **Prototypical Loss:** Log-softmax over negative distances to prototypes (dynamic cross-entropy).
+4. **Binary Cross-Entropy Loss:** Alternative for Siamese networks using the sigmoid similarity score directly.
+
+---
+
+#### 3. The Execution Flow
+
+##### A. Training & Hardware Constraints
+
+**The DirectML Challenge:**
+The user hardware (AMD RX 9070 XT) required `torch-directml`. We encountered a `BatchNorm2d` crash due to Turkish locale encoding. *Workaround:* Replaced with `nn.Identity` locally and forced `PYTHONUTF8=1`. DirectML remained too slow.
+
+**The Colab Solution (`colab_train.py`):**
+The entire codebase was packed into a single script for Google Colab CUDA GPUs (A100/T4). Auto-discovers dataset paths, runs all 6 configurations sequentially, and packages the best checkpoints.
+
+##### B. Evaluation Pipeline (`evaluate.py`)
+
+**Metrics (`metrics.py`):**
+| Metric | Description |
+|:------:|:-----------:|
+| Accuracy | Basic correct/incorrect thresholding |
+| EER | Equal Error Rate — where FAR = FRR |
+| FAR & FRR | False Acceptance / False Rejection Rates |
+| AUC | Area Under ROC Curve |
+| d-prime | Distribution separation measure |
+
+**Visualizations (`visualize.py`):**
+| Plot | Description |
+|:----:|:-----------:|
+| ROC Curves | True Positive Rate vs False Positive Rate |
+| DET Curves | Detection Error Tradeoff (Log-Log scale) |
+| Score Distributions | Genuine vs impostor score histograms |
+| t-SNE Maps | 2D projections of 128-d embeddings |
+
+---
+
+#### 4. Dependencies & Configurations
+
+Configs are YAML files in `configs/` controlling: backbone choice, embedding dimensions, learning rates, margins, batch sizes, dataset paths, and early-stopping patience.
+
+**Requirements:** `torch>=2.1.0`, `torchvision>=0.16.0`, `torch-directml>=0.2.0`, `albumentations>=1.3.0`, `opencv-python>=4.8.0`, `scikit-learn>=1.3.0`, `matplotlib>=3.7.0`, `seaborn>=0.12.0`, `tqdm>=4.65.0`, `pyyaml>=6.0`, `tensorboard>=2.14.0`, `numpy>=1.24.0`, `Pillow>=10.0.0`
+
+</details>
+
+---
+
+### 📝 Additional Documents
+
 | Document | Description |
 |:--------:|:-----------:|
-| [`PROJECT_DOCUMENTATION.md`](PROJECT_DOCUMENTATION.md) | Full engineering reference |
-| [`PROJECT_OVERVIEW.md`](PROJECT_OVERVIEW.md) | Non-technical stakeholder overview |
+| [`PROJECT_OVERVIEW.md`](PROJECT_OVERVIEW.md) | Standalone non-technical overview |
+| [`PROJECT_DOCUMENTATION.md`](PROJECT_DOCUMENTATION.md) | Standalone engineering reference |
 | [`RELEASE_NOTES.md`](RELEASE_NOTES.md) | Version history & changelog |
 
 ---
