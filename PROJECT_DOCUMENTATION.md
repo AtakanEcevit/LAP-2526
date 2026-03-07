@@ -1,0 +1,117 @@
+# Biometric Few-Shot Verification System
+## End-to-End Project Documentation
+
+This document serves as the comprehensive guide to the **Biometric Few-Shot Verification** project. It outlines the architecture, data pipelines, model designs, training methodologies, and evaluation processes developed to perform person verification using extremely limited data (few-shot learning) across multiple biometric modalities (Signatures, Faces, and Fingerprints).
+
+This system is designed to be modular, scalable, and research-ready, allowing a developer to train and evaluate models across entirely different datasets using a unified approach.
+
+---
+
+## 1. Project Overview & Objectives
+
+**The Problem:** Traditional biometric classification systems require thousands of images per class (person) to train effectively. In real-world security scenarios, you often only have 1 to 5 enrollments (images) of a person. 
+**The Solution:** We implemented **Deep Metric Learning** approaches—specifically Siamese Networks and Prototypical Networks—which learn a generalized "distance metric" instead of memorizing specific people. They learn how to tell if two images belong to the same person, regardless of whether the model has seen that specific person during training.
+
+**Core Modalities Supported:**
+1. **Signatures:** CEDAR dataset (Genuine vs. Forgery)
+2. **Faces:** AT&T (ORL) dataset and Labeled Faces in the Wild (LFW)
+3. **Fingerprints:** SOCOFing dataset (Real vs. Altered)
+
+---
+
+## 2. System Architecture & Components
+
+The codebase is organized into modular components. Below is the high-level flow from raw data to final evaluation.
+
+### A. Data Pipeline (`data/`)
+The foundation of the project is a robust data ingestion and preprocessing pipeline. Academic datasets are notoriously messy, so we abstract this into unified PyTorch `Dataset` objects.
+
+1. **`base_loader.py` (BiometricDataset)**
+   - **Responsibility:** An abstract base class that defines the blueprint for all data loaders. It handles `__len__`, indexing genuine/forgery splits, applying Albumentations transforms, and crucially, an **in-memory caching system**.
+   - **Why it matters:** Reading thousands of small images from a hard drive during training is a massive bottleneck. The cache reads and preprocessing into RAM once, accelerating training by orders of magnitude.
+
+2. **Modality-Specific Loaders (`signature_loader.py`, `face_loader.py`, `fingerprint_loader.py`)**
+   - **Responsibility:** Each loader inherits from `BiometricDataset` and implements `_load_data()` (parsing specific folder structures and filenames) and `_preprocess()`.
+   - **Pre-processing Specifics:**
+     - *Signatures:* Converted to Grayscale -> Otsu Binarization (to separate ink from background) -> Inverted (ink is white, background is black for neural net preference) -> Resized.
+     - *Faces:* Histogram Equalization (normalizes lighting across the face) -> Resized.
+     - *Fingerprints:* CLAHE (Contrast Limited Adaptive Histogram Equalization) to enhance ridge/valley details locally without blowing out the image -> Resized.
+
+3. **Augmentations (`augmentations.py`)**
+   - **Responsibility:** Artificially inflates the training set using the `Albumentations` library.
+   - **Specifics:** Signatures get elastic transformations (simulating hand jitter). Faces get horizontal flips and rotations. Fingerprints get subtle rotations. All get random brightness/contrast shifts and blurring.
+
+4. **Samplers (`samplers.py`)**
+   - Neural networks in metric learning don't just take a single image; they take sets.
+   - **`PairSampler`:** For Siamese networks. Generates batches consisting of 50% Genuine pairs (same person) and 50% Impostor pairs (different people, or genuine vs forgery).
+   - **`EpisodeSampler`:** For Prototypical networks. Generates "N-way, K-shot" episodes (e.g., 5 random people, 5 support images each, and Q query images to test against).
+
+### B. Model Architectures (`models/`)
+We use a unified backbone strategy. The underlying feature extractor (encoder) is shared regardless of the biometric modality.
+
+1. **The Backbone (`backbone.py`)**
+   - **`ResNetEncoder`:** Re-engineers standard PyTorch ResNet-18 models. We replace the input layer from 3-channel (RGB) to 1-channel (Grayscale). If pretrained weights are used, the original RGB weights are averaged into a single channel. The final fully connected classification layer is stripped off and replaced with an embedding pipeline (Linear -> ReLU -> Dropout -> Linear -> **L2 Normalization**).
+   - **L2 Normalization:** Forces all embeddings onto a hypersphere, ensuring distance calculations rely purely on cosine/euclidean angles rather than the magnitude of activations.
+
+2. **The Siamese Network (`siamese.py`)**
+   - **How it works:** Takes two images simultaneously. Extracts embeddings for both. Calculates the absolute difference `|emb1 - emb2|` and passes it through a small classifier to output a similarity score (0.0 to 1.0).
+   - **Use Case:** "1-to-1 Verification". (Does Image A match Image B?)
+
+3. **The Prototypical Network (`prototypical.py`)**
+   - **How it works:** Takes a "Support Set" (known enrollments) and a "Query Set" (new images). It encodes all support images and averages them into a single "Prototype" vector representing that person. It then calculates the Euclidean distance or Cosine similarity between the query image and the prototype.
+   - **Use Case:** "Few-shot Verification". (Given 5 known enrollments, does this new query match?)
+
+### C. Losses (`losses/losses.py`)
+1. **Contrastive Loss:** Used for Siamese networks. Pushes embeddings of the same person together (distance -> 0) and pulls embeddings of different people apart up to a certain `margin` (distance -> margin).
+2. **Prototypical Loss:** Automatically computes log-softmax distances over the prototypes, effectively acting as a dynamic cross-entropy loss over the generated classes in the current episode.
+
+---
+
+## 3. The Execution Flow
+
+### A. Training & Hardware Constraints
+The project is split into local execution logic and cloud execution logic due to hardware discovery during the project lifecycle.
+
+**The DirectML Challenge:**
+The user hardware (AMD RX 9070 XT) required Microsoft's `torch-directml` for GPU acceleration on Windows. We encountered a deep framework bug where standard PyTorch `BatchNorm2d` layers caused the backend to crash with a `UnicodeDecodeError` during the backward pass (traced to Turkish locale `cp1254` formatting expectations). 
+* *Workaround 1:* We replaced `BatchNorm2d` with `nn.Identity` locally.
+* *Workaround 2:* We forced environment variables `PYTHONUTF8=1`.
+* *Conclusion:* DirectML remained prohibitively slow (hours per epoch) even when fixed.
+
+**The Colab "All-in-One" Solution (`colab_train.py`):**
+To achieve realistic iteration speeds, the entire distributed codebase was packed into a single script designed to run on Google Colab's native CUDA GPUs (A100/T4).
+- **Auto-Discovery:** Analyzes extracted ZIP files to dynamically locate dataset roots (e.g., finding `full_org` or `s1` folders) to bypass flattening bugs caused by OS-level ZIP utilities.
+- **Batch Processing:** Runs sequential training across all 6 configurations (Siamese vs Proto across 3 datasets), downloading the `best.pth` checkpoints recursively. This reduced training times from hours to minutes.
+
+### B. Evaluation Pipeline (`evaluate.py`)
+After training, the saved checkpoints (`best.pth`) are downloaded to the local machine and passed into the evaluation pipeline. The script loops over different `k-shot` scenarios (1, 3, 5, 10 enrollments available).
+
+**Metrics Calculated (`metrics.py`):**
+1. **Accuracy:** Basic correct/incorrect thresholding.
+2. **Equal Error Rate (EER):** The core metric of biometrics. The point where False Rejections strictly equal False Acceptances. Lower is better.
+3. **FAR & FRR:** False Acceptance Rate (security metric) and False Rejection Rate (convenience metric).
+4. **AUC (Area Under ROC Curve):** Overall distinguishing power of the model.
+5. **d-prime ($d'$):** A statistical measure of the separation between the genuine score distribution and the impostor score distribution.
+
+**Visualizations (`visualize.py`):**
+1. **ROC Curves:** True Positive Rate vs False Positive Rate.
+2. **DET Curves:** Detection Error Tradeoff (Log-Log scale of FAR vs FRR). The standard in NIST biometric evaluations.
+3. **Score Distributions:** Histograms showing the overlap between genuine and impostor scores.
+4. **t-SNE Maps:** 2D projections of the 128-dimensional embeddings to visually prove the network clusters identities together.
+
+---
+
+## 4. Dependencies & Configurations
+The project relies on `.yaml` configuration files inside `configs/`. This avoids hardcoding variables and allows rapid experimentation. 
+- *Configs control:* Backbone choice, embedding dimensions, learning rates, margins, batch sizes, dataset paths, and early-stopping patience.
+
+**Requirements:**
+- `torch`, `torchvision`, `torchaudio` (CUDA or DirectML depending on the hardware target).
+- `albumentations` and `opencv-python-headless` (for image loading/augmentation).
+- `scikit-learn`, `matplotlib`, `seaborn` (for evaluation metrics and plotting).
+- `tqdm`, `pyyaml` (for UX and configuration).
+
+---
+
+## 5. Summary
+By orchestrating **Data Loaders -> PyTorch Models -> Custom Training Loops -> Metric Analysis -> Mathematical Visualization**, this repository represents a complete pipeline. It demonstrates the ability to normalize highly disparate input signals (a face vs ink on paper), map them into a shared geometric space via Deep Metric Learning, and mathematically verify identity with as little as a single reference image.

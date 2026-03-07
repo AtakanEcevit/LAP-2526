@@ -1,0 +1,29 @@
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+env/
+.env
+
+# Jupyter and IDE
+.ipynb_checkpoints/
+.vscode/
+.idea/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+
+# Project specific
+data/raw/
+data/downloads/
+results/
+data_raw.zip
+results_trained.zip
+results_best.zip
+create_zip.py
+run_eval.py
+*.zip
+*.tgz
