@@ -33,13 +33,13 @@ The foundation of the project is a robust data ingestion and preprocessing pipel
 2. **Modality-Specific Loaders (`signature_loader.py`, `face_loader.py`, `fingerprint_loader.py`)**
    - **Responsibility:** Each loader inherits from `BiometricDataset` and implements `_load_data()` (parsing specific folder structures and filenames) and `_preprocess()`.
    - **Pre-processing Specifics:**
-     - *Signatures:* Converted to Grayscale -> Otsu Binarization (to separate ink from background) -> Inverted (ink is white, background is black for neural net preference) -> Resized.
-     - *Faces:* Histogram Equalization (normalizes lighting across the face) -> Resized.
-     - *Fingerprints:* CLAHE (Contrast Limited Adaptive Histogram Equalization) to enhance ridge/valley details locally without blowing out the image -> Resized.
+     - *Signatures:* Converted to Grayscale -> Otsu Binarization (to separate ink from background) -> Conditional Inversion (if mean pixel < 127, inverts to ensure light background / dark ink) › Resized to 155×220.
+     - *Faces:* Histogram Equalization (normalizes lighting) › Resized to 105×105.
+     - *Fingerprints:* CLAHE (Contrast Limited Adaptive Histogram Equalization, enhances ridge/valley details locally) › Resized to 96×96.
 
 3. **Augmentations (`augmentations.py`)**
    - **Responsibility:** Artificially inflates the training set using the `Albumentations` library.
-   - **Specifics:** Signatures get elastic transformations (simulating hand jitter). Faces get horizontal flips and rotations. Fingerprints get subtle rotations. All get random brightness/contrast shifts and blurring.
+   - **Specifics:** Signatures get elastic transformations (simulating hand jitter), shift/scale/rotate, and Gaussian noise. Faces get horizontal flips, rotations, and brightness/contrast shifts. Fingerprints get conservative rotations, elastic transforms, and Gaussian noise. All modalities get random brightness/contrast shifts and Gaussian blurring.
 
 4. **Samplers (`samplers.py`)**
    - Neural networks in metric learning don't just take a single image; they take sets.
@@ -120,3 +120,4 @@ The project relies on `.yaml` configuration files inside `configs/`. This avoids
 
 ## 5. Summary
 By orchestrating **Data Loaders -> PyTorch Models -> Custom Training Loops -> Metric Analysis -> Mathematical Visualization**, this repository represents a complete pipeline. It demonstrates the ability to normalize highly disparate input signals (a face vs ink on paper), map them into a shared geometric space via Deep Metric Learning, and mathematically verify identity with as little as a single reference image.
+

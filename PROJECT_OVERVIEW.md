@@ -35,9 +35,9 @@ Imagine you've seen a friend's face several times. You develop a mental image—
   * **Fingerprints** (Analyzes microscopic ridge details)
 * **Why it is useful:** It allows organizations to plug this single, unified framework into completely different environments (e.g., banking software for signatures, or a physical building turnstile for faces).
 
-### D. Standard Hardware Acceleration
-* **What it does:** Training AI usually requires extremely expensive, specialized central computers. This project is specifically engineered to run efficiently on standard consumer graphics cards (like typical AMD gaming or workstation cards).
-* **Why it is useful:** It massively lowers the cost and hardware barrier, allowing the system to run locally and privately without sending sensitive biometric data to expensive cloud servers.
+### D. Flexible Hardware Support
+* **What it does:** The project supports multiple hardware backends: NVIDIA CUDA GPUs (including free cloud GPUs via Google Colab), AMD GPUs via Microsoft DirectML, and standard CPUs. For practical training speed, a dedicated Google Colab integration script leverages powerful cloud GPUs (A100/T4) at no cost.
+* **Why it is useful:** It gives teams multiple options. Evaluation and inference run locally on any hardware, while training can be offloaded to free cloud GPUs for dramatically faster iteration—no expensive local hardware required.
 
 ---
 

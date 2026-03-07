@@ -195,14 +195,16 @@ pip install -r requirements.txt
 python download_datasets.py
 ```
 
-This automatically downloads and extracts:
+This downloads and extracts the freely available datasets:
 
-| Modality | Dataset | Subjects | Images | Type |
-|:--------:|:-------:|:--------:|:------:|:----:|
-| ✍️ Signature | CEDAR | 55 | 2,640 | Genuine + Forgery |
-| 👤 Face | AT&T/ORL | 40 | 400 | Multi-pose |
-| 👤 Face | LFW | 5,749 | 13,000+ | In-the-wild |
-| 🖐️ Fingerprint | SOCOFing | 600 | 6,000 | Real + Altered |
+| Modality | Dataset | Subjects | Images | Type | Auto-Download |
+|:--------:|:-------:|:--------:|:------:|:----:|:-------------:|
+| ✍️ Signature | CEDAR | 55 | 2,640 | Genuine + Forgery | ❌ Manual |
+| 👤 Face | AT&T/ORL | 40 | 400 | Multi-pose | ✅ |
+| 👤 Face | LFW | 5,749 | 13,000+ | In-the-wild | ✅ |
+| 🖐️ Fingerprint | SOCOFing | 600 | 6,000 | Real + Altered | ✅ |
+
+> ⚠️ **CEDAR** must be downloaded manually from [cedar.buffalo.edu](https://cedar.buffalo.edu/NIJ/data/) and extracted to `data/raw/signatures/CEDAR/`.
 
 ### 3️⃣ Train a Model
 
