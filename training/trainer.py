@@ -51,13 +51,18 @@ class Trainer:
         - Early stopping
     """
 
-    def __init__(self, config_path):
+    def __init__(self, config_path, config_override=None):
         """
         Args:
             config_path: Path to YAML config file
+            config_override: Optional pre-built config dict. If provided,
+                             used instead of reading from config_path.
         """
-        with open(config_path, 'r') as f:
-            self.config = yaml.safe_load(f)
+        if config_override is not None:
+            self.config = config_override
+        else:
+            with open(config_path, 'r') as f:
+                self.config = yaml.safe_load(f)
 
         self.device = get_device()
         self.model = self._build_model()

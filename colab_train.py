@@ -158,7 +158,7 @@ def run_all_training(configs):
 
         try:
             dataset = get_dataset_for_config(config)
-            trainer = Trainer(config['_config_path'])
+            trainer = Trainer(config['_config_path'], config_override=config)
             trainer.train(dataset)
             results_summary.append({
                 'name': config['name'],
