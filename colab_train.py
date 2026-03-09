@@ -98,7 +98,7 @@ else:
 print(f"[Device] {device}")
 
 # ── Cell 4: Import All Project Modules ────────────────────────────────────
-import glob, yaml, warnings
+import argparse, glob, yaml, warnings
 warnings.filterwarnings('ignore', category=UserWarning)
 
 from data.dataset_factory import get_dataset
@@ -142,18 +142,18 @@ def get_dataset_for_config(config):
 # MAIN: Run All Training
 # ═══════════════════════════════════════════════════════════════════════════
 
-def run_all_training():
+def run_all_training(configs):
     print("=" * 70)
-    print("  BIOMETRIC FEW-SHOT VERIFICATION — FULL TRAINING SUITE")
+    print("  BIOMETRIC FEW-SHOT VERIFICATION — TRAINING SUITE")
     print(f"  Device: {device}")
-    print(f"  Experiments: {len(CONFIGS)}")
+    print(f"  Experiments: {len(configs)}")
     print("=" * 70)
 
     results_summary = []
 
-    for i, config in enumerate(CONFIGS):
+    for i, config in enumerate(configs):
         print(f"\n\n{'#' * 70}")
-        print(f"  EXPERIMENT {i+1}/{len(CONFIGS)}: {config['name']}")
+        print(f"  EXPERIMENT {i+1}/{len(configs)}: {config['name']}")
         print(f"{'#' * 70}\n")
 
         try:
@@ -190,7 +190,7 @@ def run_all_training():
     print("\nZipping best checkpoints and training logs for download...")
     import zipfile
     with zipfile.ZipFile('results_trained.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
-        for config in CONFIGS:
+        for config in configs:
             results_dir = config.get('results_dir', 'results')
             best_path = os.path.join(results_dir, 'checkpoints', 'best.pth')
             if os.path.exists(best_path):
@@ -209,4 +209,65 @@ def run_all_training():
 
 
 if __name__ == '__main__':
-    run_all_training()
+    parser = argparse.ArgumentParser(description='Train biometric verification models')
+
+    # ── Model / modality filter ──────────────────────────────────────
+    parser.add_argument('--modality', type=str, default=None,
+                        choices=['signature', 'face', 'fingerprint'],
+                        help='Train only this modality (default: all)')
+    parser.add_argument('--model', type=str, default=None,
+                        choices=['siamese', 'prototypical'],
+                        help='Train only this model type (default: all)')
+
+    # ── Training hyper-parameter overrides ───────────────────────────
+    parser.add_argument('--epochs', type=int, default=None,
+                        help='Override number of training epochs')
+    parser.add_argument('--lr', type=float, default=None,
+                        help='Override learning rate')
+    parser.add_argument('--batch_size', type=int, default=None,
+                        help='Override batch size')
+    parser.add_argument('--patience', type=int, default=None,
+                        help='Override early-stopping patience')
+    parser.add_argument('--loss', type=str, default=None,
+                        choices=['bce', 'contrastive'],
+                        help='Override loss function (siamese only)')
+
+    args = parser.parse_args()
+
+    # ── Filter configs ───────────────────────────────────────────────
+    selected = CONFIGS
+    if args.modality:
+        selected = [c for c in selected if c['dataset']['modality'] == args.modality]
+    if args.model:
+        selected = [c for c in selected if c['model']['type'] == args.model]
+
+    if not selected:
+        print(f"No configs matched --modality={args.modality} --model={args.model}")
+        sys.exit(1)
+
+    # ── Apply hyper-parameter overrides to each config ───────────────
+    overrides = {}
+    if args.epochs is not None:
+        overrides['epochs'] = args.epochs
+    if args.lr is not None:
+        overrides['lr'] = args.lr
+    if args.batch_size is not None:
+        overrides['batch_size'] = args.batch_size
+    if args.patience is not None:
+        overrides['patience'] = args.patience
+    if args.loss is not None:
+        overrides['loss'] = args.loss
+
+    if overrides:
+        print(f"\n[Overrides] Applying CLI overrides: {overrides}")
+        for c in selected:
+            for key, val in overrides.items():
+                c['training'][key] = val
+
+    print(f"\n[Filter] Training {len(selected)}/{len(CONFIGS)} configs:")
+    for c in selected:
+        t = c['training']
+        print(f"  → {c['name']}  (epochs={t['epochs']}, lr={t['lr']}, "
+              f"batch_size={t['batch_size']}, patience={t['patience']})")
+
+    run_all_training(selected)

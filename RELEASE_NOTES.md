@@ -1,3 +1,13 @@
+# Release Notes: v1.4.0 — "Selective Training & CLI Overrides"
+
+This release adds command-line filtering and hyper-parameter overrides to `colab_train.py`, allowing selective model training without editing YAML configs.
+
+*   **Selective Training:** New `--modality` and `--model` flags let you train a single model (e.g., `--modality signature --model siamese`) instead of all 6 sequentially.
+*   **CLI Hyper-Parameter Overrides:** New flags `--epochs`, `--lr`, `--batch_size`, `--patience`, and `--loss` override YAML config values directly from the command line — ideal for quick experiments on Colab.
+*   **Backward Compatible:** Running `colab_train.py` with no arguments still trains all models with their default configs.
+
+---
+
 # Release Notes: v1.3.0 — "Trainer Enhancements & Inference Thresholds"
 
 This release includes enhancements to the training loop, expanded evaluation configurations, and calibrated distance thresholds for inference.

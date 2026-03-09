@@ -11,7 +11,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10+-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)](https://pytorch.org)
 [![License](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
-[![Version](https://img.shields.io/badge/Version-1.3.0-blue?style=for-the-badge)]()
+[![Version](https://img.shields.io/badge/Version-1.4.0-blue?style=for-the-badge)]()
 
 *A production-grade deep metric learning framework that verifies identities using as few as **1–5 samples** across signatures, faces, and fingerprints.*
 
@@ -292,7 +292,7 @@ For significantly faster training using free NVIDIA A100/T4 GPUs:
    ```
 
 2. **Upload to Google Drive:**
-   - Upload `data_raw.zip` and `colab_train.py` to your Drive root.
+   - Upload `data_raw.zip` and the full project folder to your Drive root.
 
 3. **In a Colab notebook** (Runtime → GPU):
    ```python
@@ -300,18 +300,48 @@ For significantly faster training using free NVIDIA A100/T4 GPUs:
    drive.mount('/content/drive')
 
    !cp /content/drive/MyDrive/data_raw.zip .
-   !cp /content/drive/MyDrive/colab_train.py .
+   !cp -r /content/drive/MyDrive/LAP/* .
    !python colab_train.py
    ```
 
 4. **Download results:**
    ```python
-   !cp /content/results_best.zip /content/drive/MyDrive/
+   !cp /content/results_trained.zip /content/drive/MyDrive/
    ```
 
 > 💡 The script auto-discovers dataset paths, trains all 6 models sequentially, and packages the best checkpoints.
 
 </details>
+
+### 🎯 Selective Training (v1.4.0+)
+
+Train specific models and override hyper-parameters directly from the command line:
+
+```bash
+# Train only one model
+!python colab_train.py --modality signature --model siamese
+
+# Train all signature models (siamese + prototypical)
+!python colab_train.py --modality signature
+
+# Override hyper-parameters
+!python colab_train.py --modality signature --model siamese --epochs 100 --lr 0.00005
+
+# Quick test run
+!python colab_train.py --modality face --epochs 5 --batch_size 16
+```
+
+| Flag | Values | Description |
+|:----:|:------:|:-----------:|
+| `--modality` | `signature`, `face`, `fingerprint` | Train only this modality |
+| `--model` | `siamese`, `prototypical` | Train only this architecture |
+| `--epochs` | any integer | Override training epochs |
+| `--lr` | any float | Override learning rate |
+| `--batch_size` | any integer | Override batch size |
+| `--patience` | any integer | Override early-stopping patience |
+| `--loss` | `bce`, `contrastive` | Override loss function (siamese only) |
+
+> All flags are optional. Omitting all flags trains everything with YAML defaults.
 
 ---
 
@@ -572,6 +602,6 @@ Configs are YAML files in `configs/` controlling: backbone choice, embedding dim
 
 **Built with** ❤️ **using PyTorch**
 
-`v1.2.0`
+`v1.4.0`
 
 </div>
