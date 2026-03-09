@@ -1,5 +1,10 @@
 # Siamese Network — Signature Verification (CEDAR)
 # Config for training Siamese on CEDAR dataset
+#
+# NOTE: CEDAR is a small dataset (55 writers, 1320 genuine + 1320 forgery).
+# This limits embedding separation — genuine vs impostor scores are tightly
+# clustered (~5-10% gap). A larger signature dataset would significantly
+# improve discrimination. Consider BHSig260 or GPDS as alternatives.
 
 model:
   type: siamese
@@ -18,8 +23,9 @@ training:
   batch_size: 32
   lr: 0.0001
   weight_decay: 0.00001
-  loss: bce                 # 'bce' (recommended) or 'contrastive'
+  loss: cosine               # 'cosine' (recommended), 'contrastive', or 'bce'
   margin: 2.0               # only used if loss=contrastive
+  cosine_margin: 0.5        # only used if loss=cosine (negative pairs pushed below this)
   scheduler: step
   lr_step: 15
   lr_gamma: 0.5
