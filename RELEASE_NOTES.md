@@ -1,3 +1,14 @@
+# Release Notes: v1.3.0 — "Trainer Enhancements & Inference Thresholds"
+
+This release includes enhancements to the training loop, expanded evaluation configurations, and calibrated distance thresholds for inference.
+
+*   **Trainer Enhancements:** Minor fixes and improvements to the core validation and checkpointing pipelines.
+*   **Calibrated Inference Thresholds:** System thresholds have been pre-calibrated for all modalities to improve out-of-the-box system accuracy.
+*   **Evaluation Fixes:** Cleaned up reporting in the testing suite and expanded metric tracking.
+*   **Version Alignments:** Ensured consistency across config schemas and documentation.
+
+---
+
 # Release Notes: v1.2.0 — "Training Pipeline Overhaul"
 
 This release fundamentally re-architects the training loop, introduces proper validation-based model selection, and consolidates duplicated data logic into single-source-of-truth modules.

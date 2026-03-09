@@ -1,0 +1,8 @@
+{
+  "signature,siamese": 0.395314,
+  "signature,prototypical": 0.660714,
+  "face,siamese": 0.386166,
+  "face,prototypical": 0.528719,
+  "fingerprint,siamese": 0.51823,
+  "fingerprint,prototypical": 0.650812
+}

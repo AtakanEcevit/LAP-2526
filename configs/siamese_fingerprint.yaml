@@ -27,6 +27,9 @@ training:
   num_workers: 2              # DataLoader workers (0 = sequential)
   prefetch_factor: 2          # batches prefetched per worker
   pin_memory: true            # pinned GPU transfer (auto-disabled on CPU)
+  amp: false                  # Mixed-precision training (CUDA only, auto-disabled on CPU/DirectML)
+  accumulation_steps: 1       # Gradient accumulation steps (1 = no accumulation)
+  tensorboard: false          # Enable TensorBoard logging
 
 evaluation:
   k_shots: [1, 3, 5]

@@ -164,7 +164,7 @@ We use a unified backbone strategy. The underlying feature extractor (encoder) i
 
 ### A. Training & Hardware Constraints
 
-**Training Architecture (v1.2.0):**
+**Training Architecture (v1.3.0):**
 
 The `Trainer` class in `training/trainer.py` drives both Siamese and Prototypical training via a unified loop:
 

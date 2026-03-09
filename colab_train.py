@@ -19,7 +19,8 @@ import subprocess, sys
 def install_deps():
     subprocess.check_call([sys.executable, '-m', 'pip', 'install', '-q',
         'torch', 'torchvision', 'opencv-python-headless', 'albumentations',
-        'scikit-learn', 'matplotlib', 'seaborn', 'pyyaml', 'tqdm'])
+        'scikit-learn', 'matplotlib', 'seaborn', 'pyyaml', 'tqdm',
+        'tensorboard'])
 
 install_deps()
 
@@ -186,8 +187,7 @@ def run_all_training():
         else:
             print(f"  [FAIL] {name:40s} | {status}")
 
-    # Zip only best checkpoints (skip per-epoch checkpoints to avoid multi-GB zip)
-    print("\nZipping best checkpoints for download...")
+    print("\nZipping best checkpoints and training logs for download...")
     import zipfile
     with zipfile.ZipFile('results_trained.zip', 'w', zipfile.ZIP_DEFLATED) as zf:
         for config in CONFIGS:
@@ -195,6 +195,14 @@ def run_all_training():
             best_path = os.path.join(results_dir, 'checkpoints', 'best.pth')
             if os.path.exists(best_path):
                 zf.write(best_path)
+            # Include CSV training logs
+            csv_path = os.path.join(results_dir, 'logs', 'training_log.csv')
+            if os.path.exists(csv_path):
+                zf.write(csv_path)
+            # Include training curve plots
+            curves_path = os.path.join(results_dir, 'figures', 'training_curves.png')
+            if os.path.exists(curves_path):
+                zf.write(curves_path)
     print("Results saved to results_trained.zip")
     print("Download it from the Colab file browser (left sidebar) or run:")
     print("  from google.colab import files; files.download('results_trained.zip')")

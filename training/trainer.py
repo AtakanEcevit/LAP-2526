@@ -5,11 +5,13 @@ Driven by YAML configs.
 
 import os
 import sys
+import csv
 import time
 import yaml
 import torch
 import torch.optim as optim
 import numpy as np
+from datetime import datetime
 from tqdm import tqdm
 from torch.utils.data import DataLoader
 
@@ -21,6 +23,12 @@ from data.pair_dataset import SiamesePairDataset
 from data.episode_dataset import PrototypicalEpisodeDataset
 from data.augmentations import get_augmentation
 from utils import get_device
+
+try:
+    from torch.utils.tensorboard import SummaryWriter
+    _TENSORBOARD_AVAILABLE = True
+except ImportError:
+    _TENSORBOARD_AVAILABLE = False
 
 
 class _nullcontext:
@@ -67,6 +75,146 @@ class Trainer:
         self.results_dir = self.config.get('results_dir', 'results')
         os.makedirs(os.path.join(self.results_dir, 'checkpoints'), exist_ok=True)
         os.makedirs(os.path.join(self.results_dir, 'logs'), exist_ok=True)
+        os.makedirs(os.path.join(self.results_dir, 'figures'), exist_ok=True)
+
+        # ── Mixed-precision (AMP) ────────────────────────────────────────
+        self.use_amp = (
+            self.config.get('training', {}).get('amp', False)
+            and self.device.type == 'cuda'
+        )
+        self.scaler = torch.amp.GradScaler('cuda') if self.use_amp else None
+        if self.config.get('training', {}).get('amp', False):
+            if self.use_amp:
+                print("[AMP] Mixed precision enabled")
+            else:
+                print(f"[AMP] Disabled (non-CUDA device: {self.device})")
+
+        # ── Gradient accumulation ────────────────────────────────────────
+        self.accumulation_steps = self.config.get('training', {}).get(
+            'accumulation_steps', 1
+        )
+
+        # ── CSV training log ─────────────────────────────────────────────
+        self._csv_log_path = os.path.join(
+            self.results_dir, 'logs', 'training_log.csv'
+        )
+        self._csv_columns = [
+            'epoch', 'train_loss', 'train_acc', 'val_loss', 'val_acc',
+            'lr', 'is_best', 'elapsed_s', 'timestamp',
+        ]
+        self._init_csv_log()
+
+        # ── TensorBoard ──────────────────────────────────────────────────
+        self._tb_writer = None
+        if self.config.get('training', {}).get('tensorboard', False):
+            self._init_tensorboard()
+
+    # ── Logging helpers ───────────────────────────────────────────────────
+
+    def _init_csv_log(self):
+        """Create CSV log file with header if it doesn't exist."""
+        if not os.path.exists(self._csv_log_path):
+            with open(self._csv_log_path, 'w', newline='') as f:
+                writer = csv.writer(f)
+                writer.writerow(self._csv_columns)
+
+    def _init_tensorboard(self):
+        """Initialize TensorBoard SummaryWriter with import guard."""
+        if not _TENSORBOARD_AVAILABLE:
+            print("[TensorBoard] WARNING: tensorboard not installed. "
+                  "Run: pip install tensorboard")
+            return
+        tb_dir = os.path.join(self.results_dir, 'logs', 'tensorboard')
+        os.makedirs(tb_dir, exist_ok=True)
+        self._tb_writer = SummaryWriter(log_dir=tb_dir)
+        print(f"[TensorBoard] Logging to {tb_dir}")
+
+    def _log_epoch(self, epoch, train_loss, train_acc, val_loss, val_acc,
+                   lr, is_best, elapsed):
+        """Append one row to CSV log and write to TensorBoard."""
+        # CSV
+        with open(self._csv_log_path, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                epoch,
+                f"{train_loss:.6f}", f"{train_acc:.6f}",
+                f"{val_loss:.6f}", f"{val_acc:.6f}",
+                f"{lr:.8f}", int(is_best), f"{elapsed:.2f}",
+                datetime.now().isoformat(timespec='seconds'),
+            ])
+
+        # TensorBoard
+        if self._tb_writer is not None:
+            self._tb_writer.add_scalar('Loss/train', train_loss, epoch)
+            self._tb_writer.add_scalar('Loss/val', val_loss, epoch)
+            self._tb_writer.add_scalar('Accuracy/train', train_acc, epoch)
+            self._tb_writer.add_scalar('Accuracy/val', val_acc, epoch)
+            self._tb_writer.add_scalar('LR', lr, epoch)
+
+    def _plot_training_curves(self):
+        """Read CSV log and generate training curve plot."""
+        import matplotlib
+        matplotlib.use('Agg')  # non-interactive backend
+        import matplotlib.pyplot as plt
+
+        # Read CSV
+        epochs, t_loss, v_loss, t_acc, v_acc, best_epoch = [], [], [], [], [], None
+        try:
+            with open(self._csv_log_path, 'r') as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    epochs.append(int(row['epoch']))
+                    t_loss.append(float(row['train_loss']))
+                    v_loss.append(float(row['val_loss']))
+                    t_acc.append(float(row['train_acc']))
+                    v_acc.append(float(row['val_acc']))
+                    if int(row['is_best']):
+                        best_epoch = int(row['epoch'])
+        except (FileNotFoundError, KeyError):
+            print("[Plot] Could not read CSV log, skipping training curves.")
+            return
+
+        if len(epochs) < 2:
+            print("[Plot] < 2 epochs logged, skipping training curves.")
+            return
+
+        fig, ax1 = plt.subplots(figsize=(10, 5))
+
+        # Loss (left axis)
+        ax1.set_xlabel('Epoch')
+        ax1.set_ylabel('Loss', color='tab:red')
+        ax1.plot(epochs, t_loss, 'r-', alpha=0.7, label='Train Loss')
+        ax1.plot(epochs, v_loss, 'r--', alpha=0.7, label='Val Loss')
+        ax1.tick_params(axis='y', labelcolor='tab:red')
+
+        # Accuracy (right axis)
+        ax2 = ax1.twinx()
+        ax2.set_ylabel('Accuracy', color='tab:blue')
+        ax2.plot(epochs, t_acc, 'b-', alpha=0.7, label='Train Acc')
+        ax2.plot(epochs, v_acc, 'b--', alpha=0.7, label='Val Acc')
+        ax2.tick_params(axis='y', labelcolor='tab:blue')
+        ax2.set_ylim(0, 1.05)
+
+        # Best epoch marker
+        if best_epoch is not None:
+            ax1.axvline(x=best_epoch, color='green', linestyle=':',
+                        alpha=0.8, label=f'Best (epoch {best_epoch})')
+
+        # Combined legend
+        lines1, labels1 = ax1.get_legend_handles_labels()
+        lines2, labels2 = ax2.get_legend_handles_labels()
+        ax1.legend(lines1 + lines2, labels1 + labels2, loc='center right')
+
+        fig.suptitle('Training Curves', fontsize=14)
+        fig.tight_layout()
+
+        plot_path = os.path.join(self.results_dir, 'figures',
+                                 'training_curves.png')
+        fig.savefig(plot_path, dpi=150)
+        plt.close(fig)
+        print(f"[Plot] Training curves saved to {plot_path}")
+
+    # ── Model / optimizer / scheduler / criterion builders ────────────────
 
     def _build_model(self):
         """Create model based on config."""
@@ -168,22 +316,27 @@ class Trainer:
             images1: (B, C, H, W) float tensor, already on device
             images2: (B, C, H, W) float tensor, already on device
             labels:  (B,) float tensor, already on device
-            training: if True, run backward + optimizer step
+            training: if True, run backward (optimizer step handled by caller)
         """
+        autocast_ctx = (
+            torch.amp.autocast('cuda') if self.use_amp
+            else _nullcontext()
+        )
+
+        with autocast_ctx:
+            output = self.model(images1, images2)
+
+            if isinstance(self.criterion, ContrastiveLoss):
+                loss = self.criterion(output['distance'], labels)
+            else:
+                loss = self.criterion(output['similarity'], labels)
+
         if training:
-            self.optimizer.zero_grad()
-
-        output = self.model(images1, images2)
-
-        if isinstance(self.criterion, ContrastiveLoss):
-            loss = self.criterion(output['distance'], labels)
-        else:
-            loss = self.criterion(output['similarity'], labels)
-
-        if training:
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
-            self.optimizer.step()
+            scaled_loss = loss / self.accumulation_steps
+            if self.scaler:
+                self.scaler.scale(scaled_loss).backward()
+            else:
+                scaled_loss.backward()
 
         # Accuracy: use the SAME signal as the loss
         with torch.no_grad():
@@ -199,10 +352,11 @@ class Trainer:
         """Shared Siamese epoch logic for train and validate.
 
         Pre-samples all pairs, wraps in SiamesePairDataset, and iterates
-        via DataLoader for parallel I/O.
+        via DataLoader for parallel I/O.  Supports gradient accumulation.
         """
         if training:
             self.model.train()
+            self.optimizer.zero_grad()
         else:
             self.model.eval()
 
@@ -223,7 +377,7 @@ class Trainer:
 
         ctx = torch.no_grad() if not training else _nullcontext()
         with ctx:
-            for images1, images2, labels in loader:
+            for batch_idx, (images1, images2, labels) in enumerate(loader):
                 images1 = images1.to(self.device)
                 images2 = images2.to(self.device)
                 labels = labels.to(self.device)
@@ -234,6 +388,32 @@ class Trainer:
                 total_correct += correct
                 total_pairs += count
                 num_batches += 1
+
+                # Gradient accumulation: step every N batches
+                if training and (batch_idx + 1) % self.accumulation_steps == 0:
+                    if self.scaler:
+                        self.scaler.unscale_(self.optimizer)
+                        torch.nn.utils.clip_grad_norm_(
+                            self.model.parameters(), 1.0)
+                        self.scaler.step(self.optimizer)
+                        self.scaler.update()
+                    else:
+                        torch.nn.utils.clip_grad_norm_(
+                            self.model.parameters(), 1.0)
+                        self.optimizer.step()
+                    self.optimizer.zero_grad()
+
+        # Flush any remaining accumulated gradients
+        if training and num_batches % self.accumulation_steps != 0:
+            if self.scaler:
+                self.scaler.unscale_(self.optimizer)
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+                self.optimizer.step()
+            self.optimizer.zero_grad()
 
         avg_loss = total_loss / num_batches if num_batches > 0 else 0
         accuracy = total_correct / total_pairs if total_pairs > 0 else 0
@@ -258,18 +438,23 @@ class Trainer:
             support_labels: (N_support,) LongTensor on device
             query_images:   (N_query, C, H, W) on device
             query_labels:   (N_query,) LongTensor on device
-            training:       if True, run backward + optimizer step
+            training:       if True, run backward (optimizer step handled by caller)
         """
-        if training:
-            self.optimizer.zero_grad()
+        autocast_ctx = (
+            torch.amp.autocast('cuda') if self.use_amp
+            else _nullcontext()
+        )
 
-        output = self.model(support_images, support_labels, query_images)
-        loss, acc = self.criterion(output['logits'], query_labels)
+        with autocast_ctx:
+            output = self.model(support_images, support_labels, query_images)
+            loss, acc = self.criterion(output['logits'], query_labels)
 
         if training:
-            loss.backward()
-            torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
-            self.optimizer.step()
+            scaled_loss = loss / self.accumulation_steps
+            if self.scaler:
+                self.scaler.scale(scaled_loss).backward()
+            else:
+                scaled_loss.backward()
 
         return loss.item(), acc
 
@@ -278,10 +463,11 @@ class Trainer:
 
         Flattens all episodes into a single DataLoader for efficient
         parallel loading, then reconstructs per-episode support/query
-        boundaries from the flat output.
+        boundaries from the flat output.  Supports gradient accumulation.
         """
         if training:
             self.model.train()
+            self.optimizer.zero_grad()
         else:
             self.model.eval()
 
@@ -337,6 +523,32 @@ class Trainer:
                 total_loss += loss
                 total_accuracy += acc
 
+                # Gradient accumulation: step every N episodes
+                if training and (ep_idx + 1) % self.accumulation_steps == 0:
+                    if self.scaler:
+                        self.scaler.unscale_(self.optimizer)
+                        torch.nn.utils.clip_grad_norm_(
+                            self.model.parameters(), 1.0)
+                        self.scaler.step(self.optimizer)
+                        self.scaler.update()
+                    else:
+                        torch.nn.utils.clip_grad_norm_(
+                            self.model.parameters(), 1.0)
+                        self.optimizer.step()
+                    self.optimizer.zero_grad()
+
+        # Flush any remaining accumulated gradients
+        if training and num_episodes % self.accumulation_steps != 0:
+            if self.scaler:
+                self.scaler.unscale_(self.optimizer)
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                torch.nn.utils.clip_grad_norm_(self.model.parameters(), 1.0)
+                self.optimizer.step()
+            self.optimizer.zero_grad()
+
         avg_loss = total_loss / num_episodes if num_episodes > 0 else 0
         avg_accuracy = total_accuracy / num_episodes if num_episodes > 0 else 0
         return avg_loss, avg_accuracy
@@ -362,6 +574,17 @@ class Trainer:
             'config': self.config,
         }
 
+        # Save AMP scaler state for seamless resume
+        if self.scaler is not None:
+            checkpoint['scaler_state_dict'] = self.scaler.state_dict()
+
+        # Save scheduler state for correct LR on resume
+        if self.scheduler is not None:
+            checkpoint['scheduler_state_dict'] = self.scheduler.state_dict()
+
+        # Save early stopping state
+        checkpoint['patience_counter'] = self.patience_counter
+
         path = os.path.join(self.results_dir, 'checkpoints', filename)
         torch.save(checkpoint, path)
 
@@ -371,12 +594,24 @@ class Trainer:
 
     def load_checkpoint(self, path):
         """Load model checkpoint."""
-        checkpoint = torch.load(path, map_location='cpu')
+        checkpoint = torch.load(path, map_location='cpu', weights_only=False)
         self.model.load_state_dict(checkpoint['model_state_dict'])
         self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
         self.epoch = checkpoint['epoch']
         self.best_val_loss = checkpoint.get('best_val_loss',
                                               checkpoint.get('best_loss', float('inf')))
+
+        # Restore AMP scaler state if available
+        if self.scaler is not None and 'scaler_state_dict' in checkpoint:
+            self.scaler.load_state_dict(checkpoint['scaler_state_dict'])
+
+        # Restore scheduler state for correct LR on resume
+        if self.scheduler is not None and 'scheduler_state_dict' in checkpoint:
+            self.scheduler.load_state_dict(checkpoint['scheduler_state_dict'])
+
+        # Restore early stopping state
+        self.patience_counter = checkpoint.get('patience_counter', 0)
+
         self.model.to(self.device)
         print(f"[Trainer] Loaded checkpoint from epoch {self.epoch}")
 
@@ -421,8 +656,6 @@ class Trainer:
                 val_data, n_way=n_way, k_shot=k_shot, q_query=q_query
             )
 
-
-
         print(f"\n{'='*60}")
         print(f"  Training {model_type.upper()} Network")
         print(f"  Epochs: {epochs} | Patience: {patience}")
@@ -430,7 +663,9 @@ class Trainer:
         print(f"  Train subjects: {len(train_data)} | Val subjects: {len(val_data)}")
         print(f"{'='*60}\n")
 
-        for epoch in range(1, epochs + 1):
+        start_epoch = self.epoch + 1  # resume-safe: starts at 1 if fresh, N+1 if resumed
+
+        for epoch in range(start_epoch, epochs + 1):
             self.epoch = epoch
             start_time = time.time()
 
@@ -482,10 +717,24 @@ class Trainer:
                   f"{'[BEST]' if is_best else ''} | "
                   f"{elapsed:.1f}s")
 
+            # Structured logging (CSV + TensorBoard)
+            self._log_epoch(
+                epoch, train_loss, train_acc, val_loss, val_acc,
+                lr, is_best, elapsed,
+            )
+
             # Early stopping on validation loss
             if self.patience_counter >= patience:
                 print(f"\n[Early Stopping] No val improvement for {patience} epochs.")
                 break
+
+        # ── Post-training ────────────────────────────────────────────────
+        # Generate training curve plot
+        self._plot_training_curves()
+
+        # Close TensorBoard writer
+        if self._tb_writer is not None:
+            self._tb_writer.close()
 
         print(f"\n{'='*60}")
         print(f"  Training complete. Best val loss: {self.best_val_loss:.4f}")

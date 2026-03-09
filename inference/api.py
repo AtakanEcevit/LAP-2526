@@ -38,7 +38,7 @@ app = FastAPI(
         "Prototypical Networks. Supports signature, face, and "
         "fingerprint modalities."
     ),
-    version="1.1.0",
+    version="1.3.0",
 )
 
 # CORS — allow the web UI to call the API

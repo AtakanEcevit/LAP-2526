@@ -47,7 +47,8 @@ def load_model(config, checkpoint_path, device):
             pretrained=False, in_channels=in_channels, distance=distance
         )
 
-    checkpoint = torch.load(checkpoint_path, map_location='cpu')
+    checkpoint = torch.load(checkpoint_path, map_location='cpu',
+                             weights_only=False)
     model.load_state_dict(checkpoint['model_state_dict'])
     model.to(device)
     model.eval()
