@@ -104,7 +104,8 @@ def test_compare_returns_dict(siamese_engine):
 @pytest.mark.skipif(not (HAS_DATA and HAS_SIAMESE), reason="Data or checkpoint missing")
 def test_compare_same_image_high_score(siamese_engine):
     result = siamese_engine.compare(SIGNATURE_IMG_1, SIGNATURE_IMG_1)
-    assert result["score"] >= 0.0, "Score should be non-negative"
+    assert result["score"] >= 0.95, \
+        f"Same image should score ≥0.95, got {result['score']}"
 
 
 @pytest.mark.skipif(not (HAS_DATA and HAS_PROTO), reason="Data or checkpoint missing")

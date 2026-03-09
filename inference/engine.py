@@ -188,8 +188,14 @@ class VerificationEngine:
 
         with torch.no_grad():
             if self.model_type == "siamese":
-                output = self.model(tensor1, tensor2)
-                score = output["similarity"].item()
+                # Use cosine similarity of L2-normalized embeddings directly.
+                # This is loss-function agnostic (works with both BCE and
+                # contrastive training) and correctly scores identical
+                # images at 1.0.
+                emb1 = self.model.get_embedding(tensor1)
+                emb2 = self.model.get_embedding(tensor2)
+                cosine_sim = torch.mm(emb1, emb2.t()).squeeze().item()
+                score = (cosine_sim + 1.0) / 2.0  # map [-1,1] → [0,1]
             else:
                 # Prototypical: respect model's distance type
                 emb1 = self.model.get_embedding(tensor1)

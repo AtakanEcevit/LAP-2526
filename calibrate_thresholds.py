@@ -65,8 +65,10 @@ def _collect_scores_siamese(engine, dataset, test_data, device, num_pairs=500):
             img1 = torch.FloatTensor(dataset.load_image(path1)).unsqueeze(0).to(device)
             img2 = torch.FloatTensor(dataset.load_image(path2)).unsqueeze(0).to(device)
 
-            output = engine.model(img1, img2)
-            score = output["similarity"].item()
+            emb1 = engine.model.get_embedding(img1)
+            emb2 = engine.model.get_embedding(img2)
+            cosine_sim = torch.mm(emb1, emb2.t()).squeeze().item()
+            score = (cosine_sim + 1.0) / 2.0  # map [-1,1] → [0,1]
 
             if label == 1:
                 genuine_scores.append(score)
