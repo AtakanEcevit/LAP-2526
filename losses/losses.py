@@ -39,6 +39,37 @@ class ContrastiveLoss(nn.Module):
         return loss.mean()
 
 
+class CosineContrastiveLoss(nn.Module):
+    """
+    Cosine-based contrastive loss for L2-normalized embeddings.
+
+    Directly optimizes cosine similarity — the same metric used at inference.
+    Wraps torch.nn.CosineEmbeddingLoss internally.
+
+    Args:
+        margin: minimum cosine dissimilarity for negative pairs (default 0.5).
+                Negative pairs are pushed to have cosine_sim < margin.
+    """
+
+    def __init__(self, margin=0.5):
+        super().__init__()
+        self.margin = margin
+        self.loss_fn = nn.CosineEmbeddingLoss(margin=margin)
+
+    def forward(self, emb1, emb2, label):
+        """
+        Args:
+            emb1: (batch, emb_dim) — first embedding (L2-normalized)
+            emb2: (batch, emb_dim) — second embedding (L2-normalized)
+            label: 1 = same person, 0 = different (batch,)
+        Returns:
+            Scalar loss value
+        """
+        # CosineEmbeddingLoss expects +1 = similar, -1 = dissimilar
+        targets = label.float() * 2 - 1  # map {0,1} → {-1,+1}
+        return self.loss_fn(emb1, emb2, targets)
+
+
 class TripletLoss(nn.Module):
     """
     Triplet Loss: alternative to ContrastiveLoss.

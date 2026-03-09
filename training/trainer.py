@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 
 from models.siamese import SiameseNetwork
 from models.prototypical import PrototypicalNetwork
-from losses.losses import ContrastiveLoss, PrototypicalLoss, BinaryCrossEntropyLoss
+from losses.losses import ContrastiveLoss, CosineContrastiveLoss, PrototypicalLoss, BinaryCrossEntropyLoss
 from data.samplers import PairSampler, EpisodeSampler
 from data.pair_dataset import SiamesePairDataset
 from data.episode_dataset import PrototypicalEpisodeDataset
@@ -278,10 +278,13 @@ class Trainer:
         """Create loss function from config."""
         model_type = self.config['model']['type']
         if model_type == 'siamese':
-            loss_type = self.config['training'].get('loss', 'contrastive')
+            loss_type = self.config['training'].get('loss', 'cosine')
             if loss_type == 'contrastive':
                 margin = self.config['training'].get('margin', 1.0)
                 return ContrastiveLoss(margin=margin)
+            elif loss_type == 'cosine':
+                margin = self.config['training'].get('cosine_margin', 0.5)
+                return CosineContrastiveLoss(margin=margin)
             elif loss_type == 'bce':
                 return BinaryCrossEntropyLoss()
         elif model_type == 'prototypical':
@@ -331,7 +334,9 @@ class Trainer:
         with autocast_ctx:
             output = self.model(images1, images2)
 
-            if isinstance(self.criterion, ContrastiveLoss):
+            if isinstance(self.criterion, CosineContrastiveLoss):
+                loss = self.criterion(output['emb1'], output['emb2'], labels)
+            elif isinstance(self.criterion, ContrastiveLoss):
                 loss = self.criterion(output['distance'], labels)
             else:
                 loss = self.criterion(output['similarity'], labels)
@@ -343,10 +348,12 @@ class Trainer:
             else:
                 scaled_loss.backward()
 
-        # Accuracy: use the SAME signal as the loss
+        # Accuracy: use cosine similarity for cosine/contrastive, similarity for BCE
         with torch.no_grad():
-            if isinstance(self.criterion, ContrastiveLoss):
-                preds = (output['distance'] < self.criterion.margin / 2).float()
+            if isinstance(self.criterion, (CosineContrastiveLoss, ContrastiveLoss)):
+                # Use cosine similarity (matches inference scoring)
+                cos_sim = torch.mm(output['emb1'], output['emb2'].t()).diag()
+                preds = (cos_sim > 0.5).float()
             else:
                 preds = (output['similarity'] > 0.5).float()
             correct = (preds == labels).sum().item()

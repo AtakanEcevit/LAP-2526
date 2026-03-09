@@ -229,7 +229,7 @@ if __name__ == '__main__':
     parser.add_argument('--patience', type=int, default=None,
                         help='Override early-stopping patience')
     parser.add_argument('--loss', type=str, default=None,
-                        choices=['bce', 'contrastive'],
+                        choices=['bce', 'contrastive', 'cosine'],
                         help='Override loss function (siamese only)')
 
     args = parser.parse_args()
