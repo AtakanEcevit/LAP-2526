@@ -1,52 +1,77 @@
 """
-Siamese Network for biometric verification.
-Takes two images and outputs a similarity score.
+Improved Siamese Network for biometric verification.
+
+Optimized for signature / fingerprint / face verification tasks.
+
+Key Improvements:
+- L2 embedding normalization
+- Cosine similarity metric
+- Projection head for better embedding learning
 """
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
+
 from models.backbone import ResNetEncoder, LightCNNEncoder
 
 
 class SiameseNetwork(nn.Module):
     """
-    Siamese Network with shared-weight twin branches.
-    
+    Improved Siamese Network with metric-learning friendly embeddings.
+
     Architecture:
-        Image1 → Encoder → Embedding1 ─┐
-                                        ├── Distance → Similarity Score
-        Image2 → Encoder → Embedding2 ─┘
-    
-    The same encoder processes both images (weight sharing).
-    Distance between embeddings determines if same person or not.
+
+        Image1 → Encoder → Projection → Normalize → Embedding1
+                                                       │
+                                                       │ cosine similarity
+                                                       │
+        Image2 → Encoder → Projection → Normalize → Embedding2
+
     """
 
-    def __init__(self, backbone='resnet', embedding_dim=128,
-                 pretrained=True, in_channels=1):
-        """
-        Args:
-            backbone: 'resnet' or 'light' — encoder architecture choice
-            embedding_dim: Size of embedding vectors
-            pretrained: Use pretrained weights for ResNet
-            in_channels: Input image channels (1=grayscale)
-        """
+    def __init__(
+        self,
+        backbone="resnet",
+        embedding_dim=128,
+        pretrained=True,
+        in_channels=1,
+    ):
         super().__init__()
 
-        if backbone == 'resnet':
+        # -------------------------
+        # Encoder backbone
+        # -------------------------
+
+        if backbone == "resnet":
             self.encoder = ResNetEncoder(
                 embedding_dim=embedding_dim,
                 pretrained=pretrained,
-                in_channels=in_channels
+                in_channels=in_channels,
             )
-        elif backbone == 'light':
+
+        elif backbone == "light":
             self.encoder = LightCNNEncoder(
                 embedding_dim=embedding_dim,
-                in_channels=in_channels
+                in_channels=in_channels,
             )
+
         else:
             raise ValueError(f"Unknown backbone: {backbone}")
 
-        # Similarity head: takes concatenated/difference features → score
+        # -------------------------
+        # Projection Head
+        # improves embedding space
+        # -------------------------
+
+        self.projection = nn.Sequential(
+            nn.Linear(embedding_dim, embedding_dim),
+            nn.BatchNorm1d(embedding_dim),
+            nn.ReLU(inplace=True),
+            nn.Linear(embedding_dim, embedding_dim),
+        )
+
+        # Optional similarity classifier
         self.classifier = nn.Sequential(
             nn.Linear(embedding_dim, 64),
             nn.ReLU(inplace=True),
@@ -54,42 +79,68 @@ class SiameseNetwork(nn.Module):
             nn.Linear(64, 1),
         )
 
+    # -------------------------------------------------
+    # Single image forward
+    # -------------------------------------------------
+
     def forward_once(self, x):
-        """Pass one image through the encoder."""
-        return self.encoder(x)
+        """
+        Extract normalized embedding from a single image.
+        """
+
+        emb = self.encoder(x)
+
+        emb = self.projection(emb)
+
+        # L2 normalization (very important)
+        emb = F.normalize(emb, p=2, dim=1)
+
+        return emb
+
+    # -------------------------------------------------
+    # Pair forward
+    # -------------------------------------------------
 
     def forward(self, img1, img2):
         """
-        Forward pass for a pair of images.
-        
-        Args:
-            img1: Tensor of shape (batch, C, H, W) — first image
-            img2: Tensor of shape (batch, C, H, W) — second image
-            
+        Forward pass for image pair.
+
         Returns:
-            dict with:
-                'emb1': embedding of img1 (batch, embedding_dim)
-                'emb2': embedding of img2 (batch, embedding_dim)
-                'distance': L2 distance between embeddings (batch,)
-                'similarity': sigmoid similarity score (batch,)
+            emb1
+            emb2
+            cosine similarity
+            euclidean distance
         """
+
         emb1 = self.forward_once(img1)
         emb2 = self.forward_once(img2)
 
-        # L2 distance
-        distance = torch.sqrt(torch.sum((emb1 - emb2) ** 2, dim=1) + 1e-8)
+        # cosine similarity
+        cosine_sim = F.cosine_similarity(emb1, emb2)
 
-        # Similarity via classifier on absolute difference
+        # euclidean distance
+        distance = torch.norm(emb1 - emb2, dim=1)
+
+        # classifier similarity (optional)
         diff = torch.abs(emb1 - emb2)
         similarity = torch.sigmoid(self.classifier(diff)).squeeze(1)
 
         return {
-            'emb1': emb1,
-            'emb2': emb2,
-            'distance': distance,
-            'similarity': similarity,
+            "emb1": emb1,
+            "emb2": emb2,
+            "cosine_similarity": cosine_sim,
+            "distance": distance,
+            "similarity": similarity,
         }
 
+    # -------------------------------------------------
+    # Inference embedding
+    # -------------------------------------------------
+
     def get_embedding(self, x):
-        """Get embedding for a single image (for evaluation/inference)."""
+        """
+        Extract embedding for a single image.
+        Used for evaluation and inference.
+        """
+
         return self.forward_once(x)
