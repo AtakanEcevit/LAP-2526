@@ -14,7 +14,7 @@ import numpy as np
 IMAGE_SIZES = {
     "signature":   (155, 220),
     "face":        (105, 105),
-    "fingerprint": (96,  96),
+    "fingerprint": (224, 224),
 }
 
 

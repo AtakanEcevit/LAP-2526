@@ -53,18 +53,24 @@ def get_face_augmentation(training=True):
 def get_fingerprint_augmentation(training=True):
     """
     Fingerprint augmentation pipeline.
-    Conservative augmentations — fingerprint ridge patterns are fragile.
+    Moderately aggressive augmentations to compensate for limited
+    per-subject samples and improve generalization.
     """
     if training:
         return A.Compose([
             A.Affine(
-                translate_percent={"x": (-0.03, 0.03), "y": (-0.03, 0.03)},
-                scale=(0.95, 1.05), rotate=(-8, 8),
-                border_mode=0, p=0.4
+                translate_percent={"x": (-0.05, 0.05), "y": (-0.05, 0.05)},
+                scale=(0.9, 1.1), rotate=(-15, 15),
+                border_mode=0, p=0.5
             ),
-            A.ElasticTransform(alpha=15, sigma=4, p=0.2),
+            A.ElasticTransform(alpha=30, sigma=5, p=0.3),
             A.RandomBrightnessContrast(
-                brightness_limit=0.1, contrast_limit=0.1, p=0.3
+                brightness_limit=0.15, contrast_limit=0.15, p=0.4
+            ),
+            A.GaussianBlur(blur_limit=(3, 5), p=0.2),
+            A.CoarseDropout(
+                max_holes=4, max_height=16, max_width=16,
+                fill_value=0, p=0.2
             ),
         ])
     return A.Compose([])

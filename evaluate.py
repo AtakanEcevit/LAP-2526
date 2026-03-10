@@ -93,8 +93,10 @@ def evaluate_siamese(model, dataset, test_data, device, k_shot=5):
                 ).unsqueeze(0).to(device)
                 scores = []
                 for simg in support_imgs:
-                    output = model(simg.to(device), query)
-                    scores.append(output['similarity'].item())
+                    emb1 = model.get_embedding(simg.to(device))
+                    emb2 = model.get_embedding(query)
+                    cos_sim = torch.mm(emb1, emb2.t()).squeeze().item()
+                    scores.append((cos_sim + 1.0) / 2.0)
                 genuine_scores.append(np.mean(scores))
 
             # Test forgery samples
@@ -104,8 +106,10 @@ def evaluate_siamese(model, dataset, test_data, device, k_shot=5):
                 ).unsqueeze(0).to(device)
                 scores = []
                 for simg in support_imgs:
-                    output = model(simg.to(device), query)
-                    scores.append(output['similarity'].item())
+                    emb1 = model.get_embedding(simg.to(device))
+                    emb2 = model.get_embedding(query)
+                    cos_sim = torch.mm(emb1, emb2.t()).squeeze().item()
+                    scores.append((cos_sim + 1.0) / 2.0)
                 impostor_scores.append(np.mean(scores))
 
             # Cross-subject negatives if no forgeries
@@ -122,8 +126,10 @@ def evaluate_siamese(model, dataset, test_data, device, k_shot=5):
                         ).unsqueeze(0).to(device)
                         scores = []
                         for simg in support_imgs:
-                            output = model(simg.to(device), query)
-                            scores.append(output['similarity'].item())
+                            emb1 = model.get_embedding(simg.to(device))
+                            emb2 = model.get_embedding(query)
+                            cos_sim = torch.mm(emb1, emb2.t()).squeeze().item()
+                            scores.append((cos_sim + 1.0) / 2.0)
                         impostor_scores.append(np.mean(scores))
 
     return genuine_scores, impostor_scores

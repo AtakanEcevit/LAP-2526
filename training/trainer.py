@@ -99,6 +99,11 @@ class Trainer:
             'accumulation_steps', 1
         )
 
+        # ── Hard negative mining ─────────────────────────────────────────
+        self.hard_negative_mining = self.config.get('training', {}).get(
+            'hard_negative_mining', False
+        )
+
         # ── CSV training log ─────────────────────────────────────────────
         self._csv_log_path = os.path.join(
             self.results_dir, 'logs', 'training_log.csv'
@@ -336,6 +341,26 @@ class Trainer:
 
             if isinstance(self.criterion, CosineContrastiveLoss):
                 loss = self.criterion(output['emb1'], output['emb2'], labels)
+
+                # Online semi-hard negative mining: re-weight hardest negatives
+                if self.hard_negative_mining and training:
+                    with torch.no_grad():
+                        neg_mask = labels == 0
+                        if neg_mask.any():
+                            neg_sims = torch.mm(
+                                output['emb1'][neg_mask],
+                                output['emb2'][neg_mask].t()
+                            ).diag()
+                            # Semi-hard: negatives with cosine_sim > 0.0
+                            hard_indices = neg_sims > 0.0
+                    if neg_mask.any() and hard_indices.any():
+                        hard_loss = self.criterion(
+                            output['emb1'][neg_mask][hard_indices],
+                            output['emb2'][neg_mask][hard_indices],
+                            labels[neg_mask][hard_indices],
+                        )
+                        loss = loss + 0.5 * hard_loss
+
             elif isinstance(self.criterion, ContrastiveLoss):
                 loss = self.criterion(output['distance'], labels)
             else:

@@ -13,18 +13,19 @@ dataset:
   root_dir: data/raw/fingerprints/SOCOFing
 
 training:
-  epochs: 50
-  batch_size: 32
+  epochs: 150
+  batch_size: 16
   lr: 0.0001
   weight_decay: 0.00001
   loss: cosine               # 'cosine' (recommended), 'contrastive', or 'bce'
   margin: 2.0               # only used if loss=contrastive
-  cosine_margin: 0.5        # only used if loss=cosine (negative pairs pushed below this)
+  cosine_margin: 0.9        # only used if loss=cosine (negative pairs pushed below this)
   scheduler: step
-  lr_step: 15
+  lr_step: 30
   lr_gamma: 0.5
-  patience: 10
-  iterations_per_epoch: 100
+  patience: 25
+  iterations_per_epoch: 300
+  hard_negative_mining: true  # online semi-hard negative mining for cosine loss
   num_workers: 2              # DataLoader workers (0 = sequential)
   prefetch_factor: 2          # batches prefetched per worker
   pin_memory: true            # pinned GPU transfer (auto-disabled on CPU)
