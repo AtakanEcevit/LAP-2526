@@ -582,7 +582,7 @@ The entire codebase was packed into a single script for Google Colab CUDA GPUs (
 
 Configs are YAML files in `configs/` controlling: backbone choice, embedding dimensions, learning rates, margins, batch sizes, dataset paths, and early-stopping patience.
 
-**Requirements:** `torch>=2.1.0`, `torchvision>=0.16.0`, `torch-directml>=0.2.0`, `albumentations>=1.3.0`, `opencv-python>=4.8.0`, `scikit-learn>=1.3.0`, `matplotlib>=3.7.0`, `seaborn>=0.12.0`, `tqdm>=4.65.0`, `pyyaml>=6.0`, `tensorboard>=2.14.0`, `numpy>=1.24.0`, `Pillow>=10.0.0`
+**Requirements:** `torch>=2.1.0`, `torchvision>=0.16.0`, `albumentations>=1.3.0`, `opencv-python>=4.8.0`, `scikit-learn>=1.3.0`, `matplotlib>=3.7.0`, `seaborn>=0.12.0`, `tqdm>=4.65.0`, `pyyaml>=6.0`, `tensorboard>=2.14.0`, `numpy>=1.24.0`, `Pillow>=10.0.0`. Optionally `torch-directml>=0.2.0` for AMD GPU support (requires Python ≤3.12).
 
 </details>
 

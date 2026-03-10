@@ -230,7 +230,7 @@ The project relies on `.yaml` configuration files inside `configs/`. This avoids
 
 **Requirements:**
 
-- `torch>=2.1.0`, `torchvision>=0.16.0`, `torch-directml>=0.2.0` (CUDA or DirectML depending on the hardware target).
+- `torch>=2.1.0`, `torchvision>=0.16.0` (CUDA or CPU depending on the hardware target). Optionally `torch-directml>=0.2.0` for AMD GPU support (requires Python ≤3.12).
 
 - `albumentations>=1.3.0` and `opencv-python>=4.8.0` (for image loading/augmentation).
 
