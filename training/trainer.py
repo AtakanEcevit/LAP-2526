@@ -680,8 +680,11 @@ class Trainer:
 
         if model_type == 'siamese':
             batch_size = self.config['training'].get('batch_size', 32)
-            train_sampler = PairSampler(train_data, batch_size=batch_size)
-            val_sampler = PairSampler(val_data, batch_size=batch_size)
+            finger_index = getattr(dataset, 'finger_index', None)
+            train_sampler = PairSampler(train_data, batch_size=batch_size,
+                                        finger_index=finger_index)
+            val_sampler = PairSampler(val_data, batch_size=batch_size,
+                                      finger_index=finger_index)
         else:
             n_way = self.config['training'].get('n_way', 5)
             k_shot = self.config['training'].get('k_shot', 5)

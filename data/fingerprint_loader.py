@@ -34,6 +34,19 @@ class SOCOFingDataset(BiometricDataset):
 
     IMG_SIZE = IMAGE_SIZES["fingerprint"]
 
+    @staticmethod
+    def _parse_finger_type(fname):
+        """Extract finger type from SOCOFing filename.
+        '1__M_Left_index_finger.BMP' → 'Left_index_finger'
+        """
+        try:
+            after_id = fname.split('__')[1]   # 'M_Left_index_finger.BMP'
+            parts = after_id.split('_')       # ['M', 'Left', 'index', 'finger.BMP']
+            finger = '_'.join(parts[1:])      # 'Left_index_finger.BMP'
+            return os.path.splitext(finger)[0]  # 'Left_index_finger'
+        except (IndexError, ValueError):
+            return 'unknown'
+
     def _load_data(self):
         real_dir = os.path.join(self.root_dir, 'Real')
         altered_dirs = [
@@ -41,6 +54,9 @@ class SOCOFingDataset(BiometricDataset):
             os.path.join(self.root_dir, 'Altered', 'Altered-Medium'),
             os.path.join(self.root_dir, 'Altered', 'Altered-Hard'),
         ]
+
+        # finger_index: {finger_type: [(subj_id, path), ...]} for hard neg sampling
+        self.finger_index = {}
 
         # Parse real fingerprints
         if os.path.exists(real_dir):
@@ -53,11 +69,17 @@ class SOCOFingDataset(BiometricDataset):
                 except (ValueError, IndexError):
                     continue
 
+                path = os.path.join(real_dir, fname)
+
                 if subj_id not in self.data:
                     self.data[subj_id] = {'genuine': [], 'forgery': []}
-                self.data[subj_id]['genuine'].append(
-                    os.path.join(real_dir, fname)
-                )
+                self.data[subj_id]['genuine'].append(path)
+
+                # Index by finger type for hard negative sampling
+                finger_type = self._parse_finger_type(fname)
+                if finger_type not in self.finger_index:
+                    self.finger_index[finger_type] = []
+                self.finger_index[finger_type].append((subj_id, path))
 
         # Parse altered (forged) fingerprints
         for alt_dir in altered_dirs:

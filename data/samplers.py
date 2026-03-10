@@ -15,12 +15,15 @@ class PairSampler:
                    OR two images from different subjects
     """
 
-    def __init__(self, dataset_data, batch_size=32, neg_ratio=0.5):
+    def __init__(self, dataset_data, batch_size=32, neg_ratio=0.5,
+                 finger_index=None):
         """
         Args:
             dataset_data: dict mapping subject_id -> {'genuine': [...], 'forgery': [...]}
             batch_size: number of pairs per batch
             neg_ratio: ratio of negative pairs (0.5 = balanced)
+            finger_index: optional dict {finger_type: [(subj_id, path), ...]}
+                          for hard negative sampling (same finger, different person)
         """
         self.data = dataset_data
         self.batch_size = batch_size
@@ -34,6 +37,19 @@ class PairSampler:
         self._has_forgeries = any(
             len(dataset_data[s].get('forgery', [])) > 0 for s in self.subjects
         )
+
+        # Finger-aware hard negative index (filtered to train subjects)
+        self._train_finger_index = {}
+        if finger_index:
+            train_set = set(self.subjects)
+            for ft, entries in finger_index.items():
+                filtered = [(s, p) for s, p in entries if s in train_set]
+                # Need >= 2 different subjects for cross-subject pairing
+                if len(set(s for s, _ in filtered)) >= 2:
+                    self._train_finger_index[ft] = filtered
+            if self._train_finger_index:
+                print(f"[PairSampler] Finger-aware mining: "
+                      f"{len(self._train_finger_index)} finger types available")
 
         # Validate we can produce pairs
         if len(self._pos_subjects) < 1:
@@ -79,7 +95,21 @@ class PairSampler:
                     pairs.append((random.choice(genuine), random.choice(forgery), 0))
                     continue
 
-            # Strategy 2: different subjects (both genuine)
+            # Strategy 2: cross-subject negatives
+            if self._train_finger_index and random.random() < 0.5:
+                # HARD negative: same finger type, different subject
+                ft = random.choice(list(self._train_finger_index.keys()))
+                entries = self._train_finger_index[ft]
+                e1, e2 = random.sample(entries, 2)
+                # Ensure different subjects (resample if needed)
+                attempts = 0
+                while e1[0] == e2[0] and attempts < 10:
+                    e1, e2 = random.sample(entries, 2)
+                    attempts += 1
+                if e1[0] != e2[0]:
+                    pairs.append((e1[1], e2[1], 0))
+                    continue
+            # EASY negative: random cross-subject
             s1, s2 = random.sample(self.subjects, 2)
             g1 = self.data[s1]['genuine']
             g2 = self.data[s2]['genuine']
