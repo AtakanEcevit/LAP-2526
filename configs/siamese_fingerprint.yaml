@@ -19,7 +19,7 @@ training:
   weight_decay: 0.00001
   loss: cosine               # 'cosine' (recommended), 'contrastive', or 'bce'
   margin: 2.0               # only used if loss=contrastive
-  cosine_margin: 0.9        # only used if loss=cosine (negative pairs pushed below this)
+  cosine_margin: 0.0        # CosineEmbeddingLoss: negatives pushed below this in [-1,1] → 0.5 in [0,1]
   scheduler: step
   lr_step: 30
   lr_gamma: 0.5
