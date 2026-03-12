@@ -48,6 +48,28 @@ def preprocess_fingerprint(img: np.ndarray) -> np.ndarray:
     return clahe.apply(img)
 
 
+# ── NEW: Paper-style preprocessing for signatures (SigScatNet style) ─────
+
+def preprocess_signature_paper(img: np.ndarray) -> np.ndarray:
+    """
+    Paper-style preprocessing.
+
+    Steps used in many signature verification papers:
+    1. Resize
+    2. Normalize
+
+    Target resolution from paper: 300x180
+    """
+
+    # resize
+    img = cv2.resize(img, (300, 180))
+
+    # normalize
+    img = img.astype(np.float32) / 255.0
+
+    return img
+
+
 # ── Registry: modality name → preprocessing function ─────────────────────
 PREPROCESS_FN = {
     "signature":   preprocess_signature,
