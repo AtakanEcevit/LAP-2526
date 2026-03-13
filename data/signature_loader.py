@@ -14,7 +14,7 @@ from data.preprocessing import preprocess_signature, IMAGE_SIZES
 class CEDARDataset(BiometricDataset):
     """
     CEDAR Signature Dataset.
-
+    
     Expected directory structure:
         data/raw/signatures/CEDAR/
             full_org/
@@ -82,32 +82,37 @@ class CEDARDataset(BiometricDataset):
 
         img = np.array(image)
 
-        # grayscale güvenli dönüşüm
+        # güvenli grayscale dönüşüm
         if len(img.shape) == 3:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
 
         # noise azaltma
         img = cv2.GaussianBlur(img, (3, 3), 0)
 
-        # CLAHE (signature için çok önemli)
+        # CLAHE contrast enhancement
         img = preprocess_signature(img)
 
-        # resize
+        # stroke sharpening
+        kernel = np.array([
+            [0, -1, 0],
+            [-1, 5, -1],
+            [0, -1, 0]
+        ])
+        img = cv2.filter2D(img, -1, kernel)
+
+        # resize (model input size)
         img = cv2.resize(
             img,
             (self.IMG_SIZE[1], self.IMG_SIZE[0]),
-            interpolation=cv2.INTER_AREA,
+            interpolation=cv2.INTER_AREA
         )
 
-        # normalize
-        img = img.astype(np.float32) / 255.0
-
-        return Image.fromarray((img * 255).astype(np.uint8))
+        return Image.fromarray(img)
 
 
 class BHSig260Dataset(BiometricDataset):
     """
-    BHSig260 Dataset loader
+    BHSig260 Dataset (Bengali or Hindi).
     """
 
     IMG_SIZE = IMAGE_SIZES["signature"]
@@ -176,12 +181,17 @@ class BHSig260Dataset(BiometricDataset):
 
         img = preprocess_signature(img)
 
+        kernel = np.array([
+            [0, -1, 0],
+            [-1, 5, -1],
+            [0, -1, 0]
+        ])
+        img = cv2.filter2D(img, -1, kernel)
+
         img = cv2.resize(
             img,
             (self.IMG_SIZE[1], self.IMG_SIZE[0]),
-            interpolation=cv2.INTER_AREA,
+            interpolation=cv2.INTER_AREA
         )
 
-        img = img.astype(np.float32) / 255.0
-
-        return Image.fromarray((img * 255).astype(np.uint8))
+        return Image.fromarray(img)
