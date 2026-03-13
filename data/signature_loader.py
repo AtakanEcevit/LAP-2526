@@ -6,6 +6,7 @@ import os
 import cv2
 import numpy as np
 from PIL import Image
+
 from data.base_loader import BiometricDataset
 from data.preprocessing import preprocess_signature, IMAGE_SIZES
 
@@ -13,85 +14,100 @@ from data.preprocessing import preprocess_signature, IMAGE_SIZES
 class CEDARDataset(BiometricDataset):
     """
     CEDAR Signature Dataset.
-    
+
     Expected directory structure:
         data/raw/signatures/CEDAR/
-            full_org/       # Genuine signatures: original_1_1.png, original_1_2.png, ...
-            full_forg/      # Forgeries: forgeries_1_1.png, forgeries_1_2.png, ...
-    
-    55 writers, 24 genuine + 24 forgery signatures each = 2,640 total images.
+            full_org/
+            full_forg/
     """
 
-    IMG_SIZE = IMAGE_SIZES["signature"]  # H x W
+    IMG_SIZE = IMAGE_SIZES["signature"]
 
     def _load_data(self):
-        genuine_dir = os.path.join(self.root_dir, 'full_org')
-        forgery_dir = os.path.join(self.root_dir, 'full_forg')
 
-        # Parse genuine signatures
+        genuine_dir = os.path.join(self.root_dir, "full_org")
+        forgery_dir = os.path.join(self.root_dir, "full_forg")
+
         if os.path.exists(genuine_dir):
             for fname in sorted(os.listdir(genuine_dir)):
-                if not fname.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp')):
+
+                if not fname.lower().endswith(
+                    (".png", ".jpg", ".jpeg", ".tif", ".bmp")
+                ):
                     continue
-                # Parse: original_{writer}_{sample}.png
-                parts = fname.replace('.', '_').split('_')
+
+                parts = fname.replace(".", "_").split("_")
+
                 try:
                     writer_id = int(parts[1])
                 except (IndexError, ValueError):
                     continue
 
                 if writer_id not in self.data:
-                    self.data[writer_id] = {'genuine': [], 'forgery': []}
-                self.data[writer_id]['genuine'].append(
+                    self.data[writer_id] = {"genuine": [], "forgery": []}
+
+                self.data[writer_id]["genuine"].append(
                     os.path.join(genuine_dir, fname)
                 )
 
-        # Parse forged signatures
         if os.path.exists(forgery_dir):
             for fname in sorted(os.listdir(forgery_dir)):
-                if not fname.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp')):
+
+                if not fname.lower().endswith(
+                    (".png", ".jpg", ".jpeg", ".tif", ".bmp")
+                ):
                     continue
-                parts = fname.replace('.', '_').split('_')
+
+                parts = fname.replace(".", "_").split("_")
+
                 try:
                     writer_id = int(parts[1])
                 except (IndexError, ValueError):
                     continue
 
                 if writer_id not in self.data:
-                    self.data[writer_id] = {'genuine': [], 'forgery': []}
-                self.data[writer_id]['forgery'].append(
+                    self.data[writer_id] = {"genuine": [], "forgery": []}
+
+                self.data[writer_id]["forgery"].append(
                     os.path.join(forgery_dir, fname)
                 )
 
-        print(f"[CEDAR] Loaded {len(self.data)} writers, "
-              f"{sum(len(v['genuine']) for v in self.data.values())} genuine, "
-              f"{sum(len(v['forgery']) for v in self.data.values())} forgery")
+        print(
+            f"[CEDAR] Loaded {len(self.data)} writers, "
+            f"{sum(len(v['genuine']) for v in self.data.values())} genuine, "
+            f"{sum(len(v['forgery']) for v in self.data.values())} forgery"
+        )
 
     def _preprocess(self, image):
-        """Grayscale → CLAHE → resize to 155×220. Preserves gradient info."""
-        img = np.array(image, dtype=np.uint8)
+
+        img = np.array(image)
+
+        # grayscale güvenli dönüşüm
+        if len(img.shape) == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        # noise azaltma
+        img = cv2.GaussianBlur(img, (3, 3), 0)
+
+        # CLAHE (signature için çok önemli)
         img = preprocess_signature(img)
 
-        # Resize
-        img = cv2.resize(img, (self.IMG_SIZE[1], self.IMG_SIZE[0]),
-                         interpolation=cv2.INTER_AREA)
+        # resize
+        img = cv2.resize(
+            img,
+            (self.IMG_SIZE[1], self.IMG_SIZE[0]),
+            interpolation=cv2.INTER_AREA,
+        )
 
-        return Image.fromarray(img)
+        # normalize
+        img = img.astype(np.float32) / 255.0
+
+        return Image.fromarray((img * 255).astype(np.uint8))
 
 
 class BHSig260Dataset(BiometricDataset):
     """
-    BHSig260 Dataset (Bengali or Hindi).
-    
-    Expected directory structure:
-        data/raw/signatures/BHSig260/Bengali/ (or Hindi/)
-            001/        # Writer directories
-                B-S-01-F-01.tif   # Forgery
-                B-S-01-G-01.tif   # Genuine
-                ...
-    
-    Bengali: 100 writers, Hindi: 160 writers.
-    Each writer: 24 genuine + 30 forgery signatures.
+    BHSig260 Dataset loader
     """
 
     IMG_SIZE = IMAGE_SIZES["signature"]
@@ -101,12 +117,16 @@ class BHSig260Dataset(BiometricDataset):
         super().__init__(root_dir, **kwargs)
 
     def _load_data(self):
+
         script_dir = os.path.join(self.root_dir, self.script)
+
         if not os.path.exists(script_dir):
-            script_dir = self.root_dir  # Fallback: maybe already in the right dir
+            script_dir = self.root_dir
 
         for writer_dir in sorted(os.listdir(script_dir)):
+
             writer_path = os.path.join(script_dir, writer_dir)
+
             if not os.path.isdir(writer_path):
                 continue
 
@@ -115,30 +135,53 @@ class BHSig260Dataset(BiometricDataset):
             except ValueError:
                 writer_id = writer_dir
 
-            self.data[writer_id] = {'genuine': [], 'forgery': []}
+            self.data[writer_id] = {"genuine": [], "forgery": []}
 
             for fname in sorted(os.listdir(writer_path)):
-                if not fname.lower().endswith(('.png', '.jpg', '.jpeg', '.tif', '.bmp')):
+
+                if not fname.lower().endswith(
+                    (".png", ".jpg", ".jpeg", ".tif", ".bmp")
+                ):
                     continue
+
                 fpath = os.path.join(writer_path, fname)
+
                 upper = fname.upper()
-                if '-G-' in upper or '_G_' in upper:
-                    self.data[writer_id]['genuine'].append(fpath)
-                elif '-F-' in upper or '_F_' in upper:
-                    self.data[writer_id]['forgery'].append(fpath)
 
-        # Remove empty writers
-        self.data = {k: v for k, v in self.data.items()
-                     if len(v['genuine']) > 0}
+                if "-G-" in upper or "_G_" in upper:
+                    self.data[writer_id]["genuine"].append(fpath)
 
-        print(f"[BHSig260-{self.script}] Loaded {len(self.data)} writers, "
-              f"{sum(len(v['genuine']) for v in self.data.values())} genuine, "
-              f"{sum(len(v['forgery']) for v in self.data.values())} forgery")
+                elif "-F-" in upper or "_F_" in upper:
+                    self.data[writer_id]["forgery"].append(fpath)
+
+        self.data = {
+            k: v for k, v in self.data.items()
+            if len(v["genuine"]) > 0
+        }
+
+        print(
+            f"[BHSig260-{self.script}] Loaded {len(self.data)} writers, "
+            f"{sum(len(v['genuine']) for v in self.data.values())} genuine, "
+            f"{sum(len(v['forgery']) for v in self.data.values())} forgery"
+        )
 
     def _preprocess(self, image):
-        """Same as CEDAR: Grayscale → CLAHE → resize."""
-        img = np.array(image, dtype=np.uint8)
+
+        img = np.array(image)
+
+        if len(img.shape) == 3:
+            img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+
+        img = cv2.GaussianBlur(img, (3, 3), 0)
+
         img = preprocess_signature(img)
-        img = cv2.resize(img, (self.IMG_SIZE[1], self.IMG_SIZE[0]),
-                         interpolation=cv2.INTER_AREA)
-        return Image.fromarray(img)
+
+        img = cv2.resize(
+            img,
+            (self.IMG_SIZE[1], self.IMG_SIZE[0]),
+            interpolation=cv2.INTER_AREA,
+        )
+
+        img = img.astype(np.float32) / 255.0
+
+        return Image.fromarray((img * 255).astype(np.uint8))
