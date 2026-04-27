@@ -4,7 +4,7 @@ Prototypical Network for few-shot biometric verification.
 
 import torch
 import torch.nn as nn
-from models.backbone import ResNetEncoder, LightCNNEncoder
+from models.backbone import FaceResNet50, FaceEfficientNet, LightCNNEncoder, build_backbone
 
 
 class PrototypicalNetwork(nn.Module):
@@ -22,11 +22,11 @@ class PrototypicalNetwork(nn.Module):
         - If distance < threshold → genuine, else → forgery
     """
 
-    def __init__(self, backbone='resnet', embedding_dim=128,
+    def __init__(self, backbone='resnet50', embedding_dim=512,
                  pretrained=True, in_channels=1, distance='euclidean'):
         """
         Args:
-            backbone: 'resnet' or 'light'
+            backbone: 'resnet50', 'efficientnet', or 'light'
             embedding_dim: Size of embedding vectors
             pretrained: Use pretrained weights
             in_channels: Input channels (1=grayscale)
@@ -35,19 +35,26 @@ class PrototypicalNetwork(nn.Module):
         super().__init__()
         self.distance_type = distance
 
-        if backbone == 'resnet':
-            self.encoder = ResNetEncoder(
+        if backbone in ('resnet50', 'resnet'):
+            self.encoder = FaceResNet50(
                 embedding_dim=embedding_dim,
                 pretrained=pretrained,
-                in_channels=in_channels
+            )
+        elif backbone in ('efficientnet', 'efficientnet_b3'):
+            self.encoder = FaceEfficientNet(
+                embedding_dim=embedding_dim,
+                pretrained=pretrained,
             )
         elif backbone == 'light':
             self.encoder = LightCNNEncoder(
-                embedding_dim=embedding_dim,
-                in_channels=in_channels
+                embedding_dim=min(embedding_dim, 256),
             )
         else:
-            raise ValueError(f"Unknown backbone: {backbone}")
+            self.encoder = build_backbone({
+                'backbone': backbone,
+                'embedding_dim': embedding_dim,
+                'pretrained': pretrained,
+            })
 
     def compute_prototypes(self, support_embeddings, support_labels):
         """
@@ -86,8 +93,6 @@ class PrototypicalNetwork(nn.Module):
             distances: (n_query, n_classes) — negative distances (for softmax)
         """
         if self.distance_type == 'euclidean':
-            # Efficient pairwise Euclidean distance
-            # ||q - p||^2 = ||q||^2 + ||p||^2 - 2*q·p
             n_q = query_embeddings.size(0)
             n_p = prototypes.size(0)
 
@@ -96,10 +101,9 @@ class PrototypicalNetwork(nn.Module):
                 prototypes.unsqueeze(0).expand(n_q, n_p, -1)
             ).pow(2).sum(dim=2)
 
-            return -distances  # Negative because we want "closer = higher score"
+            return -distances
 
         elif self.distance_type == 'cosine':
-            # Cosine similarity (already L2-normalized from backbone)
             return torch.mm(query_embeddings, prototypes.t())
 
         else:
@@ -116,21 +120,18 @@ class PrototypicalNetwork(nn.Module):
             
         Returns:
             dict with:
-                'logits': (n_query, n_classes) — log-probabilities
+                'logits': (n_query, n_classes)
                 'prototypes': (n_classes, embedding_dim)
                 'query_embeddings': (n_query, embedding_dim)
                 'support_embeddings': (n_support, embedding_dim)
         """
-        # Encode support and query
         support_embeddings = self.encoder(support_images)
         query_embeddings = self.encoder(query_images)
 
-        # Compute prototypes
         prototypes, classes = self.compute_prototypes(
             support_embeddings, support_labels
         )
 
-        # Compute distances (negative, so higher = closer)
         logits = self.compute_distances(query_embeddings, prototypes)
 
         return {
@@ -155,16 +156,13 @@ class PrototypicalNetwork(nn.Module):
             
         Returns:
             distance: scalar distance to the genuine prototype
-            is_genuine: boolean based on learned threshold
         """
         with torch.no_grad():
             support_emb = self.encoder(support_images)
             query_emb = self.encoder(query_image)
 
-            # Prototype = mean of support embeddings
             prototype = support_emb.mean(dim=0, keepdim=True)
 
-            # Distance to prototype
             if self.distance_type == 'euclidean':
                 distance = torch.sqrt(
                     ((query_emb - prototype) ** 2).sum(dim=1) + 1e-8
