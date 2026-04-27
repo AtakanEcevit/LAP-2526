@@ -1,143 +1,200 @@
 """
-Shared CNN backbone for both Siamese and Prototypical networks.
-Uses a modified ResNet-18 that outputs 128-dim embeddings.
+backbone.py  —  Geliştirilmiş backbone mimarisi
+Değişiklikler:
+  - ResNet-18 → EfficientNet-B3 (veya ResNet-50 seçeneği)
+  - 128-d → 512-d embedding
+  - BatchNorm + Dropout pipeline
+  - GeM (Generalized Mean Pooling) — ortalama yerine daha güçlü agregasyon
 """
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torchvision.models as models
 
 
-class ResNetEncoder(nn.Module):
+class GeM(nn.Module):
     """
-    ResNet-18 based encoder that produces 128-dimensional embeddings.
-    
-    Modifications from standard ResNet-18:
-        1. First conv layer accepts 1-channel (grayscale) input instead of 3
-        2. Final FC layer replaced with 128-dim embedding layer
-        3. L2 normalization on output embeddings
+    Generalized Mean Pooling.
+    Global average pooling'den daha iyi: p=1 → avg, p→∞ → max.
+    Yüz tanımada özellikle yararlı.
     """
-
-    def __init__(self, embedding_dim=128, pretrained=True, in_channels=1):
-        """
-        Args:
-            embedding_dim: Dimension of the output embedding vector
-            pretrained: Use ImageNet pretrained weights (adapted for 1-ch)
-            in_channels: Number of input channels (1 for grayscale)
-        """
+    def __init__(self, p=3.0, eps=1e-6):
         super().__init__()
-        self.embedding_dim = embedding_dim
-
-        # Load base ResNet-18
-        resnet = models.resnet18(
-            weights=models.ResNet18_Weights.DEFAULT if pretrained else None
-        )
-
-        # Modify first conv layer for grayscale input
-        if in_channels != 3:
-            original_conv = resnet.conv1
-            resnet.conv1 = nn.Conv2d(
-                in_channels, 64,
-                kernel_size=7, stride=2, padding=3, bias=False
-            )
-            if pretrained:
-                # Average the pretrained RGB weights into single channel
-                with torch.no_grad():
-                    resnet.conv1.weight = nn.Parameter(
-                        original_conv.weight.mean(dim=1, keepdim=True)
-                    )
-
-        # Extract feature layers (everything except final FC)
-        self.features = nn.Sequential(
-            resnet.conv1,
-            resnet.bn1,
-            resnet.relu,
-            resnet.maxpool,
-            resnet.layer1,
-            resnet.layer2,
-            resnet.layer3,
-            resnet.layer4,
-        )
-
-
-
-        # Global average pooling
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-
-        # Embedding projection
-        self.embedding = nn.Sequential(
-            nn.Linear(512, 256),
-            nn.ReLU(inplace=True),
-            nn.Dropout(0.3),
-            nn.Linear(256, embedding_dim),
-        )
+        self.p = nn.Parameter(torch.ones(1) * p)
+        self.eps = eps
 
     def forward(self, x):
-        """
-        Args:
-            x: Input tensor of shape (batch, channels, H, W)
-        Returns:
-            L2-normalized embedding of shape (batch, embedding_dim)
-        """
-        x = self.features(x)
-        x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        x = self.embedding(x)
+        return F.adaptive_avg_pool2d(
+            x.clamp(min=self.eps).pow(self.p),
+            output_size=1
+        ).pow(1.0 / self.p)
 
-        # L2 normalize embeddings
-        x = nn.functional.normalize(x, p=2, dim=1)
-        return x
+
+class EmbeddingHead(nn.Module):
+    """
+    Backbone çıktısını sabit boyutlu embedding vektörüne dönüştürür.
+    BN → Dropout → Linear → BN → L2Norm
+    """
+    def __init__(self, in_features, embedding_dim=512, dropout=0.4):
+        super().__init__()
+        self.head = nn.Sequential(
+            nn.BatchNorm1d(in_features),
+            nn.Dropout(p=dropout),
+            nn.Linear(in_features, embedding_dim, bias=False),
+            nn.BatchNorm1d(embedding_dim),
+        )
+        self._init_weights()
+
+    def _init_weights(self):
+        for m in self.modules():
+            if isinstance(m, nn.Linear):
+                nn.init.kaiming_normal_(m.weight, mode='fan_out')
+            elif isinstance(m, nn.BatchNorm1d):
+                nn.init.constant_(m.weight, 1)
+                nn.init.constant_(m.bias, 0)
+
+    def forward(self, x):
+        emb = self.head(x)
+        return F.normalize(emb, p=2, dim=1)  # L2 normalizasyon
+
+
+class FaceEfficientNet(nn.Module):
+    """
+    EfficientNet-B3 tabanlı yüz embedding modeli.
+    Grayscale giriş (1 kanal) → 512-d L2-normalize embedding.
+    """
+    def __init__(self, embedding_dim=512, dropout=0.4, pretrained=True):
+        super().__init__()
+
+        # EfficientNet-B3 yükle
+        weights = models.EfficientNet_B3_Weights.IMAGENET1K_V1 if pretrained else None
+        backbone = models.efficientnet_b3(weights=weights)
+
+        # 1 kanallı giriş için ilk conv katmanını değiştir
+        # Orijinal: Conv2d(3, 40, kernel_size=3, stride=2, padding=1, bias=False)
+        orig_conv = backbone.features[0][0]
+        backbone.features[0][0] = nn.Conv2d(
+            in_channels=1,
+            out_channels=orig_conv.out_channels,
+            kernel_size=orig_conv.kernel_size,
+            stride=orig_conv.stride,
+            padding=orig_conv.padding,
+            bias=False
+        )
+        # Pretrained ağırlıkları 3→1 kanala collapse et
+        if pretrained:
+            with torch.no_grad():
+                backbone.features[0][0].weight.copy_(
+                    orig_conv.weight.mean(dim=1, keepdim=True)
+                )
+
+        # Classifier'ı kaldır, feature extractor tut
+        self.backbone = backbone.features
+        self.pool = GeM(p=3.0)
+        in_features = 1536  # EfficientNet-B3 çıktı kanalı
+
+        self.embedding = EmbeddingHead(in_features, embedding_dim, dropout)
+        self.embedding_dim = embedding_dim
+
+    def forward(self, x):
+        feat = self.backbone(x)          # [B, 1536, H, W]
+        feat = self.pool(feat)            # [B, 1536, 1, 1]
+        feat = feat.flatten(1)            # [B, 1536]
+        emb = self.embedding(feat)        # [B, 512] — L2 normalize
+        return emb
+
+
+class FaceResNet50(nn.Module):
+    """
+    ResNet-50 tabanlı alternatif (EfficientNet yoksa).
+    Daha yüksek VRAM gerektirir ama çok iyi sonuç verir.
+    """
+    def __init__(self, embedding_dim=512, dropout=0.4, pretrained=True):
+        super().__init__()
+
+        weights = models.ResNet50_Weights.IMAGENET1K_V2 if pretrained else None
+        backbone = models.resnet50(weights=weights)
+
+        # 1 kanallı giriş
+        orig_conv = backbone.conv1
+        backbone.conv1 = nn.Conv2d(
+            in_channels=1,
+            out_channels=orig_conv.out_channels,
+            kernel_size=orig_conv.kernel_size,
+            stride=orig_conv.stride,
+            padding=orig_conv.padding,
+            bias=False
+        )
+        if pretrained:
+            with torch.no_grad():
+                backbone.conv1.weight.copy_(
+                    orig_conv.weight.mean(dim=1, keepdim=True)
+                )
+
+        # FC katmanını kaldır
+        in_features = backbone.fc.in_features  # 2048
+        backbone.fc = nn.Identity()
+
+        self.backbone = backbone
+        self.pool = GeM(p=3.0)
+        self.embedding = EmbeddingHead(in_features, embedding_dim, dropout)
+        self.embedding_dim = embedding_dim
+
+    def forward(self, x):
+        # ResNet50 kendi avgpool'unu yapıyor, GeM için override et
+        x = self.backbone.conv1(x)
+        x = self.backbone.bn1(x)
+        x = self.backbone.relu(x)
+        x = self.backbone.maxpool(x)
+        x = self.backbone.layer1(x)
+        x = self.backbone.layer2(x)
+        x = self.backbone.layer3(x)
+        x = self.backbone.layer4(x)
+        feat = self.pool(x).flatten(1)
+        emb = self.embedding(feat)
+        return emb
 
 
 class LightCNNEncoder(nn.Module):
     """
-    Lightweight CNN encoder for faster training and lower memory usage.
-    Good for initial experiments and smoke tests.
-    
-    Architecture:
-        4 conv blocks → global avg pool → 128-dim embedding
+    Hafif alternatif — GPU yoksa veya hızlı deney için.
+    Mevcut projeden korunuyor.
     """
-
-    def __init__(self, embedding_dim=128, in_channels=1):
+    def __init__(self, embedding_dim=256, dropout=0.3):
         super().__init__()
+        self.features = nn.Sequential(
+            nn.Conv2d(1, 32, 3, padding=1), nn.BatchNorm2d(32), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(32, 64, 3, padding=1), nn.BatchNorm2d(64), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(64, 128, 3, padding=1), nn.BatchNorm2d(128), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(128, 256, 3, padding=1), nn.BatchNorm2d(256), nn.ReLU(), nn.AdaptiveAvgPool2d(1),
+        )
+        self.embedding = EmbeddingHead(256, embedding_dim, dropout)
         self.embedding_dim = embedding_dim
 
-        self.features = nn.Sequential(
-            # Block 1: 1 → 32
-            nn.Conv2d(in_channels, 32, 3, padding=1),
-            nn.BatchNorm2d(32),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2),
-
-            # Block 2: 32 → 64
-            nn.Conv2d(32, 64, 3, padding=1),
-            nn.BatchNorm2d(64),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2),
-
-            # Block 3: 64 → 128
-            nn.Conv2d(64, 128, 3, padding=1),
-            nn.BatchNorm2d(128),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2),
-
-            # Block 4: 128 → 256
-            nn.Conv2d(128, 256, 3, padding=1),
-            nn.BatchNorm2d(256),
-            nn.ReLU(inplace=True),
-            nn.MaxPool2d(2),
-        )
-
-        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-
-        self.embedding = nn.Sequential(
-            nn.Linear(256, embedding_dim),
-        )
-
     def forward(self, x):
-        x = self.features(x)
-        x = self.avgpool(x)
-        x = torch.flatten(x, 1)
-        x = self.embedding(x)
-        x = nn.functional.normalize(x, p=2, dim=1)
-        return x
+        feat = self.features(x).flatten(1)
+        return self.embedding(feat)
+
+
+def build_backbone(config):
+    """
+    Config'e göre uygun backbone döner.
+    config örnekleri:
+      backbone: efficientnet   embedding_dim: 512
+      backbone: resnet50       embedding_dim: 512
+      backbone: light          embedding_dim: 256
+    """
+    name = config.get('backbone', 'efficientnet').lower()
+    emb_dim = config.get('embedding_dim', 512)
+    dropout = config.get('dropout', 0.4)
+    pretrained = config.get('pretrained', True)
+
+    if name in ('efficientnet', 'efficientnet_b3'):
+        return FaceEfficientNet(emb_dim, dropout, pretrained)
+    elif name in ('resnet50', 'resnet'):
+        return FaceResNet50(emb_dim, dropout, pretrained)
+    elif name in ('light', 'lightcnn'):
+        return LightCNNEncoder(min(emb_dim, 256), dropout)
+    else:
+        raise ValueError(f"Bilinmeyen backbone: {name}")
