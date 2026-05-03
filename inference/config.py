@@ -37,7 +37,7 @@ MODEL_REGISTRY = {
     # ── Face ─────────────────────────────────────────────────────────────
     ("face", "siamese"): {
         "config": _abs("configs/siamese_face.yaml"),
-        "checkpoint": _abs("results/siamese_face_att/checkpoints/best.pth"),
+        "checkpoint": _abs("results/deneme1_att_resnet50/checkpoints/best.pth"),
         "threshold": 0.65,
     },
     ("face", "prototypical"): {

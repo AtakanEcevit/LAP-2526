@@ -78,6 +78,18 @@ class VerificationEngine:
         with open(config_path, "r") as f:
             config = yaml.safe_load(f)
 
+        # Load checkpoint first so we can read its saved model config
+        checkpoint = torch.load(
+            checkpoint_path, map_location="cpu", weights_only=False
+        )
+
+        # Checkpoint's saved model config takes priority over YAML for
+        # architecture params — this prevents shape mismatches when a
+        # checkpoint was trained with different hyperparameters than the
+        # current YAML.
+        if "config" in checkpoint and "model" in checkpoint["config"]:
+            config["model"].update(checkpoint["config"]["model"])
+
         # Determine device
         self.device = device or get_device()
         self.modality = modality
@@ -107,9 +119,6 @@ class VerificationEngine:
             )
 
         # Load trained weights
-        checkpoint = torch.load(
-            checkpoint_path, map_location="cpu", weights_only=False
-        )
         self.model.load_state_dict(checkpoint["model_state_dict"])
         self.model.to(self.device)
         self.model.eval()
