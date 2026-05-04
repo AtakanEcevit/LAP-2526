@@ -68,21 +68,23 @@ def preprocess_image(
 # ═════════════════════════════════════════════════════════════════════════
 
 def _load_pil(image_input) -> "Image.Image":
-    """Load any supported input type into a PIL image."""
+    """Load any supported input type into a PIL image (always RGB)."""
     if isinstance(image_input, bytes):
-        return Image.open(io.BytesIO(image_input))
-    if isinstance(image_input, str):
+        img = Image.open(io.BytesIO(image_input))
+    elif isinstance(image_input, str):
         if not image_input.strip():
             raise ValueError("Empty image path provided.")
-        return Image.open(image_input)
-    if isinstance(image_input, Image.Image):
-        return image_input
-    if isinstance(image_input, np.ndarray):
-        return Image.fromarray(image_input)
-    raise ValueError(
-        f"Unsupported image input type: {type(image_input).__name__}. "
-        "Expected bytes, str path, PIL.Image, or numpy.ndarray."
-    )
+        img = Image.open(image_input)
+    elif isinstance(image_input, Image.Image):
+        img = image_input
+    elif isinstance(image_input, np.ndarray):
+        img = Image.fromarray(image_input)
+    else:
+        raise ValueError(
+            f"Unsupported image input type: {type(image_input).__name__}. "
+            "Expected bytes, str path, PIL.Image, or numpy.ndarray."
+        )
+    return img.convert("RGB")
 
 
 def _load_grayscale(image_input) -> np.ndarray:
