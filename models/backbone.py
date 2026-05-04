@@ -76,6 +76,7 @@ class FaceEfficientNet(nn.Module):
                 "FaceEfficientNet requires 'in_channels' to be set explicitly "
                 "(1 for grayscale, 3 for RGB). Pass it or set it in the model config."
             )
+        self.in_channels = in_channels
         orig_conv = backbone.features[0][0]
         if in_channels != 3:
             # 3 kanaldan in_channels kanala dönüştür
@@ -124,6 +125,7 @@ class FaceResNet50(nn.Module):
                 "FaceResNet50 requires 'in_channels' to be set explicitly "
                 "(1 for grayscale, 3 for RGB). Pass it or set it in the model config."
             )
+        self.in_channels = in_channels
 
         weights = models.ResNet50_Weights.IMAGENET1K_V2 if pretrained else None
         backbone = models.resnet50(weights=weights)
@@ -183,6 +185,7 @@ class LightCNNEncoder(nn.Module):
                 "LightCNNEncoder requires 'in_channels' to be set explicitly "
                 "(1 for grayscale, 3 for RGB). Pass it or set it in the model config."
             )
+        self.in_channels = in_channels
         self.features = nn.Sequential(
             nn.Conv2d(in_channels, 32, 3, padding=1), nn.BatchNorm2d(32), nn.ReLU(), nn.MaxPool2d(2),
             nn.Conv2d(32, 64, 3, padding=1), nn.BatchNorm2d(64), nn.ReLU(), nn.MaxPool2d(2),
