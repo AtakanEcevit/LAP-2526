@@ -1,0 +1,69 @@
+# Siamese Network — Face Verification (CASIA-WebFace + ArcFace)
+#
+# Dataset: CASIA-WebFace  — 10,575 identities, ~494,414 images
+# Format:  MXNet RecordIO  — train.rec + train.idx (+ optional train.lst)
+# Loss:    ArcFace (Additive Angular Margin)
+#
+# Required files in dataset.root_dir:
+#   train.rec   — binary RecordIO (images as JPEG)
+#   train.idx   — binary index (uint64 key + uint64 offset per entry)
+#                 OR text index (id\toffset per line)
+#   train.lst   — optional: id\tlabel\tpath per line (skipped if absent)
+#
+# Recommended GPU: ≥ 8 GB VRAM  (batch_size 128 + ArcFace head for 10 575 classes)
+# Mixed precision (amp: true) halves VRAM usage on supported GPUs.
+
+# ── Model ──────────────────────────────────────────────────────────────────
+model:
+  type: siamese
+  backbone: resnet50          # resnet50 / efficientnet / light
+  embedding_dim: 512          # 512-d = InsightFace / ArcFace standard
+  pretrained: true            # ImageNet init — fine-tuned on CASIA
+  in_channels: 3              # CASIA-WebFace is RGB
+
+# ── Dataset ────────────────────────────────────────────────────────────────
+dataset:
+  modality: face
+  name: casia
+  root_dir: data/raw/faces/casia_webface   # directory containing train.rec / train.idx
+  rec_file: train.rec                       # RecordIO binary file
+  idx_file: train.idx                       # Offset index file
+  min_images: 3                             # Drop identities with < 3 images (noise filter)
+  image_size: 112                           # Native CASIA size; loader resizes to 105×105
+
+# ── Training ───────────────────────────────────────────────────────────────
+training:
+  epochs: 30                  # CASIA is large; 30 epochs ≈ 15M image passes
+  batch_size: 128             # Large batch stabilises ArcFace gradient estimates
+  lr: 0.1                     # SGD standard for ArcFace; cosine decay handles the drop
+  weight_decay: 0.0005
+
+  # Loss
+  loss: arcface               # ArcFace classification loss (requires num_classes)
+  num_classes: 10575          # Total CASIA-WebFace identities
+  arcface_s: 64.0             # Feature scale — keeps logits in a stable range
+  arcface_m: 0.5              # Angular margin ≈ 28.6° — standard InsightFace value
+
+  # Optimiser & schedule
+  optimizer: sgd              # SGD + momentum is the ArcFace paper's default
+  momentum: 0.9               # Nesterov momentum
+  scheduler: cosine           # CosineAnnealingLR over full training run
+  warmup_epochs: 3            # Linear LR warmup (avoids early instability)
+  patience: 10                # Early stopping: epochs without val improvement
+
+  # Throughput
+  iterations_per_epoch: 500   # Batches sampled per epoch (set > 0 to subsample)
+  num_workers: 4              # DataLoader workers (use 0 on Windows if issues arise)
+  prefetch_factor: 2          # Batches prefetched per worker
+  pin_memory: true            # Pinned GPU transfer (auto-disabled on CPU)
+  amp: true                   # Mixed-precision — halves VRAM, ~1.7× throughput
+  accumulation_steps: 2       # Effective batch = 128 × 2 = 256 (ArcFace sweet spot)
+  tensorboard: false          # Set true to log to results_dir/logs/tensorboard/
+
+# ── Evaluation ─────────────────────────────────────────────────────────────
+evaluation:
+  k_shots: [1, 3, 5]
+  metrics: [eer, auc, far, frr, accuracy]
+
+# ── Output ─────────────────────────────────────────────────────────────────
+results_dir: results/siamese_face_casia_arcface
