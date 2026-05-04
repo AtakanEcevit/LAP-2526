@@ -23,7 +23,7 @@ class BiometricDataset(Dataset, ABC):
     """
 
     def __init__(self, root_dir, split="train", transform=None, k_shot=5,
-                 max_cache_size=5000):
+                 max_cache_size=5000, in_channels=1):
         """
         Args:
             root_dir: Root directory of the dataset
@@ -36,6 +36,7 @@ class BiometricDataset(Dataset, ABC):
         self.split = split
         self.transform = transform
         self.k_shot = k_shot
+        self.in_channels = in_channels
 
         # data[subject_id] = {
         #     'genuine': [path1, path2, ...],
@@ -75,21 +76,23 @@ class BiometricDataset(Dataset, ABC):
         if path in self._image_cache:
             img = self._image_cache[path]
         else:
-            img = Image.open(path).convert('L')  # Grayscale by default
+            pil_mode = 'RGB' if self.in_channels == 3 else 'L'
+            img = Image.open(path).convert(pil_mode)
             img = self._preprocess(img)
-            
+
             # Convert to numpy if still PIL
             if isinstance(img, Image.Image):
                 img = np.array(img, dtype=np.float32)
 
-            # Always cast to float32 and normalize to [0, 1]
             img = img.astype(np.float32)
             if img.max() > 1.0:
                 img /= 255.0
 
-            # Add channel dimension if needed: (H, W) -> (1, H, W)
+            # Ensure (C, H, W) shape
             if img.ndim == 2:
-                img = np.expand_dims(img, axis=0)
+                img = np.expand_dims(img, axis=0)       # (H, W) → (1, H, W)
+            elif img.ndim == 3 and img.shape[2] in (1, 3):
+                img = img.transpose(2, 0, 1)            # (H, W, C) → (C, H, W)
 
             # Evict oldest entry if cache is full
             if len(self._image_cache) >= self._max_cache_size:

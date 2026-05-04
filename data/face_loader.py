@@ -59,14 +59,11 @@ class ATTFaceDataset(BiometricDataset):
               f"{sum(len(v['genuine']) for v in self.data.values())} images")
 
     def _preprocess(self, image):
-        """Grayscale → histogram equalization → resize to 105×105."""
-        img = np.array(image, dtype=np.uint8)
+        """Histogram equalization → resize. Handles both grayscale and RGB PIL images."""
+        img = np.array(image, dtype=np.uint8)   # (H,W) or (H,W,3)
         img = preprocess_face(img)
-
-        # Resize to square
         img = cv2.resize(img, (self.IMG_SIZE[1], self.IMG_SIZE[0]),
                          interpolation=cv2.INTER_AREA)
-
         return Image.fromarray(img)
 
 
@@ -114,8 +111,8 @@ class LFWDataset(BiometricDataset):
               f"{sum(len(v['genuine']) for v in self.data.values())} total images")
 
     def _preprocess(self, image):
-        """Grayscale → histogram equalization → resize to 105×105."""
-        img = np.array(image, dtype=np.uint8)
+        """Histogram equalization → resize. Handles both grayscale and RGB PIL images."""
+        img = np.array(image, dtype=np.uint8)   # (H,W) or (H,W,3)
         img = preprocess_face(img)
         img = cv2.resize(img, (self.IMG_SIZE[1], self.IMG_SIZE[0]),
                          interpolation=cv2.INTER_AREA)

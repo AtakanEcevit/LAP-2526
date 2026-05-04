@@ -26,6 +26,7 @@ def get_dataset(config, training=True):
     name = config['dataset']['name']
     root_dir = config['dataset']['root_dir']
     transform = get_augmentation(modality, training=training)
+    in_channels = config.get('model', {}).get('in_channels', 1)
 
     if modality == 'signature':
         if name == 'cedar':
@@ -35,10 +36,11 @@ def get_dataset(config, training=True):
             return BHSig260Dataset(root_dir, script=script, transform=transform)
     elif modality == 'face':
         if name == 'att':
-            return ATTFaceDataset(root_dir, transform=transform)
+            return ATTFaceDataset(root_dir, transform=transform, in_channels=in_channels)
         elif name == 'lfw':
             min_imgs = config['dataset'].get('min_images', 5)
-            return LFWDataset(root_dir, min_images=min_imgs, transform=transform)
+            return LFWDataset(root_dir, min_images=min_imgs, transform=transform,
+                              in_channels=in_channels)
         elif name == 'casia':
             rec_file = config['dataset'].get('rec_file', 'train.rec')
             idx_file = config['dataset'].get('idx_file', 'train.idx')

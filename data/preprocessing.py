@@ -31,11 +31,18 @@ def preprocess_signature(img: np.ndarray) -> np.ndarray:
 
 
 def preprocess_face(img: np.ndarray) -> np.ndarray:
-    """Global histogram equalization for face images.
+    """Histogram equalization for face images.
 
-    Normalizes lighting variations across face photographs.
+    Grayscale (H, W): global equalizeHist applied directly.
+    RGB (H, W, 3): equalization applied to the Y channel in YCrCb space
+                   so hue and saturation are preserved.
     """
-    return cv2.equalizeHist(img)
+    if img.ndim == 2:
+        return cv2.equalizeHist(img)
+    # RGB path — equalize luminance only
+    ycrcb = cv2.cvtColor(img, cv2.COLOR_RGB2YCrCb)
+    ycrcb[:, :, 0] = cv2.equalizeHist(ycrcb[:, :, 0])
+    return cv2.cvtColor(ycrcb, cv2.COLOR_YCrCb2RGB)
 
 
 def preprocess_fingerprint(img: np.ndarray) -> np.ndarray:
