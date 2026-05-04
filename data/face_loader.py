@@ -224,12 +224,14 @@ class CasiaWebFaceDataset(BiometricDataset):
         """Parse .lst text file → {rec_id(int): label(int)}.
 
         Real CASIA-WebFace format (tab-separated):
-            label \\t path \\t x \\t y \\t w \\t h \\t ...
-        where path is an absolute server path like
-            /raid5data/dplearn/CASIA-WebFace/0000001/001.jpg
+            <flag>  <abs_path>  <x>  <y>  <w>  <h>  ...
 
-        The path column is ignored — images are read from train.rec.
-        rec_id is the 0-based line number, matching the .rec record order.
+        col-0 is a detection flag (always 0) — NOT the identity label.
+        Identity is encoded in the parent directory of col-1:
+            /raid5data/dplearn/CASIA-WebFace/0000001/001.jpg
+                                              ^^^^^^^ → label 1
+
+        rec_id = 0-based line number, matching the .rec record order.
         """
         label_map = {}
         with open(lst_path, 'r') as f:
@@ -238,8 +240,12 @@ class CasiaWebFaceDataset(BiometricDataset):
                 if not line:
                     continue
                 parts = line.split('\t')
+                if len(parts) < 2:
+                    continue
                 try:
-                    label_map[rec_id] = int(float(parts[0]))
+                    # Extract identity from parent directory name in the path
+                    identity_dir = parts[1].split('/')[-2]
+                    label_map[rec_id] = int(identity_dir)
                 except (ValueError, IndexError):
                     continue
         return label_map
