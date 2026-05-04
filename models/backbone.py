@@ -64,13 +64,18 @@ class FaceEfficientNet(nn.Module):
     EfficientNet-B3 tabanlı yüz embedding modeli.
     in_channels=1 (grayscale) veya 3 (RGB) destekler.
     """
-    def __init__(self, embedding_dim=512, dropout=0.4, pretrained=True, in_channels=1):
+    def __init__(self, embedding_dim=512, dropout=0.4, pretrained=True, in_channels=None):
         super().__init__()
 
         # EfficientNet-B3 yükle
         weights = models.EfficientNet_B3_Weights.IMAGENET1K_V1 if pretrained else None
         backbone = models.efficientnet_b3(weights=weights)
 
+        if in_channels is None:
+            raise ValueError(
+                "FaceEfficientNet requires 'in_channels' to be set explicitly "
+                "(1 for grayscale, 3 for RGB). Pass it or set it in the model config."
+            )
         orig_conv = backbone.features[0][0]
         if in_channels != 3:
             # 3 kanaldan in_channels kanala dönüştür
@@ -85,7 +90,9 @@ class FaceEfficientNet(nn.Module):
             if pretrained:
                 with torch.no_grad():
                     backbone.features[0][0].weight.copy_(
-                        orig_conv.weight.mean(dim=1, keepdim=True)
+                        orig_conv.weight.mean(dim=1, keepdim=True).expand(
+                            -1, in_channels, -1, -1
+                        ) / in_channels
                     )
 
         # Classifier'ı kaldır, feature extractor tut
@@ -109,8 +116,14 @@ class FaceResNet50(nn.Module):
     ResNet-50 tabanlı alternatif (EfficientNet yoksa).
     in_channels=1 (grayscale) veya 3 (RGB) destekler.
     """
-    def __init__(self, embedding_dim=512, dropout=0.4, pretrained=True, in_channels=1):
+    def __init__(self, embedding_dim=512, dropout=0.4, pretrained=True, in_channels=None):
         super().__init__()
+
+        if in_channels is None:
+            raise ValueError(
+                "FaceResNet50 requires 'in_channels' to be set explicitly "
+                "(1 for grayscale, 3 for RGB). Pass it or set it in the model config."
+            )
 
         weights = models.ResNet50_Weights.IMAGENET1K_V2 if pretrained else None
         backbone = models.resnet50(weights=weights)
@@ -129,7 +142,9 @@ class FaceResNet50(nn.Module):
             if pretrained:
                 with torch.no_grad():
                     backbone.conv1.weight.copy_(
-                        orig_conv.weight.mean(dim=1, keepdim=True)
+                        orig_conv.weight.mean(dim=1, keepdim=True).expand(
+                            -1, in_channels, -1, -1
+                        ) / in_channels
                     )
 
         # FC katmanını kaldır
@@ -161,8 +176,13 @@ class LightCNNEncoder(nn.Module):
     Hafif alternatif — GPU yoksa veya hızlı deney için.
     Mevcut projeden korunuyor.
     """
-    def __init__(self, embedding_dim=256, dropout=0.3, in_channels=1):
+    def __init__(self, embedding_dim=256, dropout=0.3, in_channels=None):
         super().__init__()
+        if in_channels is None:
+            raise ValueError(
+                "LightCNNEncoder requires 'in_channels' to be set explicitly "
+                "(1 for grayscale, 3 for RGB). Pass it or set it in the model config."
+            )
         self.features = nn.Sequential(
             nn.Conv2d(in_channels, 32, 3, padding=1), nn.BatchNorm2d(32), nn.ReLU(), nn.MaxPool2d(2),
             nn.Conv2d(32, 64, 3, padding=1), nn.BatchNorm2d(64), nn.ReLU(), nn.MaxPool2d(2),
@@ -189,7 +209,13 @@ def build_backbone(config):
     emb_dim = config.get('embedding_dim', 512)
     dropout = config.get('dropout', 0.4)
     pretrained = config.get('pretrained', True)
-    in_channels = config.get('in_channels', 1)
+    if 'in_channels' not in config:
+        raise ValueError(
+            "build_backbone() requires 'in_channels' in config "
+            "(e.g. in_channels: 1 for grayscale, 3 for RGB). "
+            "Add it to your YAML model config."
+        )
+    in_channels = config['in_channels']
 
     if name in ('efficientnet', 'efficientnet_b3'):
         return FaceEfficientNet(emb_dim, dropout, pretrained, in_channels)
