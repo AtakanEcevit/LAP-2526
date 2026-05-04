@@ -6,7 +6,7 @@ train.py, evaluate.py, calibrate_thresholds.py, and colab_train.py.
 """
 
 from data.signature_loader import CEDARDataset, BHSig260Dataset
-from data.face_loader import ATTFaceDataset, LFWDataset
+from data.face_loader import ATTFaceDataset, LFWDataset, CasiaWebFaceDataset
 from data.fingerprint_loader import SOCOFingDataset
 from data.augmentations import get_augmentation
 
@@ -39,6 +39,14 @@ def get_dataset(config, training=True):
         elif name == 'lfw':
             min_imgs = config['dataset'].get('min_images', 5)
             return LFWDataset(root_dir, min_images=min_imgs, transform=transform)
+        elif name == 'casia':
+            rec_file = config['dataset'].get('rec_file', 'train.rec')
+            idx_file = config['dataset'].get('idx_file', 'train.idx')
+            min_imgs = config['dataset'].get('min_images', 1)
+            return CasiaWebFaceDataset(
+                root_dir, rec_file=rec_file, idx_file=idx_file,
+                min_images=min_imgs, transform=transform,
+            )
     elif modality == 'fingerprint':
         if name == 'socofing':
             return SOCOFingDataset(root_dir, transform=transform)

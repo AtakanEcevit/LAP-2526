@@ -9,6 +9,7 @@ import csv
 import time
 import yaml
 import torch
+import torch.nn.functional as F
 import torch.optim as optim
 import numpy as np
 from datetime import datetime
@@ -17,7 +18,10 @@ from torch.utils.data import DataLoader
 
 from models.siamese import SiameseNetwork
 from models.prototypical import PrototypicalNetwork
-from losses.losses import ContrastiveLoss, CosineContrastiveLoss, PrototypicalLoss, BinaryCrossEntropyLoss
+from losses.losses import (
+    ContrastiveLoss, CosineContrastiveLoss, PrototypicalLoss,
+    BinaryCrossEntropyLoss, ArcFaceLoss,
+)
 from data.samplers import PairSampler, EpisodeSampler
 from data.pair_dataset import SiamesePairDataset
 from data.episode_dataset import PrototypicalEpisodeDataset
@@ -37,6 +41,33 @@ class _nullcontext:
         return self
     def __exit__(self, *args):
         pass
+
+
+class _ArcFaceSubsetDataset(torch.utils.data.Dataset):
+    """Flat (image, class_idx) dataset built from a subject-dict + parent dataset.
+
+    Used by the ArcFace training path to present individual images with
+    remapped 0-based class indices to a standard DataLoader.
+    """
+
+    def __init__(self, subject_dict, parent_dataset, class_to_idx):
+        self._parent = parent_dataset
+        self._samples = []   # list of (path_or_rec_id, class_idx)
+        for subj, d in subject_dict.items():
+            cls_idx = class_to_idx[subj]
+            for path in d.get('genuine', []):
+                self._samples.append((path, cls_idx))
+
+    def __len__(self):
+        return len(self._samples)
+
+    def __getitem__(self, idx):
+        path, cls_idx = self._samples[idx]
+        img = self._parent.load_image(path)
+        return (
+            torch.from_numpy(np.ascontiguousarray(img)),
+            torch.tensor(cls_idx, dtype=torch.long),
+        )
 
 
 class Trainer:
@@ -71,6 +102,11 @@ class Trainer:
         self.optimizer = self._build_optimizer()
         self.scheduler = self._build_scheduler()
         self.criterion = self._build_criterion()
+
+        # ArcFace: move weight matrix to device and register with optimizer
+        if isinstance(self.criterion, ArcFaceLoss):
+            self.criterion.to(self.device)
+            self.optimizer.add_param_group({'params': self.criterion.parameters()})
 
         self.epoch = 0
         self.best_val_loss = float('inf')
@@ -287,6 +323,12 @@ class Trainer:
                 return CosineContrastiveLoss(margin=margin)
             elif loss_type == 'bce':
                 return BinaryCrossEntropyLoss()
+            elif loss_type == 'arcface':
+                emb_dim = self.config['model'].get('embedding_dim', 512)
+                num_classes = self.config['training'].get('num_classes', 10575)
+                s = self.config['training'].get('arcface_s', 64.0)
+                m = self.config['training'].get('arcface_m', 0.5)
+                return ArcFaceLoss(emb_dim, num_classes, s=s, m=m)
         elif model_type == 'prototypical':
             return PrototypicalLoss()
         raise ValueError(f"Cannot build criterion for config")
@@ -573,6 +615,98 @@ class Trainer:
         """Validate one epoch for Prototypical network (no gradient updates)."""
         return self._run_prototypical_epoch(sampler, dataset, num_episodes, training=False)
 
+    # ── ArcFace ───────────────────────────────────────────────────────────
+
+    def _run_arcface_epoch(self, subject_dict, dataset, class_to_idx, training=True):
+        """Classification epoch using ArcFace loss.
+
+        Args:
+            subject_dict:  Subset of dataset.data (from split_subjects)
+            dataset:       Parent BiometricDataset (provides load_image)
+            class_to_idx:  Mapping {subject_id -> 0-based class index}
+            training:      If True, run backward pass
+        """
+        if training:
+            self.model.train()
+            self.optimizer.zero_grad()
+        else:
+            self.model.eval()
+
+        cls_ds = _ArcFaceSubsetDataset(subject_dict, dataset, class_to_idx)
+        batch_size = self.config['training'].get('batch_size', 128)
+        loader = DataLoader(
+            cls_ds,
+            batch_size=batch_size,
+            shuffle=training,
+            drop_last=training and len(cls_ds) >= batch_size,
+            **self._get_dataloader_kwargs(),
+        )
+
+        total_loss = 0
+        total_correct = 0
+        total_samples = 0
+        num_batches = 0
+
+        ctx = torch.no_grad() if not training else _nullcontext()
+        with ctx:
+            for batch_idx, (images, labels) in enumerate(loader):
+                images = images.to(self.device)
+                labels = labels.to(self.device)
+
+                autocast_ctx = (
+                    torch.amp.autocast('cuda') if self.use_amp else _nullcontext()
+                )
+                with autocast_ctx:
+                    emb = self.model.forward_once(images)
+                    loss = self.criterion(emb, labels)
+
+                if training:
+                    scaled = loss / self.accumulation_steps
+                    if self.scaler:
+                        self.scaler.scale(scaled).backward()
+                    else:
+                        scaled.backward()
+
+                    if (batch_idx + 1) % self.accumulation_steps == 0:
+                        all_params = (list(self.model.parameters()) +
+                                      list(self.criterion.parameters()))
+                        if self.scaler:
+                            self.scaler.unscale_(self.optimizer)
+                            torch.nn.utils.clip_grad_norm_(all_params, 1.0)
+                            self.scaler.step(self.optimizer)
+                            self.scaler.update()
+                        else:
+                            torch.nn.utils.clip_grad_norm_(all_params, 1.0)
+                            self.optimizer.step()
+                        self.optimizer.zero_grad()
+
+                with torch.no_grad():
+                    cosine = F.linear(emb, F.normalize(self.criterion.weight))
+                    preds = cosine.argmax(dim=1)
+                    total_correct += (preds == labels).sum().item()
+
+                total_loss += loss.item()
+                total_samples += len(labels)
+                num_batches += 1
+
+        # Flush any remaining accumulated gradients
+        if training and num_batches % self.accumulation_steps != 0:
+            all_params = (list(self.model.parameters()) +
+                          list(self.criterion.parameters()))
+            if self.scaler:
+                self.scaler.unscale_(self.optimizer)
+                torch.nn.utils.clip_grad_norm_(all_params, 1.0)
+                self.scaler.step(self.optimizer)
+                self.scaler.update()
+            else:
+                torch.nn.utils.clip_grad_norm_(all_params, 1.0)
+                self.optimizer.step()
+            self.optimizer.zero_grad()
+
+        avg_loss = total_loss / num_batches if num_batches else 0
+        accuracy = total_correct / total_samples if total_samples else 0
+        return avg_loss, accuracy
+
     def save_checkpoint(self, filename=None, is_best=False):
         """Save model checkpoint."""
         if filename is None:
@@ -585,6 +719,10 @@ class Trainer:
             'best_val_loss': self.best_val_loss,
             'config': self.config,
         }
+
+        # Save ArcFace weight matrix (not part of model_state_dict)
+        if isinstance(self.criterion, ArcFaceLoss):
+            checkpoint['criterion_state_dict'] = self.criterion.state_dict()
 
         # Save AMP scaler state for seamless resume
         if self.scaler is not None:
@@ -612,6 +750,10 @@ class Trainer:
         self.epoch = checkpoint['epoch']
         self.best_val_loss = checkpoint.get('best_val_loss',
                                               checkpoint.get('best_loss', float('inf')))
+
+        # Restore ArcFace weight matrix
+        if isinstance(self.criterion, ArcFaceLoss) and 'criterion_state_dict' in checkpoint:
+            self.criterion.load_state_dict(checkpoint['criterion_state_dict'])
 
         # Restore AMP scaler state if available
         if self.scaler is not None and 'scaler_state_dict' in checkpoint:
@@ -650,10 +792,18 @@ class Trainer:
             dataset.transform = train_transform
             print(f"[Trainer] Auto-applied {modality} training augmentation")
 
-        # Create train and validation samplers
+        # Create train and validation samplers / class mappings
         train_data, val_data, _ = dataset.split_subjects()
 
-        if model_type == 'siamese':
+        loss_type = self.config['training'].get('loss', 'cosine')
+        use_arcface = (model_type == 'siamese' and loss_type == 'arcface')
+
+        if use_arcface:
+            # Stable class mapping over all dataset subjects
+            all_subjects = sorted(dataset.subjects)
+            class_to_idx = {s: i for i, s in enumerate(all_subjects)}
+            train_sampler = val_sampler = None  # not used for arcface
+        elif model_type == 'siamese':
             batch_size = self.config['training'].get('batch_size', 32)
             train_sampler = PairSampler(train_data, batch_size=batch_size)
             val_sampler = PairSampler(val_data, batch_size=batch_size)
@@ -668,8 +818,9 @@ class Trainer:
                 val_data, n_way=n_way, k_shot=k_shot, q_query=q_query
             )
 
+        loss_label = f"ArcFace" if use_arcface else model_type.upper()
         print(f"\n{'='*60}")
-        print(f"  Training {model_type.upper()} Network")
+        print(f"  Training {loss_label} Network")
         print(f"  Epochs: {epochs} | Patience: {patience}")
         print(f"  Device: {self.device}")
         print(f"  Train subjects: {len(train_data)} | Val subjects: {len(val_data)}")
@@ -683,7 +834,11 @@ class Trainer:
 
             # ── Training pass (with augmentation) ──
             dataset.transform = train_transform
-            if model_type == 'siamese':
+            if use_arcface:
+                train_loss, train_acc = self._run_arcface_epoch(
+                    train_data, dataset, class_to_idx, training=True
+                )
+            elif model_type == 'siamese':
                 train_loss, train_acc = self.train_siamese_epoch(
                     train_sampler, dataset, num_iterations=iterations
                 )
@@ -694,7 +849,11 @@ class Trainer:
 
             # ── Validation pass (no augmentation) ──
             dataset.transform = val_transform
-            if model_type == 'siamese':
+            if use_arcface:
+                val_loss, val_acc = self._run_arcface_epoch(
+                    val_data, dataset, class_to_idx, training=False
+                )
+            elif model_type == 'siamese':
                 val_loss, val_acc = self.validate_siamese_epoch(
                     val_sampler, dataset, num_iterations=val_iterations
                 )
