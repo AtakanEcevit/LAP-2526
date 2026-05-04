@@ -100,6 +100,11 @@ class VerificationEngine:
         backbone = config["model"].get("backbone", "resnet")
         emb_dim = config["model"].get("embedding_dim", 128)
         in_channels = config["model"].get("in_channels", 1)
+        self.in_channels = in_channels
+
+        # Dataset image size (may differ from the per-modality default)
+        _cfg_size = config.get("dataset", {}).get("image_size")
+        self.image_size = (_cfg_size, _cfg_size) if _cfg_size else None
 
         if model_type == "siamese":
             self.model = SiameseNetwork(
@@ -160,7 +165,10 @@ class VerificationEngine:
                     f"Image validation failed: {'; '.join(val.warnings)}"
                 )
 
-        tensor = preprocess_image(image_input, self.modality).to(self.device)
+        tensor = preprocess_image(
+            image_input, self.modality,
+            in_channels=self.in_channels, image_size=self.image_size,
+        ).to(self.device)
 
         with torch.no_grad():
             embedding = self.model.get_embedding(tensor)
@@ -192,8 +200,14 @@ class VerificationEngine:
         val1 = validate_image(image1_input, self.modality) if validate else None
         val2 = validate_image(image2_input, self.modality) if validate else None
 
-        tensor1 = preprocess_image(image1_input, self.modality).to(self.device)
-        tensor2 = preprocess_image(image2_input, self.modality).to(self.device)
+        tensor1 = preprocess_image(
+            image1_input, self.modality,
+            in_channels=self.in_channels, image_size=self.image_size,
+        ).to(self.device)
+        tensor2 = preprocess_image(
+            image2_input, self.modality,
+            in_channels=self.in_channels, image_size=self.image_size,
+        ).to(self.device)
 
         with torch.no_grad():
             if self.model_type == "siamese":
@@ -263,18 +277,17 @@ class VerificationEngine:
         )
 
         # Get query embedding
-        query_tensor = preprocess_image(query_input, self.modality).to(self.device)
+        query_tensor = preprocess_image(
+            query_input, self.modality,
+            in_channels=self.in_channels, image_size=self.image_size,
+        ).to(self.device)
 
         with torch.no_grad():
             query_emb = self.model.get_embedding(query_tensor)
 
             if self.model_type == "siamese":
-                # Use the classifier head for Siamese
-                diff = torch.abs(query_emb - prototype_tensor)
-                similarity = torch.sigmoid(
-                    self.model.classifier(diff)
-                ).squeeze().item()
-                score = similarity
+                cosine_sim = torch.mm(query_emb, prototype_tensor.t()).squeeze().item()
+                score = (cosine_sim + 1.0) / 2.0  # map [-1, 1] → [0, 1]
             else:
                 # Prototypical: respect model's distance type
                 distance_type = getattr(self.model, 'distance_type', 'euclidean')
