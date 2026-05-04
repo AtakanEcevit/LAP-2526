@@ -159,20 +159,26 @@ class CasiaWebFaceDataset(BiometricDataset):
     # ── Data loading ──────────────────────────────────────────────────────
 
     def _load_data(self):
-        rec_path = os.path.join(self.root_dir, self._rec_file)
+        """Build label→rec_id mapping from .lst and .idx only.
+
+        The .rec file is never opened here — image decoding is deferred
+        entirely to load_image / _read_jpeg.
+        """
         idx_path = os.path.join(self.root_dir, self._idx_file)
         lst_path = os.path.join(self.root_dir,
                                 os.path.splitext(self._rec_file)[0] + ".lst")
 
-        if not os.path.exists(rec_path):
-            raise FileNotFoundError(f"[CASIA-WebFace] .rec file not found: {rec_path}")
+        if not os.path.exists(lst_path):
+            raise FileNotFoundError(
+                f"[CASIA-WebFace] .lst file not found: {lst_path}\n"
+                f"  train.lst is required for label parsing."
+            )
 
+        # Offset index: rec_id → byte position in .rec (used at decode time)
         self._offsets = self._parse_idx(idx_path)
 
-        if os.path.exists(lst_path):
-            label_map = self._parse_lst(lst_path)
-        else:
-            label_map = self._scan_rec_headers(rec_path)
+        # Label map: rec_id → identity label (from .lst only, no .rec access)
+        label_map = self._parse_lst(lst_path)
 
         for rec_id, label in label_map.items():
             if self._offsets and rec_id not in self._offsets:
@@ -249,26 +255,6 @@ class CasiaWebFaceDataset(BiometricDataset):
                     label_map[rec_id] = int(identity_dir)
                 except (ValueError, IndexError):
                     continue
-        return label_map
-
-    def _scan_rec_headers(self, rec_path):
-        """Scan .rec headers to extract (rec_id → label) when .lst is missing."""
-        label_map = {}
-        with open(rec_path, 'rb') as f:
-            rec_id = 0
-            while True:
-                hdr = f.read(8)
-                if len(hdr) < 8:
-                    break
-                magic, lrecord = struct.unpack('<II', hdr)
-                if magic != self._MAGIC:
-                    break
-                rest = f.read(lrecord & self._LENGTH_MASK)
-                if len(rest) < self._IHEADER_SIZE:
-                    break
-                _, label_f = struct.unpack('<if', rest[:8])
-                label_map[rec_id] = int(label_f)
-                rec_id += 1
         return label_map
 
     # ── Image loading (overrides base class to read from RecordIO) ────────
