@@ -286,26 +286,35 @@ class CasiaWebFaceDataset(BiometricDataset):
         return rest[self._IHEADER_SIZE:]
 
     def load_image(self, rec_id):
-        """Override: decode JPEG from RecordIO instead of opening a file path."""
+        """Override: decode JPEG from RecordIO instead of opening a file path.
+
+        Corrupted or undecodable records are skipped — returns a zero-filled
+        image of the correct shape instead of raising an exception.
+        """
         if rec_id in self._image_cache:
             img = self._image_cache[rec_id]
         else:
-            jpeg_bytes = self._read_jpeg(rec_id)
-            buf = np.frombuffer(jpeg_bytes, dtype=np.uint8)
-            img_bgr = cv2.imdecode(buf, cv2.IMREAD_COLOR)
-            if img_bgr is None:
-                raise ValueError(f"[CASIA-WebFace] Failed to decode rec_id={rec_id}")
-            img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
+            try:
+                jpeg_bytes = self._read_jpeg(rec_id)
+                buf = np.frombuffer(jpeg_bytes, dtype=np.uint8)
+                img_bgr = cv2.imdecode(buf, cv2.IMREAD_COLOR)
+                if img_bgr is None:
+                    raise ValueError("cv2.imdecode returned None")
+                img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
-            pil_img = self._preprocess(Image.fromarray(img_rgb))
-            img = np.array(pil_img, dtype=np.float32)
-            if img.max() > 1.0:
-                img /= 255.0
-            # (H, W, C) → (C, H, W)
-            if img.ndim == 3:
-                img = img.transpose(2, 0, 1)
-            elif img.ndim == 2:
-                img = np.expand_dims(img, 0)
+                pil_img = self._preprocess(Image.fromarray(img_rgb))
+                img = np.array(pil_img, dtype=np.float32)
+                if img.max() > 1.0:
+                    img /= 255.0
+                if img.ndim == 3:
+                    img = img.transpose(2, 0, 1)
+                elif img.ndim == 2:
+                    img = np.expand_dims(img, 0)
+
+            except Exception as e:
+                print(f"[CASIA-WebFace] Skipping rec_id={rec_id}: {e}")
+                h, w = self.IMG_SIZE
+                img = np.zeros((3, h, w), dtype=np.float32)
 
             if len(self._image_cache) >= self._max_cache_size:
                 del self._image_cache[next(iter(self._image_cache))]
