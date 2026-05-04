@@ -39,21 +39,25 @@ class PrototypicalNetwork(nn.Module):
             self.encoder = FaceResNet50(
                 embedding_dim=embedding_dim,
                 pretrained=pretrained,
+                in_channels=in_channels,
             )
         elif backbone in ('efficientnet', 'efficientnet_b3'):
             self.encoder = FaceEfficientNet(
                 embedding_dim=embedding_dim,
                 pretrained=pretrained,
+                in_channels=in_channels,
             )
         elif backbone == 'light':
             self.encoder = LightCNNEncoder(
                 embedding_dim=min(embedding_dim, 256),
+                in_channels=in_channels,
             )
         else:
             self.encoder = build_backbone({
                 'backbone': backbone,
                 'embedding_dim': embedding_dim,
                 'pretrained': pretrained,
+                'in_channels': in_channels,
             })
 
     def compute_prototypes(self, support_embeddings, support_labels):
