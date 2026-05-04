@@ -62,32 +62,31 @@ class EmbeddingHead(nn.Module):
 class FaceEfficientNet(nn.Module):
     """
     EfficientNet-B3 tabanlı yüz embedding modeli.
-    Grayscale giriş (1 kanal) → 512-d L2-normalize embedding.
+    in_channels=1 (grayscale) veya 3 (RGB) destekler.
     """
-    def __init__(self, embedding_dim=512, dropout=0.4, pretrained=True):
+    def __init__(self, embedding_dim=512, dropout=0.4, pretrained=True, in_channels=1):
         super().__init__()
 
         # EfficientNet-B3 yükle
         weights = models.EfficientNet_B3_Weights.IMAGENET1K_V1 if pretrained else None
         backbone = models.efficientnet_b3(weights=weights)
 
-        # 1 kanallı giriş için ilk conv katmanını değiştir
-        # Orijinal: Conv2d(3, 40, kernel_size=3, stride=2, padding=1, bias=False)
         orig_conv = backbone.features[0][0]
-        backbone.features[0][0] = nn.Conv2d(
-            in_channels=1,
-            out_channels=orig_conv.out_channels,
-            kernel_size=orig_conv.kernel_size,
-            stride=orig_conv.stride,
-            padding=orig_conv.padding,
-            bias=False
-        )
-        # Pretrained ağırlıkları 3→1 kanala collapse et
-        if pretrained:
-            with torch.no_grad():
-                backbone.features[0][0].weight.copy_(
-                    orig_conv.weight.mean(dim=1, keepdim=True)
-                )
+        if in_channels != 3:
+            # 3 kanaldan in_channels kanala dönüştür
+            backbone.features[0][0] = nn.Conv2d(
+                in_channels=in_channels,
+                out_channels=orig_conv.out_channels,
+                kernel_size=orig_conv.kernel_size,
+                stride=orig_conv.stride,
+                padding=orig_conv.padding,
+                bias=False
+            )
+            if pretrained:
+                with torch.no_grad():
+                    backbone.features[0][0].weight.copy_(
+                        orig_conv.weight.mean(dim=1, keepdim=True)
+                    )
 
         # Classifier'ı kaldır, feature extractor tut
         self.backbone = backbone.features
@@ -108,29 +107,30 @@ class FaceEfficientNet(nn.Module):
 class FaceResNet50(nn.Module):
     """
     ResNet-50 tabanlı alternatif (EfficientNet yoksa).
-    Daha yüksek VRAM gerektirir ama çok iyi sonuç verir.
+    in_channels=1 (grayscale) veya 3 (RGB) destekler.
     """
-    def __init__(self, embedding_dim=512, dropout=0.4, pretrained=True):
+    def __init__(self, embedding_dim=512, dropout=0.4, pretrained=True, in_channels=1):
         super().__init__()
 
         weights = models.ResNet50_Weights.IMAGENET1K_V2 if pretrained else None
         backbone = models.resnet50(weights=weights)
 
-        # 1 kanallı giriş
         orig_conv = backbone.conv1
-        backbone.conv1 = nn.Conv2d(
-            in_channels=1,
-            out_channels=orig_conv.out_channels,
-            kernel_size=orig_conv.kernel_size,
-            stride=orig_conv.stride,
-            padding=orig_conv.padding,
-            bias=False
-        )
-        if pretrained:
-            with torch.no_grad():
-                backbone.conv1.weight.copy_(
-                    orig_conv.weight.mean(dim=1, keepdim=True)
-                )
+        if in_channels != 3:
+            # 3 kanaldan in_channels kanala dönüştür
+            backbone.conv1 = nn.Conv2d(
+                in_channels=in_channels,
+                out_channels=orig_conv.out_channels,
+                kernel_size=orig_conv.kernel_size,
+                stride=orig_conv.stride,
+                padding=orig_conv.padding,
+                bias=False
+            )
+            if pretrained:
+                with torch.no_grad():
+                    backbone.conv1.weight.copy_(
+                        orig_conv.weight.mean(dim=1, keepdim=True)
+                    )
 
         # FC katmanını kaldır
         in_features = backbone.fc.in_features  # 2048
@@ -161,10 +161,10 @@ class LightCNNEncoder(nn.Module):
     Hafif alternatif — GPU yoksa veya hızlı deney için.
     Mevcut projeden korunuyor.
     """
-    def __init__(self, embedding_dim=256, dropout=0.3):
+    def __init__(self, embedding_dim=256, dropout=0.3, in_channels=1):
         super().__init__()
         self.features = nn.Sequential(
-            nn.Conv2d(1, 32, 3, padding=1), nn.BatchNorm2d(32), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(in_channels, 32, 3, padding=1), nn.BatchNorm2d(32), nn.ReLU(), nn.MaxPool2d(2),
             nn.Conv2d(32, 64, 3, padding=1), nn.BatchNorm2d(64), nn.ReLU(), nn.MaxPool2d(2),
             nn.Conv2d(64, 128, 3, padding=1), nn.BatchNorm2d(128), nn.ReLU(), nn.MaxPool2d(2),
             nn.Conv2d(128, 256, 3, padding=1), nn.BatchNorm2d(256), nn.ReLU(), nn.AdaptiveAvgPool2d(1),
@@ -189,12 +189,13 @@ def build_backbone(config):
     emb_dim = config.get('embedding_dim', 512)
     dropout = config.get('dropout', 0.4)
     pretrained = config.get('pretrained', True)
+    in_channels = config.get('in_channels', 1)
 
     if name in ('efficientnet', 'efficientnet_b3'):
-        return FaceEfficientNet(emb_dim, dropout, pretrained)
+        return FaceEfficientNet(emb_dim, dropout, pretrained, in_channels)
     elif name in ('resnet50', 'resnet'):
-        return FaceResNet50(emb_dim, dropout, pretrained)
+        return FaceResNet50(emb_dim, dropout, pretrained, in_channels)
     elif name in ('light', 'lightcnn'):
-        return LightCNNEncoder(min(emb_dim, 256), dropout)
+        return LightCNNEncoder(min(emb_dim, 256), dropout, in_channels)
     else:
         raise ValueError(f"Bilinmeyen backbone: {name}")

@@ -39,19 +39,26 @@ class SiameseNetwork(nn.Module):
             self.encoder = FaceResNet50(
                 embedding_dim=embedding_dim,
                 pretrained=pretrained,
+                in_channels=in_channels,
             )
         elif backbone in ('efficientnet', 'efficientnet_b3'):
             self.encoder = FaceEfficientNet(
                 embedding_dim=embedding_dim,
                 pretrained=pretrained,
+                in_channels=in_channels,
             )
         elif backbone == 'light':
             self.encoder = LightCNNEncoder(
                 embedding_dim=min(embedding_dim, 256),
+                in_channels=in_channels,
             )
         else:
             # build_backbone ile config'den yükle
-            self.encoder = build_backbone({'backbone': backbone, 'embedding_dim': embedding_dim})
+            self.encoder = build_backbone({
+                'backbone': backbone,
+                'embedding_dim': embedding_dim,
+                'in_channels': in_channels,
+            })
 
         # Classifier head: diff + product → similarity score
         head_dim = self.encoder.embedding_dim
