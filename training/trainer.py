@@ -288,6 +288,17 @@ class Trainer:
         """Create optimizer from config."""
         lr = self.config['training'].get('lr', 1e-4)
         weight_decay = self.config['training'].get('weight_decay', 1e-5)
+        optimizer_type = self.config['training'].get('optimizer', 'adam').lower()
+        if optimizer_type == 'sgd':
+            momentum = self.config['training'].get('momentum', 0.9)
+            nesterov = self.config['training'].get('nesterov', True)
+            return optim.SGD(
+                self.model.parameters(),
+                lr=lr,
+                momentum=momentum,
+                nesterov=nesterov,
+                weight_decay=weight_decay,
+            )
         return optim.Adam(
             self.model.parameters(),
             lr=lr,
@@ -802,6 +813,20 @@ class Trainer:
             # Stable class mapping over all dataset subjects
             all_subjects = sorted(dataset.subjects)
             class_to_idx = {s: i for i, s in enumerate(all_subjects)}
+            actual_num_classes = len(all_subjects)
+
+            # Rebuild ArcFace if the weight matrix size doesn't match actual classes
+            if self.criterion.weight.size(0) != actual_num_classes:
+                print(f"[ArcFace] Rebuilding weight matrix: "
+                      f"config={self.criterion.weight.size(0)} → "
+                      f"actual={actual_num_classes}")
+                emb_dim = self.config['model'].get('embedding_dim', 512)
+                s = self.config['training'].get('arcface_s', 64.0)
+                m = self.config['training'].get('arcface_m', 0.5)
+                self.criterion = ArcFaceLoss(emb_dim, actual_num_classes, s=s, m=m)
+                self.criterion.to(self.device)
+                self.optimizer.add_param_group({'params': self.criterion.parameters()})
+
             train_sampler = val_sampler = None  # not used for arcface
         elif model_type == 'siamese':
             batch_size = self.config['training'].get('batch_size', 32)
