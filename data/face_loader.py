@@ -137,7 +137,8 @@ class CasiaWebFaceDataset(BiometricDataset):
 
     # MXNet RecordIO constants
     _MAGIC = 0xced7230a
-    _IHEADER_SIZE = 24   # flag(int32) + label(float32) + id(uint64) + id2(uint64)
+    _IHEADER_SIZE = 24          # flag(int32) + label(float32) + id(uint64) + id2(uint64)
+    _LENGTH_MASK = 0x1FFFFFFF   # lower 29 bits = actual byte count; upper 3 bits = cflag
 
     IMG_SIZE = IMAGE_SIZES["face"]
 
@@ -259,10 +260,10 @@ class CasiaWebFaceDataset(BiometricDataset):
                 hdr = f.read(8)
                 if len(hdr) < 8:
                     break
-                magic, length = struct.unpack('<II', hdr)
+                magic, lrecord = struct.unpack('<II', hdr)
                 if magic != self._MAGIC:
                     break
-                rest = f.read(length)
+                rest = f.read(lrecord & self._LENGTH_MASK)
                 if len(rest) < self._IHEADER_SIZE:
                     break
                 _, label_f = struct.unpack('<if', rest[:8])
@@ -278,7 +279,9 @@ class CasiaWebFaceDataset(BiometricDataset):
         offset = self._offsets[rec_id]
         with open(rec_path, 'rb') as f:
             f.seek(offset)
-            magic, length = struct.unpack('<II', f.read(8))
+            magic, lrecord = struct.unpack('<II', f.read(8))
+            # Upper 3 bits of lrecord are the continuation flag; mask them out
+            length = lrecord & self._LENGTH_MASK
             rest = f.read(length)
         return rest[self._IHEADER_SIZE:]
 
