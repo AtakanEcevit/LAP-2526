@@ -221,16 +221,27 @@ class CasiaWebFaceDataset(BiometricDataset):
         return offsets
 
     def _parse_lst(self, lst_path):
-        """Parse .lst text file → {rec_id(int): label(int)}."""
+        """Parse .lst text file → {rec_id(int): label(int)}.
+
+        Real CASIA-WebFace format (tab-separated):
+            label \\t path \\t x \\t y \\t w \\t h \\t ...
+        where path is an absolute server path like
+            /raid5data/dplearn/CASIA-WebFace/0000001/001.jpg
+
+        The path column is ignored — images are read from train.rec.
+        rec_id is the 0-based line number, matching the .rec record order.
+        """
         label_map = {}
         with open(lst_path, 'r') as f:
-            for line in f:
-                parts = line.strip().split('\t')
-                if len(parts) >= 2:
-                    try:
-                        label_map[int(parts[0])] = int(float(parts[1]))
-                    except ValueError:
-                        continue
+            for rec_id, line in enumerate(f):
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split('\t')
+                try:
+                    label_map[rec_id] = int(float(parts[0]))
+                except (ValueError, IndexError):
+                    continue
         return label_map
 
     def _scan_rec_headers(self, rec_path):
