@@ -79,7 +79,11 @@ def setup_data():
             if os.path.isdir(root) and len(dirs) > 100:
                 discovered['lfw'] = root
                 print(f"[AUTO-DETECT] LFW at: {root}")
-    
+        # CASIA-WebFace: look for train.rec + train.idx in the same directory
+        if 'train.rec' in files and 'train.idx' in files:
+            discovered['casia'] = root
+            print(f"[AUTO-DETECT] CASIA-WebFace at: {root}")
+
     if not discovered:
         print("\n[WARNING] Could not auto-detect any datasets! Check the zip structure.")
     
@@ -134,6 +138,8 @@ def get_dataset_for_config(config):
         config['dataset']['root_dir'] = discovered_paths['socofing']
     elif name == 'lfw' and 'lfw' in discovered_paths:
         config['dataset']['root_dir'] = discovered_paths['lfw']
+    elif name == 'casia' and 'casia' in discovered_paths:
+        config['dataset']['root_dir'] = discovered_paths['casia']
 
     print(f"  Using root_dir: {config['dataset']['root_dir']}")
     return get_dataset(config, training=True)
