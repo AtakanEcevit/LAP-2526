@@ -7,6 +7,11 @@ Version: 1.0
 """
 
 import os
+import sys
+
+# Ensure repo root is on sys.path regardless of working directory
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import torch
 import torch.nn as nn
 import torch.optim as optim

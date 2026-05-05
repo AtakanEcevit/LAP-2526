@@ -5,6 +5,9 @@ Driven by YAML configs.
 
 import os
 import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 import csv
 import time
 import yaml

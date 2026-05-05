@@ -102,8 +102,13 @@ else:
 print(f"[Device] {device}")
 
 # ── Cell 4: Import All Project Modules ────────────────────────────────────
-import argparse, glob, yaml, warnings
+import argparse, glob, yaml, warnings, sys
 warnings.filterwarnings('ignore', category=UserWarning)
+
+# Ensure repo root is on sys.path (needed when Colab working dir differs)
+_repo_root = os.path.dirname(os.path.abspath(__file__))
+if _repo_root not in sys.path:
+    sys.path.insert(0, _repo_root)
 
 from data.dataset_factory import get_dataset
 from training.trainer import Trainer
