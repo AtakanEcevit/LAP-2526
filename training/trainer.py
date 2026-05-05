@@ -71,6 +71,7 @@ class Trainer:
         self.optimizer = self._build_optimizer()
         self.scheduler = self._build_scheduler()
         self.criterion = self._build_criterion()
+        self.criterion.to(self.device)
 
         self.epoch = 0
         self.best_val_loss = float('inf')
