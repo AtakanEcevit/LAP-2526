@@ -1,305 +1,460 @@
 """
-FastAPI REST server for biometric verification.
+Enhanced FastAPI with Hybrid Siamese + Prototypical Endpoints
+Production-grade REST API for face verification
 
-Exposes the inference engine via HTTP endpoints with support for
-enrollment, verification, and direct pair comparison.
-Also serves the web UI from the /static path.
-
-Usage:
-    uvicorn inference.api:app --host 127.0.0.1 --port 8000
-    # Then open http://127.0.0.1:8000 for the web UI
-    # or http://127.0.0.1:8000/docs for the Swagger API docs
+Author: LAP Project
+Version: 2.0
 """
 
-import os
-import threading
-from typing import List, Optional
-
-from fastapi import FastAPI, File, Form, UploadFile, HTTPException
+from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+from typing import List, Dict, Optional
+import torch
+import cv2
+import numpy as np
+from pathlib import Path
+import json
+import threading
+import logging
+from datetime import datetime
+import io
 
-from inference.engine import VerificationEngine
-from inference.enrollment_store import EnrollmentStore
-from inference.config import (
-    MODEL_REGISTRY, VALID_MODALITIES, VALID_MODEL_TYPES,
-    DEFAULT_ENROLLMENT_PATH,
-)
+from models.siamese import SiameseNetwork
+from models.prototypical import PrototypicalNetwork
+from inference.config import MODEL_REGISTRY
 from inference.validation import validate_image
 
 
-# ── App Setup ────────────────────────────────────────────────────────────
+# Setup logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
+# FastAPI app
 app = FastAPI(
-    title="Biometric Few-Shot Verification API",
-    description=(
-        "REST API for biometric verification using Siamese and "
-        "Prototypical Networks. Supports signature, face, and "
-        "fingerprint modalities."
-    ),
-    version="1.4.0",
+    title="LAP Hybrid Face Verification API",
+    description="Few-shot face verification with Siamese + Prototypical Networks",
+    version="2.0"
 )
 
-# CORS — allow the web UI to call the API
+# CORS middleware for web UI
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# Serve the web UI static files (css/js subdirs at root-relative paths)
-_UI_DIR = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "ui"
-)
-if os.path.isdir(_UI_DIR):
-    _CSS_DIR = os.path.join(_UI_DIR, "css")
-    _JS_DIR = os.path.join(_UI_DIR, "js")
-    if os.path.isdir(_CSS_DIR):
-        app.mount("/css", StaticFiles(directory=_CSS_DIR), name="css")
-    if os.path.isdir(_JS_DIR):
-        app.mount("/js", StaticFiles(directory=_JS_DIR), name="js")
-
-# Shared enrollment store
-_store = EnrollmentStore()
-
-# Lazy-loaded engine cache: (modality, model_type) -> VerificationEngine
-_engines = {}
-_engine_locks = {}
-
-# Create a lock per model slot to prevent double-loading
-for _key in MODEL_REGISTRY:
-    _engine_locks[_key] = threading.Lock()
+# Static files
+app.mount("/static/css", StaticFiles(directory="ui/css"), name="css")
+app.mount("/static/js", StaticFiles(directory="ui/js"), name="js")
 
 
-def _get_engine(modality: str, model_type: str) -> VerificationEngine:
-    """Get or lazily load an engine for the given modality and model_type."""
-    key = (modality, model_type)
+# ============================================================================
+# DATA MODELS
+# ============================================================================
 
-    if key not in MODEL_REGISTRY:
-        raise HTTPException(
-            status_code=400,
-            detail=f"No model registered for {modality}/{model_type}. "
-                   f"Valid modalities: {sorted(VALID_MODALITIES)}, "
-                   f"Valid models: {sorted(VALID_MODEL_TYPES)}",
-        )
+class EnrollmentStore:
+    """Thread-safe storage for enrolled face prototypes."""
+    
+    def __init__(self, filepath="data/enrollments.json"):
+        self.filepath = Path(filepath)
+        self.filepath.parent.mkdir(parents=True, exist_ok=True)
+        self.lock = threading.RLock()
+        self.data = self._load()
+    
+    def _load(self):
+        """Load enrollments from JSON."""
+        if self.filepath.exists():
+            try:
+                with open(self.filepath, 'r') as f:
+                    return json.load(f)
+            except:
+                return {}
+        return {}
+    
+    def _save(self):
+        """Save enrollments to JSON."""
+        with open(self.filepath, 'w') as f:
+            # Convert tensors to lists for JSON serialization
+            data_to_save = {}
+            for user_id, user_data in self.data.items():
+                data_to_save[user_id] = {
+                    'prototype': user_data.get('prototype'),
+                    'num_images': user_data.get('num_images'),
+                    'enrolled_at': user_data.get('enrolled_at'),
+                }
+            json.dump(data_to_save, f, indent=2)
+    
+    def enroll(self, user_id: str, prototype: np.ndarray, num_images: int):
+        """Store prototype for a user."""
+        with self.lock:
+            self.data[user_id] = {
+                'prototype': prototype.tolist() if isinstance(prototype, np.ndarray) else prototype,
+                'num_images': num_images,
+                'enrolled_at': datetime.now().isoformat(),
+            }
+            self._save()
+    
+    def get(self, user_id: str) -> Optional[Dict]:
+        """Get enrollment data for a user."""
+        with self.lock:
+            data = self.data.get(user_id)
+            if data:
+                data['prototype'] = torch.tensor(data['prototype'], dtype=torch.float32)
+            return data
+    
+    def delete(self, user_id: str):
+        """Delete enrollment."""
+        with self.lock:
+            if user_id in self.data:
+                del self.data[user_id]
+                self._save()
+    
+    def list_users(self) -> List[str]:
+        """List all enrolled users."""
+        with self.lock:
+            return list(self.data.keys())
 
-    if key not in _engines:
-        with _engine_locks[key]:
-            # Double-check after acquiring lock
-            if key not in _engines:
-                engine = VerificationEngine()
-                engine.load(modality, model_type)
-                _engines[key] = engine
 
-    return _engines[key]
+class EngineManager:
+    """Lazy-load and manage model instances."""
+    
+    def __init__(self):
+        self.engines = {}
+        self.locks = {}
+    
+    def get_engine(self, modality: str, model_type: str, device='cuda'):
+        """Get or create engine for a model."""
+        key = f"{modality}_{model_type}"
+        
+        if key not in self.locks:
+            self.locks[key] = threading.Lock()
+        
+        with self.locks[key]:
+            if key not in self.engines:
+                logger.info(f"Loading {modality} {model_type} model...")
+                
+                try:
+                    config_path, checkpoint, threshold = MODEL_REGISTRY[
+                        (modality, model_type)
+                    ].values()
+                    
+                    if model_type == 'siamese':
+                        model = SiameseNetwork(
+                            backbone='resnet50',
+                            embedding_dim=512,
+                            pretrained=True,
+                            in_channels=3,
+                        )
+                    else:  # prototypical
+                        model = PrototypicalNetwork(
+                            backbone='resnet50',
+                            embedding_dim=512,
+                            pretrained=True,
+                            in_channels=3,
+                        )
+                    
+                    # Load checkpoint
+                    checkpoint_data = torch.load(checkpoint, map_location=device)
+                    if isinstance(checkpoint_data, dict):
+                        model.load_state_dict(checkpoint_data.get('state_dict', checkpoint_data))
+                    else:
+                        model.load_state_dict(checkpoint_data)
+                    
+                    model = model.to(device)
+                    model.eval()
+                    
+                    self.engines[key] = {
+                        'model': model,
+                        'device': device,
+                        'threshold': threshold,
+                    }
+                    
+                    logger.info(f"Model {key} loaded successfully")
+                except Exception as e:
+                    logger.error(f"Failed to load model {key}: {e}")
+                    raise
+            
+            return self.engines[key]
 
 
-async def _read_image_bytes(file: UploadFile) -> bytes:
-    """Read and validate uploaded image file."""
-    contents = await file.read()
-    if len(contents) == 0:
-        raise HTTPException(status_code=400, detail="Empty file uploaded.")
-    if len(contents) > 10 * 1024 * 1024:  # 10MB limit
-        raise HTTPException(status_code=400, detail="File too large (max 10MB).")
-    return contents
+# Global instances
+enrollment_store = EnrollmentStore("data/enrollments.json")
+engine_manager = EngineManager()
 
 
-def _validate_modality(modality: str):
-    if modality not in VALID_MODALITIES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid modality '{modality}'. "
-                   f"Must be one of: {sorted(VALID_MODALITIES)}",
-        )
+# ============================================================================
+# UTILITY FUNCTIONS
+# ============================================================================
+
+def load_image(file_bytes) -> np.ndarray:
+    """Load and preprocess image from bytes."""
+    nparr = np.frombuffer(file_bytes, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    
+    if img is None:
+        raise ValueError("Failed to decode image")
+    
+    # Validate image
+    is_valid, message = validate_image(img)
+    if not is_valid:
+        raise ValueError(f"Image validation failed: {message}")
+    
+    # Convert BGR to RGB
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    
+    # Resize to 112x112
+    img = cv2.resize(img, (112, 112))
+    
+    # Normalize to [0, 1]
+    img = img.astype(np.float32) / 255.0
+    
+    # Convert to tensor (C, H, W)
+    img = torch.from_numpy(img).permute(2, 0, 1).unsqueeze(0)
+    
+    return img
 
 
-def _validate_model_type(model_type: str):
-    if model_type not in VALID_MODEL_TYPES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid model type '{model_type}'. "
-                   f"Must be one of: {sorted(VALID_MODEL_TYPES)}",
-        )
-
-
-# ── Endpoints ────────────────────────────────────────────────────────────
+# ============================================================================
+# API ENDPOINTS
+# ============================================================================
 
 @app.get("/health")
-async def health():
-    """Health check and system info."""
+async def health_check():
+    """Health check endpoint."""
     return {
-        "status": "ok",
-        "models_available": [
-            f"{m}/{t}" for (m, t) in MODEL_REGISTRY.keys()
-        ],
-        "models_loaded": [
-            f"{m}/{t}" for (m, t) in _engines.keys()
-        ],
-        "enrollment_count": len(_store.list_users()),
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "version": "2.0",
     }
 
 
-@app.post("/enroll")
-async def enroll(
-    user_id: str = Form(..., description="Unique user identifier"),
-    modality: str = Form(..., description="signature, face, or fingerprint"),
-    model: str = Form(..., description="siamese or prototypical"),
-    images: List[UploadFile] = File(..., description="Reference image(s)"),
+@app.post("/hybrid/enroll")
+async def hybrid_enroll(
+    user_id: str,
+    files: List[UploadFile] = File(...),
 ):
     """
-    Enroll a user with one or more reference images.
-
-    The embeddings are extracted and stored. Additional images can be
-    added later by calling this endpoint again with the same user_id.
+    Enroll a user with 3-5 face images.
+    
+    Creates prototype from multiple enrollment images.
+    
+    Args:
+        user_id: Unique user identifier
+        files: List of 3-5 face images
+    
+    Returns:
+        Enrollment status and prototype info
     """
-    _validate_modality(modality)
-    _validate_model_type(model)
-
-    if len(images) == 0:
-        raise HTTPException(status_code=400, detail="At least one image required.")
-
-    engine = _get_engine(modality, model)
-
-    total_enrolled = 0
-    all_warnings = []
-    for img_file in images:
-        image_bytes = await _read_image_bytes(img_file)
-
-        # Validate image before processing
-        val = validate_image(image_bytes, modality)
-        if not val.passed:
-            raise HTTPException(
-                status_code=400,
-                detail=(
-                    f"Image '{img_file.filename}' failed validation: "
-                    f"{'; '.join(val.warnings)}"
-                ),
-            )
-        if val.warnings:
-            all_warnings.extend(
-                f"{img_file.filename}: {w}" for w in val.warnings
-            )
-
-        try:
-            embedding = engine.extract_embedding(image_bytes, validate=False)
-        except Exception as e:
-            raise HTTPException(
-                status_code=400,
-                detail=f"Failed to process image '{img_file.filename}': {str(e)}",
-            )
-
-        try:
-            result = _store.enroll(user_id, modality, model, embedding)
-            total_enrolled = result["sample_count"]
-        except ValueError as e:
-            raise HTTPException(status_code=400, detail=str(e))
-
-    return {
-        "user_id": user_id,
-        "sample_count": total_enrolled,
-        "message": f"Enrolled {len(images)} sample(s) for user '{user_id}'.",
-        "validation_warnings": all_warnings,
-    }
-
-
-@app.post("/verify")
-async def verify(
-    user_id: str = Form(..., description="Enrolled user ID to verify against"),
-    image: UploadFile = File(..., description="Query image to verify"),
-):
-    """
-    Verify a query image against an enrolled user's prototype.
-
-    The user must have been previously enrolled via /enroll.
-    """
-    # Look up user
-    user_info = _store.get_user(user_id)
-    if user_info is None:
+    if len(files) < 3 or len(files) > 5:
         raise HTTPException(
-            status_code=404,
-            detail=f"User '{user_id}' is not enrolled.",
+            status_code=400,
+            detail="Please provide 3-5 enrollment images"
         )
-
-    modality = user_info["modality"]
-    model_type = user_info["model_type"]
-
-    engine = _get_engine(modality, model_type)
-    image_bytes = await _read_image_bytes(image)
-
+    
     try:
-        enrolled_embeddings = _store.get_embeddings(user_id)
-        result = engine.verify_against_prototype(image_bytes, enrolled_embeddings)
+        # Get models
+        siamese_engine = engine_manager.get_engine('face', 'siamese')
+        proto_engine = engine_manager.get_engine('face', 'prototypical')
+        
+        device = siamese_engine['device']
+        siamese_model = siamese_engine['model']
+        proto_model = proto_engine['model']
+        
+        # Process images
+        embeddings = []
+        for file in files:
+            file_bytes = await file.read()
+            img = load_image(file_bytes)
+            img = img.to(device)
+            
+            with torch.no_grad():
+                emb = proto_model.encode(img).squeeze(0)
+                embeddings.append(emb.cpu())
+        
+        embeddings = torch.stack(embeddings)  # (N, embedding_dim)
+        
+        # Create prototype (mean)
+        prototype = embeddings.mean(dim=0)
+        
+        # Store enrollment
+        enrollment_store.enroll(
+            user_id=user_id,
+            prototype=prototype.numpy(),
+            num_images=len(files),
+        )
+        
+        return {
+            "status": "success",
+            "user_id": user_id,
+            "num_enrolled_images": len(files),
+            "prototype_dim": int(prototype.shape[0]),
+            "enrolled_at": datetime.now().isoformat(),
+        }
+    
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Verification error: {str(e)}")
-
-    return {
-        "user_id": user_id,
-        "match": result["match"],
-        "score": result["score"],
-        "threshold": result["threshold"],
-        "validation": result.get("validation"),
-    }
+        logger.error(f"Enrollment failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/compare")
-async def compare(
-    modality: str = Form(..., description="signature, face, or fingerprint"),
-    model: str = Form(..., description="siamese or prototypical"),
-    image1: UploadFile = File(..., description="First image"),
-    image2: UploadFile = File(..., description="Second image"),
+@app.post("/hybrid/verify")
+async def hybrid_verify(
+    user_id: str,
+    file: UploadFile = File(...),
 ):
     """
-    Compare two images directly without enrollment.
-
-    Returns a similarity score and match decision.
+    Verify query image against enrolled prototype.
+    
+    Uses both Siamese and Prototypical scoring with weighted fusion.
+    
+    Args:
+        user_id: User to verify against
+        file: Query face image
+    
+    Returns:
+        Verification result with confidence scores
     """
-    _validate_modality(modality)
-    _validate_model_type(model)
-
-    engine = _get_engine(modality, model)
-
-    bytes1 = await _read_image_bytes(image1)
-    bytes2 = await _read_image_bytes(image2)
-
     try:
-        result = engine.compare(bytes1, bytes2)
+        # Get enrollment
+        enrollment = enrollment_store.get(user_id)
+        if not enrollment:
+            raise HTTPException(status_code=404, detail=f"User {user_id} not enrolled")
+        
+        prototype = enrollment['prototype'].to('cuda' if torch.cuda.is_available() else 'cpu')
+        
+        # Get models
+        siamese_engine = engine_manager.get_engine('face', 'siamese')
+        proto_engine = engine_manager.get_engine('face', 'prototypical')
+        
+        device = siamese_engine['device']
+        siamese_model = siamese_engine['model']
+        proto_model = proto_engine['model']
+        
+        # Load and process query image
+        file_bytes = await file.read()
+        query_img = load_image(file_bytes)
+        query_img = query_img.to(device)
+        
+        with torch.no_grad():
+            # Prototypical scoring
+            proto_result = proto_model.verify(query_img.squeeze(0), prototype)
+            proto_score = proto_result['confidence']
+            
+            # Siamese scoring (against prototype as reference)
+            siamese_output = siamese_model(query_img, prototype.unsqueeze(0).to(device))
+            siamese_score = torch.sigmoid(siamese_output['cosine_sim']).item()
+        
+        # Fusion
+        final_score = (
+            0.5 * proto_score +
+            0.5 * siamese_score
+        )
+        
+        # Decision
+        threshold = 0.65
+        verdict = "MATCH" if final_score > threshold else "NO MATCH"
+        
+        return {
+            "user_id": user_id,
+            "verdict": verdict,
+            "confidence": float(final_score),
+            "proto_score": float(proto_score),
+            "siamese_score": float(siamese_score),
+            "threshold": threshold,
+            "verified_at": datetime.now().isoformat(),
+        }
+    
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Comparison error: {str(e)}")
-
-    return {
-        "match": result["match"],
-        "score": result["score"],
-        "threshold": result["threshold"],
-        "validation": result.get("validation"),
-    }
+        logger.error(f"Verification failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/users")
-async def list_users():
+@app.post("/hybrid/rank")
+async def hybrid_rank(
+    file: UploadFile = File(...),
+    top_n: int = 5,
+):
+    """
+    Rank query image against all enrolled users.
+    
+    Args:
+        file: Query face image
+        top_n: Number of top matches to return
+    
+    Returns:
+        Ranked list of matches
+    """
+    try:
+        users = enrollment_store.list_users()
+        if not users:
+            raise HTTPException(status_code=404, detail="No users enrolled")
+        
+        proto_engine = engine_manager.get_engine('face', 'prototypical')
+        device = proto_engine['device']
+        proto_model = proto_engine['model']
+        
+        # Load query
+        file_bytes = await file.read()
+        query_img = load_image(file_bytes)
+        query_img = query_img.to(device)
+        
+        scores = []
+        with torch.no_grad():
+            for user_id in users:
+                enrollment = enrollment_store.get(user_id)
+                prototype = enrollment['prototype'].to(device)
+                
+                result = proto_model.verify(query_img.squeeze(0), prototype)
+                scores.append({
+                    'user_id': user_id,
+                    'confidence': result['confidence'],
+                    'rank': 0,
+                })
+        
+        # Sort by confidence descending
+        scores = sorted(scores, key=lambda x: x['confidence'], reverse=True)
+        
+        # Add rank
+        for i, score in enumerate(scores[:top_n]):
+            score['rank'] = i + 1
+        
+        return {
+            "query_timestamp": datetime.now().isoformat(),
+            "total_enrolled_users": len(users),
+            "top_matches": scores[:top_n],
+        }
+    
+    except Exception as e:
+        logger.error(f"Ranking failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/hybrid/delete/{user_id}")
+async def delete_enrollment(user_id: str):
+    """Delete user enrollment."""
+    try:
+        enrollment_store.delete(user_id)
+        return {"status": "deleted", "user_id": user_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/hybrid/list")
+async def list_enrollments():
     """List all enrolled users."""
-    return _store.list_users()
+    try:
+        users = enrollment_store.list_users()
+        return {
+            "total_users": len(users),
+            "users": users,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.delete("/users/{user_id}")
-async def delete_user(user_id: str):
-    """Delete an enrolled user and their embeddings."""
-    deleted = _store.delete_user(user_id)
-    if not deleted:
-        raise HTTPException(
-            status_code=404,
-            detail=f"User '{user_id}' not found.",
-        )
-    return {"deleted": True, "user_id": user_id}
-
-
-# ── Root: serve the UI ───────────────────────────────────────────────────
-
-@app.get("/", include_in_schema=False)
-async def root():
-    """Serve the web UI."""
-    index_path = os.path.join(_UI_DIR, "index.html")
-    if os.path.exists(index_path):
-        return FileResponse(index_path)
-    return JSONResponse({"message": "API is running. Visit /docs for Swagger UI."})
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="127.0.0.1", port=8000, reload=True)

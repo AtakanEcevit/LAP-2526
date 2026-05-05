@@ -1,0 +1,199 @@
+# Hybrid Siamese + Prototypical Network Configuration
+# For few-shot face verification with 3-5 enrollment images
+# Optimized for accuracy with limited training data
+
+model:
+  # Model architecture: hybrid (siamese + prototypical)
+  type: hybrid
+  
+  # Backbone options: resnet50, efficientnet, light
+  backbone: resnet50
+  
+  # Embedding dimension (512 is standard for face recognition)
+  embedding_dim: 512
+  
+  # Use ImageNet pretrained weights for transfer learning
+  pretrained: true
+  
+  # Input channels: 3 for RGB (best for face images)
+  in_channels: 3
+  
+  # Siamese network dropout (prevents overfitting with limited data)
+  dropout: 0.4
+  
+  # Prototypical network settings
+  prototypical:
+    # Threshold for match decision [0, 1]
+    threshold: 0.65
+    
+    # Number of support images for enrollment (3-5)
+    support_set_size: 4
+    
+    # Use mean pooling for prototype creation
+    aggregation: mean
+
+dataset:
+  # Dataset: LFW (Large Face Width) - 13,000+ images
+  # Best for face verification with diverse identities
+  name: lfw
+  
+  # Root directory for LFW dataset
+  root_dir: data/raw/faces/lfw/lfw-deepfunneled/lfw-deepfunneled
+  
+  # Modality: face verification
+  modality: face
+  
+  # Input image size (112x112 is standard for face models)
+  image_size: 112
+  
+  # Data augmentation for regularization (critical with limited data)
+  augmentation:
+    enabled: true
+    
+    # Horizontal flip (faces are symmetric)
+    horizontal_flip: 0.5
+    
+    # Color jitter (lighting variations)
+    color_jitter:
+      brightness: 0.3
+      contrast: 0.3
+      saturation: 0.2
+    
+    # Random grayscale (robustness to color)
+    random_grayscale: 0.1
+    
+    # Random rotation (pose variations, ±10°)
+    random_rotation: 10
+    
+    # Random erasing (occlusion simulation)
+    random_erasing: 0.2
+
+training:
+  # Total epochs (reduced from 100 for limited data)
+  epochs: 50
+  
+  # Batch size (smaller for limited data, stable gradients)
+  batch_size: 32
+  
+  # Learning rate (with Adam optimizer)
+  lr: 0.0001
+  
+  # Weight decay (L2 regularization)
+  weight_decay: 0.00005
+  
+  # Loss function: contrastive (best for few-shot)
+  # Options: contrastive, triplet, prototypical, combined, arcface
+  loss: contrastive
+  
+  # Contrastive loss margin (distance threshold)
+  margin: 1.0
+  
+  # Learning rate scheduler: cosine annealing
+  scheduler: cosine
+  
+  # Warmup epochs (gradual LR increase for stability)
+  warmup_epochs: 5
+  
+  # Early stopping patience (stop if no improvement for N epochs)
+  patience: 15
+  
+  # Cosine scheduler settings
+  scheduler_config:
+    # Minimum LR at end of training
+    min_lr: 0.00001
+    
+    # Number of restarts for cosine annealing
+    restarts: 0
+  
+  # Iterations per epoch (for small datasets)
+  iterations_per_epoch: 200
+  
+  # DataLoader settings
+  num_workers: 4          # Parallel data loading
+  prefetch_factor: 2      # Async data loading
+  pin_memory: true        # GPU memory pinning
+  
+  # Mixed precision training (AMP) for faster GPU training
+  amp: true
+  
+  # Gradient accumulation (larger effective batch without OOM)
+  accumulation_steps: 2   # Effective batch = 32 * 2 = 64
+  
+  # Optimizer: Adam (adaptive learning)
+  optimizer: adam
+  
+  # Adam beta parameters
+  adam_beta1: 0.9
+  adam_beta2: 0.999
+  adam_epsilon: 1e-8
+
+# Evaluation metrics
+evaluation:
+  # k-shot evaluation (1, 3, 5 enrollment images)
+  k_shots: [1, 3, 5]
+  
+  # Metrics to compute
+  metrics:
+    - eer          # Equal Error Rate (lower is better)
+    - auc          # Area Under ROC Curve (higher is better)
+    - far          # False Accept Rate
+    - frr          # False Reject Rate
+    - accuracy     # Overall accuracy
+  
+  # Validation split ratio
+  val_split: 0.2
+  
+  # Test split ratio
+  test_split: 0.2
+
+# Output and logging
+results_dir: results/siamese_prototypical_hybrid
+
+# Logging settings
+logging:
+  # Log every N iterations
+  log_interval: 10
+  
+  # Save checkpoint every N epochs
+  save_interval: 5
+  
+  # Enable TensorBoard logging
+  use_tensorboard: true
+  
+  # Log directory
+  log_dir: results/siamese_prototypical_hybrid/logs
+
+# Inference settings (after training)
+inference:
+  # Model checkpoint to load
+  checkpoint: results/siamese_prototypical_hybrid/checkpoints/best.pth
+  
+  # Default decision threshold (can be calibrated)
+  threshold: 0.65
+  
+  # Use GPU if available
+  device: cuda
+  
+  # Batch inference size
+  batch_size: 32
+  
+  # Confidence threshold for decision
+  min_confidence: 0.55
+
+# Hybrid model specific settings
+hybrid:
+  # Weight for Siamese loss
+  siamese_weight: 0.5
+  
+  # Weight for Prototypical loss
+  prototypical_weight: 0.5
+  
+  # Fusion strategy for inference: 'average', 'weighted', 'voting'
+  fusion_strategy: average
+  
+  # Threshold for each branch
+  siamese_threshold: 0.60
+  prototypical_threshold: 0.65
+  
+  # Final fusion threshold
+  final_threshold: 0.65

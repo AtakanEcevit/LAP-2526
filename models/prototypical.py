@@ -1,41 +1,45 @@
 """
-Prototypical Network for few-shot biometric verification.
+Prototypical Networks for Few-Shot Face Verification
+Author: LAP Project
+Version: 1.0
 """
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 from models.backbone import FaceResNet50, FaceEfficientNet, LightCNNEncoder, build_backbone
 
 
 class PrototypicalNetwork(nn.Module):
     """
-    Prototypical Network for few-shot classification.
+    Prototypical Networks for few-shot face verification.
     
-    Key idea:
-        1. Compute a "prototype" for each class as the mean of its
-           support set embeddings
-        2. Classify query samples by finding nearest prototype
+    Architecture:
+        Support Set (3-5 images) → Encoder → Embeddings → Mean → Prototype
+        Query Image → Encoder → Embedding → Distance to Prototype → Confidence
     
-    For verification:
-        - Compute prototype from K genuine samples (support set)
-        - Compare query sample's distance to genuine prototype
-        - If distance < threshold → genuine, else → forgery
+    Advantages:
+        - Learns from 3-5 images only (few-shot learning)
+        - Computationally efficient (simple mean pooling)
+        - Generalizes well with limited data
+        - No fine-tuning required after enrollment
+    
+    Paper: Prototypical Networks for Few-shot Learning (Snell et al., 2017)
     """
 
-    def __init__(self, backbone='resnet50', embedding_dim=512,
-                 pretrained=True, in_channels=1, distance='euclidean'):
+    def __init__(self, backbone='resnet50', embedding_dim=512, 
+                 pretrained=True, in_channels=3):
         """
         Args:
             backbone: 'resnet50', 'efficientnet', or 'light'
-            embedding_dim: Size of embedding vectors
-            pretrained: Use pretrained weights
-            in_channels: Input channels (1=grayscale)
-            distance: 'euclidean' or 'cosine'
+            embedding_dim: Output embedding dimension (512 recommended)
+            pretrained: Use ImageNet pretrained weights
+            in_channels: 3 (RGB) or 1 (grayscale)
         """
         super().__init__()
-        self.distance_type = distance
 
-        if backbone in ('resnet50', 'resnet'):
+        # Encoder selection
+        if backbone == 'resnet50':
             self.encoder = FaceResNet50(
                 embedding_dim=embedding_dim,
                 pretrained=pretrained,
@@ -56,122 +60,155 @@ class PrototypicalNetwork(nn.Module):
             self.encoder = build_backbone({
                 'backbone': backbone,
                 'embedding_dim': embedding_dim,
-                'pretrained': pretrained,
                 'in_channels': in_channels,
             })
 
-    def compute_prototypes(self, support_embeddings, support_labels):
+        self.embedding_dim = self.encoder.embedding_dim
+
+    def encode(self, images):
         """
-        Compute class prototypes as the mean of support embeddings per class.
+        Encode images to embeddings.
         
         Args:
-            support_embeddings: (n_support, embedding_dim)
-            support_labels: (n_support,) — integer class labels
-            
+            images: (B, C, H, W) tensor
+        
         Returns:
-            prototypes: (n_classes, embedding_dim)
-            classes: sorted list of unique class labels
+            embeddings: (B, embedding_dim) L2-normalized
         """
-        classes = torch.unique(support_labels)
-        prototypes = torch.zeros(
-            len(classes),
-            support_embeddings.size(1),
-            device=support_embeddings.device
-        )
+        return self.encoder(images)
 
-        for i, c in enumerate(classes):
-            mask = support_labels == c
-            prototypes[i] = support_embeddings[mask].mean(dim=0)
-
-        return prototypes, classes
-
-    def compute_distances(self, query_embeddings, prototypes):
+    def create_prototype(self, support_images):
         """
-        Compute distances between query embeddings and prototypes.
+        Create prototype from support images (enrollment).
         
         Args:
-            query_embeddings: (n_query, embedding_dim)
-            prototypes: (n_classes, embedding_dim)
-            
+            support_images: (N, C, H, W) tensor, N=3-5 enrollment images
+        
         Returns:
-            distances: (n_query, n_classes) — negative distances (for softmax)
+            prototype: (embedding_dim,) tensor, mean of support embeddings
         """
-        if self.distance_type == 'euclidean':
-            n_q = query_embeddings.size(0)
-            n_p = prototypes.size(0)
+        support_embs = self.encode(support_images)  # (N, embedding_dim)
+        prototype = support_embs.mean(dim=0)  # (embedding_dim,)
+        return prototype
 
-            distances = (
-                query_embeddings.unsqueeze(1).expand(n_q, n_p, -1) -
-                prototypes.unsqueeze(0).expand(n_q, n_p, -1)
-            ).pow(2).sum(dim=2)
-
-            return -distances
-
-        elif self.distance_type == 'cosine':
-            return torch.mm(query_embeddings, prototypes.t())
-
-        else:
-            raise ValueError(f"Unknown distance: {self.distance_type}")
-
-    def forward(self, support_images, support_labels, query_images):
+    def compute_distance(self, query_emb, prototype):
         """
-        Full forward pass for an episode.
+        Compute distance between query embedding and prototype.
         
         Args:
-            support_images: (n_support, C, H, W)
-            support_labels: (n_support,)
-            query_images: (n_query, C, H, W)
-            
+            query_emb: (embedding_dim,) or (B, embedding_dim)
+            prototype: (embedding_dim,)
+        
         Returns:
-            dict with:
-                'logits': (n_query, n_classes)
-                'prototypes': (n_classes, embedding_dim)
-                'query_embeddings': (n_query, embedding_dim)
-                'support_embeddings': (n_support, embedding_dim)
+            distance: Euclidean distance
         """
-        support_embeddings = self.encoder(support_images)
-        query_embeddings = self.encoder(query_images)
+        if query_emb.dim() == 1:
+            query_emb = query_emb.unsqueeze(0)  # (1, embedding_dim)
+        
+        # Euclidean distance: ||query - prototype||_2
+        distance = torch.norm(query_emb - prototype, p=2, dim=1)  # (B,)
+        return distance
 
-        prototypes, classes = self.compute_prototypes(
-            support_embeddings, support_labels
-        )
+    def compute_confidence(self, distance):
+        """
+        Convert distance to confidence score [0, 1].
+        
+        Args:
+            distance: Euclidean distance
+        
+        Returns:
+            confidence: [0, 1] similarity score
+        """
+        # Normalize distance to [0, 1] range
+        # distance ≈ 0 → confidence ≈ 1 (very similar)
+        # distance ≈ 2 → confidence ≈ 0 (very different)
+        confidence = 1.0 - (distance / 2.0)
+        confidence = torch.clamp(confidence, 0.0, 1.0)
+        return confidence
 
-        logits = self.compute_distances(query_embeddings, prototypes)
+    def verify(self, query_image, prototype):
+        """
+        Verify query image against prototype.
+        
+        Args:
+            query_image: (1, C, H, W) or (C, H, W) tensor
+            prototype: (embedding_dim,) tensor
+        
+        Returns:
+            dict:
+                'embedding': query embedding
+                'distance': distance to prototype
+                'confidence': confidence score [0, 1]
+                'verdict': 'MATCH' or 'NO MATCH' (threshold=0.6)
+        """
+        if query_image.dim() == 3:
+            query_image = query_image.unsqueeze(0)  # (1, C, H, W)
+
+        with torch.no_grad():
+            query_emb = self.encode(query_image)  # (1, embedding_dim)
+            query_emb = query_emb.squeeze(0)  # (embedding_dim,)
+            
+            distance = self.compute_distance(query_emb, prototype)  # (1,)
+            confidence = self.compute_confidence(distance)  # (1,)
+            
+            # Decision threshold
+            threshold = 0.6
+            verdict = 'MATCH' if confidence.item() > threshold else 'NO MATCH'
 
         return {
-            'logits': logits,
-            'prototypes': prototypes,
-            'query_embeddings': query_embeddings,
-            'support_embeddings': support_embeddings,
-            'classes': classes,
+            'embedding': query_emb.detach().cpu(),
+            'distance': distance.item(),
+            'confidence': confidence.item(),
+            'verdict': verdict,
         }
 
-    def get_embedding(self, x):
-        """Get embedding for a single image."""
-        return self.encoder(x)
-
-    def verify(self, support_images, query_image):
+    def batch_verify(self, query_images, prototype):
         """
-        Verification mode: compare a single query against K support samples.
+        Verify multiple query images at once.
         
         Args:
-            support_images: (K, C, H, W) — genuine reference samples
-            query_image: (1, C, H, W) — image to verify
-            
+            query_images: (B, C, H, W) tensor
+            prototype: (embedding_dim,) tensor
+        
         Returns:
-            distance: scalar distance to the genuine prototype
+            dict with batch results
         """
         with torch.no_grad():
-            support_emb = self.encoder(support_images)
-            query_emb = self.encoder(query_image)
+            query_embs = self.encode(query_images)  # (B, embedding_dim)
+            distances = self.compute_distance(query_embs, prototype)  # (B,)
+            confidences = self.compute_confidence(distances)  # (B,)
 
-            prototype = support_emb.mean(dim=0, keepdim=True)
+        return {
+            'embeddings': query_embs.detach().cpu(),
+            'distances': distances.detach().cpu(),
+            'confidences': confidences.detach().cpu(),
+            'verdicts': ['MATCH' if conf > 0.6 else 'NO MATCH' 
+                        for conf in confidences.cpu().numpy()],
+        }
 
-            if self.distance_type == 'euclidean':
-                distance = torch.sqrt(
-                    ((query_emb - prototype) ** 2).sum(dim=1) + 1e-8
-                )
-            else:
-                distance = 1 - torch.mm(query_emb, prototype.t()).squeeze()
+    def forward(self, query_images, support_images=None):
+        """
+        Forward pass for training (optional).
+        
+        Args:
+            query_images: (B, C, H, W)
+            support_images: (B, N, C, H, W) optional, N=support set size
+        
+        Returns:
+            embeddings or (query_embs, prototypes)
+        """
+        query_embs = self.encode(query_images)  # (B, embedding_dim)
+        
+        if support_images is not None:
+            B, N, C, H, W = support_images.shape
+            support_images = support_images.view(B * N, C, H, W)
+            support_embs = self.encode(support_images)  # (B*N, embedding_dim)
+            support_embs = support_embs.view(B, N, self.embedding_dim)
+            prototypes = support_embs.mean(dim=1)  # (B, embedding_dim)
+            return query_embs, prototypes
+        
+        return query_embs
 
-            return distance.item()
+
+# Alias for compatibility
+ProtoNet = PrototypicalNetwork
