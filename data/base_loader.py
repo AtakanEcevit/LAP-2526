@@ -87,9 +87,11 @@ class BiometricDataset(Dataset, ABC):
             if img.max() > 1.0:
                 img /= 255.0
 
-            # Add channel dimension if needed: (H, W) -> (1, H, W)
+            # Normalise to (C, H, W)
             if img.ndim == 2:
-                img = np.expand_dims(img, axis=0)
+                img = np.expand_dims(img, axis=0)          # (H,W) → (1,H,W)
+            elif img.ndim == 3 and img.shape[2] in (1, 3):
+                img = img.transpose(2, 0, 1)               # (H,W,C) → (C,H,W)
 
             # Evict oldest entry if cache is full
             if len(self._image_cache) >= self._max_cache_size:
