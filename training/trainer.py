@@ -17,7 +17,7 @@ from torch.utils.data import DataLoader
 
 from models.siamese import SiameseNetwork
 from models.prototypical import PrototypicalNetwork
-from losses.losses import ContrastiveLoss, CosineContrastiveLoss, PrototypicalLoss, BinaryCrossEntropyLoss
+from losses.losses import ContrastiveLoss, CosineContrastiveLoss, PrototypicalLoss, BinaryCrossEntropyLoss, ArcFaceLoss
 from data.samplers import PairSampler, EpisodeSampler
 from data.pair_dataset import SiamesePairDataset
 from data.episode_dataset import PrototypicalEpisodeDataset
@@ -475,7 +475,13 @@ class Trainer:
 
         with autocast_ctx:
             output = self.model(support_images, support_labels, query_images)
-            loss, acc = self.criterion(output['logits'], query_labels)
+            if isinstance(self.criterion, ArcFaceLoss):
+                loss = self.criterion(output['query_embeddings'], query_labels)
+                with torch.no_grad():
+                    preds = output['logits'].argmax(dim=1)
+                    acc = (preds == query_labels).float().mean().item()
+            else:
+                loss, acc = self.criterion(output['logits'], query_labels)
 
         if training:
             scaled_loss = loss / self.accumulation_steps
