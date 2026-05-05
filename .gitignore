@@ -29,3 +29,6 @@ run_eval.py
 diagnose_models.py
 *.zip
 *.tgz
+models/best.pth 
+results/ 
+*.pth 
