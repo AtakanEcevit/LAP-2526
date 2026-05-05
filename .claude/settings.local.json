@@ -49,7 +49,11 @@
       "Bash(taskkill /F /PID 23396)",
       "Bash(taskkill /F /PID 6456)",
       "PowerShell(Get-NetTCPConnection *)",
-      "WebFetch(domain:raw.githubusercontent.com)"
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(git remote *)",
+      "Bash(git fetch *)",
+      "Bash(Select-Object FullName)",
+      "Bash(git commit *)"
     ]
   }
 }
