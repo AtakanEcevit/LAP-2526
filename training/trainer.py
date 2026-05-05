@@ -267,20 +267,38 @@ class Trainer:
         )
 
     def _build_scheduler(self):
-        """Create learning rate scheduler."""
+        """Create learning rate scheduler, optionally with linear warmup."""
         scheduler_type = self.config['training'].get('scheduler', 'step')
+        epochs = self.config['training'].get('epochs', 100)
+        warmup_epochs = self.config['training'].get('warmup_epochs', 0)
+
         if scheduler_type == 'step':
-            return optim.lr_scheduler.StepLR(
+            main = optim.lr_scheduler.StepLR(
                 self.optimizer,
                 step_size=self.config['training'].get('lr_step', 20),
                 gamma=self.config['training'].get('lr_gamma', 0.5),
             )
         elif scheduler_type == 'cosine':
-            return optim.lr_scheduler.CosineAnnealingLR(
+            main = optim.lr_scheduler.CosineAnnealingLR(
                 self.optimizer,
-                T_max=self.config['training'].get('epochs', 100),
+                T_max=max(epochs - warmup_epochs, 1),
             )
-        return None
+        else:
+            return None
+
+        if warmup_epochs > 0:
+            warmup = optim.lr_scheduler.LinearLR(
+                self.optimizer,
+                start_factor=0.01,
+                end_factor=1.0,
+                total_iters=warmup_epochs,
+            )
+            return optim.lr_scheduler.SequentialLR(
+                self.optimizer,
+                schedulers=[warmup, main],
+                milestones=[warmup_epochs],
+            )
+        return main
 
     def _build_criterion(self):
         """Create loss function from config."""
@@ -304,7 +322,8 @@ class Trainer:
                     embedding_dim=self.config['model'].get('embedding_dim', 512),
                     num_classes=num_classes
                 )
-            return PrototypicalLoss()
+            temperature = self.config['training'].get('temperature', 0.1)
+            return PrototypicalLoss(temperature=temperature)
         raise ValueError(f"Cannot build criterion for config")
 
     def _get_dataloader_kwargs(self):

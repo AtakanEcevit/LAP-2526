@@ -104,8 +104,9 @@ class PrototypicalLoss(nn.Module):
     Where p_y is the correct class prototype.
     """
 
-    def __init__(self):
+    def __init__(self, temperature=0.1):
         super().__init__()
+        self.temperature = temperature
 
     def forward(self, logits, query_labels):
         """
@@ -116,7 +117,7 @@ class PrototypicalLoss(nn.Module):
             loss: scalar
             accuracy: classification accuracy on this episode
         """
-        log_probs = F.log_softmax(logits, dim=1)
+        log_probs = F.log_softmax(logits / self.temperature, dim=1)
         loss = F.nll_loss(log_probs, query_labels)
 
         # Compute episode accuracy
