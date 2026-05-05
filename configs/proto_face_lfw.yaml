@@ -1,0 +1,41 @@
+# Prototypical Network — Face Verification (LFW + RGB + ResNet-50 + ArcFace + CBAM)
+
+model:
+  type: prototypical
+  backbone: resnet
+  architecture: resnet50
+  embedding_dim: 512
+  pretrained: true
+  in_channels: 3
+  distance: cosine
+  use_attention: true
+
+dataset:
+  modality: face
+  name: lfw
+  root_dir: data/raw/faces/lfw
+  color_mode: rgb
+  min_images: 5
+
+training:
+  epochs: 50
+  n_way: 5
+  k_shot: 5
+  q_query: 5
+  lr: 0.0001
+  weight_decay: 0.0001
+  scheduler: cosine
+  patience: 10
+  iterations_per_epoch: 200
+  num_workers: 2
+  prefetch_factor: 2
+  pin_memory: true
+  amp: true
+  accumulation_steps: 1
+  criterion: arcface
+  num_classes: 1000
+
+evaluation:
+  k_shots: [1, 3, 5]
+
+results_dir: results/proto_face_lfw_rgb_r50

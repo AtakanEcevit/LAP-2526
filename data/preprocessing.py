@@ -13,7 +13,7 @@ import numpy as np
 # ── Image sizes (H, W) per modality — canonical source ───────────────────
 IMAGE_SIZES = {
     "signature":   (155, 220),
-    "face":        (105, 105),
+    "face":        (112, 112),
     "fingerprint": (96,  96),
 }
 
@@ -31,11 +31,16 @@ def preprocess_signature(img: np.ndarray) -> np.ndarray:
 
 
 def preprocess_face(img: np.ndarray) -> np.ndarray:
-    """Global histogram equalization for face images.
-
-    Normalizes lighting variations across face photographs.
-    """
-    return cv2.equalizeHist(img)
+    """CLAHE for face images. Handles both grayscale and RGB."""
+    if img.ndim == 2:
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        return clahe.apply(img)
+    elif img.ndim == 3:
+        lab = cv2.cvtColor(img, cv2.COLOR_RGB2LAB)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        lab[:, :, 0] = clahe.apply(lab[:, :, 0])
+        return cv2.cvtColor(lab, cv2.COLOR_LAB2RGB)
+    return img
 
 
 def preprocess_fingerprint(img: np.ndarray) -> np.ndarray:

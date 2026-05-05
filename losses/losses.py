@@ -144,3 +144,34 @@ class BinaryCrossEntropyLoss(nn.Module):
             label: 1 = same, 0 = different (batch,)
         """
         return self.bce(similarity, label.float())
+
+
+class ArcFaceLoss(nn.Module):
+    """
+    ArcFace loss for face verification.
+    Adds angular margin to cosine similarity for better class separation.
+    """
+    def __init__(self, embedding_dim=512, num_classes=1000, margin=0.5, scale=64.0):
+        super().__init__()
+        self.margin = margin
+        self.scale = scale
+        self.weight = nn.Parameter(torch.FloatTensor(num_classes, embedding_dim))
+        nn.init.xavier_uniform_(self.weight)
+        self.cos_m = torch.cos(torch.tensor(margin))
+        self.sin_m = torch.sin(torch.tensor(margin))
+        self.th = torch.cos(torch.tensor(torch.pi - margin))
+        self.mm = torch.sin(torch.tensor(torch.pi - margin)) * margin
+
+    def forward(self, embeddings, labels):
+        cosine = nn.functional.linear(
+            nn.functional.normalize(embeddings),
+            nn.functional.normalize(self.weight)
+        )
+        sine = torch.sqrt(1.0 - torch.pow(cosine, 2).clamp(0, 1))
+        phi = cosine * self.cos_m - sine * self.sin_m
+        phi = torch.where(cosine > self.th, phi, cosine - self.mm)
+        one_hot = torch.zeros_like(cosine)
+        one_hot.scatter_(1, labels.view(-1, 1).long(), 1)
+        output = (one_hot * phi) + ((1.0 - one_hot) * cosine)
+        output *= self.scale
+        return nn.functional.cross_entropy(output, labels.long())

@@ -22,8 +22,9 @@ class PrototypicalNetwork(nn.Module):
         - If distance < threshold → genuine, else → forgery
     """
 
-    def __init__(self, backbone='resnet', embedding_dim=128,
-                 pretrained=True, in_channels=1, distance='euclidean'):
+    def __init__(self, backbone='resnet', embedding_dim=512,
+                 pretrained=True, in_channels=1, distance='euclidean',
+                 architecture='resnet18', use_attention=True):
         """
         Args:
             backbone: 'resnet' or 'light'
@@ -39,7 +40,9 @@ class PrototypicalNetwork(nn.Module):
             self.encoder = ResNetEncoder(
                 embedding_dim=embedding_dim,
                 pretrained=pretrained,
-                in_channels=in_channels
+                in_channels=in_channels,
+                architecture=architecture,
+                use_attention=use_attention,
             )
         elif backbone == 'light':
             self.encoder = LightCNNEncoder(

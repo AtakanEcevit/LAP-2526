@@ -158,6 +158,22 @@ class VerificationEngine:
 
         return embedding.cpu().numpy().squeeze()
 
+    def extract_embedding_tta(self, image, n_aug=5):
+        """Test-Time Augmentation: average embeddings over multiple augmentations."""
+        import albumentations as A
+        tta_aug = A.Compose([
+            A.HorizontalFlip(p=0.5),
+            A.RandomBrightnessContrast(brightness_limit=0.1, contrast_limit=0.1, p=0.5),
+            A.GaussianBlur(blur_limit=(3, 3), p=0.3),
+        ])
+        embeddings = []
+        img_np = np.array(image) if not isinstance(image, np.ndarray) else image
+        for _ in range(n_aug):
+            aug = tta_aug(image=img_np)['image']
+            emb = self.extract_embedding(aug)
+            embeddings.append(emb)
+        return np.mean(embeddings, axis=0)
+
     # ── Pair Comparison ──────────────────────────────────────────────────
 
     def compare(self, image1_input, image2_input,
@@ -260,12 +276,10 @@ class VerificationEngine:
             query_emb = self.model.get_embedding(query_tensor)
 
             if self.model_type == "siamese":
-                # Use the classifier head for Siamese
-                diff = torch.abs(query_emb - prototype_tensor)
-                similarity = torch.sigmoid(
-                    self.model.classifier(diff)
-                ).squeeze().item()
-                score = similarity
+                score = torch.nn.functional.cosine_similarity(
+                    query_emb.unsqueeze(0), prototype_tensor.unsqueeze(0)
+                ).item()
+                score = (score + 1) / 2
             else:
                 # Prototypical: respect model's distance type
                 distance_type = getattr(self.model, 'distance_type', 'euclidean')

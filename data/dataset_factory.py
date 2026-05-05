@@ -34,11 +34,13 @@ def get_dataset(config, training=True):
             script = config['dataset'].get('script', 'Bengali')
             return BHSig260Dataset(root_dir, script=script, transform=transform)
     elif modality == 'face':
+        color_mode = config['dataset'].get('color_mode', 'grayscale')
         if name == 'att':
-            return ATTFaceDataset(root_dir, transform=transform)
+            return ATTFaceDataset(root_dir, color_mode=color_mode, transform=transform)
         elif name == 'lfw':
             min_imgs = config['dataset'].get('min_images', 5)
-            return LFWDataset(root_dir, min_images=min_imgs, transform=transform)
+            return LFWDataset(root_dir, min_images=min_imgs,
+                              color_mode=color_mode, transform=transform)
     elif modality == 'fingerprint':
         if name == 'socofing':
             return SOCOFingDataset(root_dir, transform=transform)

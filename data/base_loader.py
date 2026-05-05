@@ -75,7 +75,7 @@ class BiometricDataset(Dataset, ABC):
         if path in self._image_cache:
             img = self._image_cache[path]
         else:
-            img = Image.open(path).convert('L')  # Grayscale by default
+            img = Image.open(path)
             img = self._preprocess(img)
             
             # Convert to numpy if still PIL

@@ -30,22 +30,20 @@ def get_signature_augmentation(training=True):
 
 
 def get_face_augmentation(training=True):
-    """
-    Face augmentation pipeline.
-    Simulates lighting changes, slight pose variations, and noise.
-    """
+    """Stronger face augmentation simulating real-world conditions."""
     if training:
         return A.Compose([
             A.HorizontalFlip(p=0.5),
             A.Affine(
-                translate_percent={"x": (-0.05, 0.05), "y": (-0.05, 0.05)},
-                scale=(0.95, 1.05), rotate=(-10, 10),
-                border_mode=0, p=0.5
+                translate_percent={"x": (-0.08, 0.08), "y": (-0.08, 0.08)},
+                scale=(0.9, 1.1), rotate=(-15, 15),
+                border_mode=0, p=0.7
             ),
-            A.RandomBrightnessContrast(
-                brightness_limit=0.2, contrast_limit=0.2, p=0.5
-            ),
-            A.GaussianBlur(blur_limit=(3, 5), p=0.2),
+            A.RandomBrightnessContrast(brightness_limit=0.3, contrast_limit=0.3, p=0.6),
+            A.ColorJitter(brightness=0.2, contrast=0.2, saturation=0.2, hue=0.1, p=0.5),
+            A.GaussianBlur(blur_limit=(3, 7), p=0.3),
+            A.GaussNoise(p=0.2),
+            A.CoarseDropout(p=0.3),
         ])
     return A.Compose([])
 

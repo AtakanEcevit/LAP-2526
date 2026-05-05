@@ -21,8 +21,9 @@ class SiameseNetwork(nn.Module):
     Distance between embeddings determines if same person or not.
     """
 
-    def __init__(self, backbone='resnet', embedding_dim=128,
-                 pretrained=True, in_channels=1):
+    def __init__(self, backbone='resnet', embedding_dim=512,
+                 pretrained=True, in_channels=1,
+                 architecture='resnet18', use_attention=True):
         """
         Args:
             backbone: 'resnet' or 'light' — encoder architecture choice
@@ -36,7 +37,9 @@ class SiameseNetwork(nn.Module):
             self.encoder = ResNetEncoder(
                 embedding_dim=embedding_dim,
                 pretrained=pretrained,
-                in_channels=in_channels
+                in_channels=in_channels,
+                architecture=architecture,
+                use_attention=use_attention,
             )
         elif backbone == 'light':
             self.encoder = LightCNNEncoder(

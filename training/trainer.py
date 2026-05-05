@@ -225,9 +225,12 @@ class Trainer:
         """Create model based on config."""
         model_type = self.config['model']['type']
         backbone = self.config['model'].get('backbone', 'resnet')
-        emb_dim = self.config['model'].get('embedding_dim', 128)
+        emb_dim = self.config['model'].get('embedding_dim', 512)
         pretrained = self.config['model'].get('pretrained', True)
         in_channels = self.config['model'].get('in_channels', 1)
+        architecture = self.config['model'].get('architecture', 'resnet18')
+        use_attention = self.config['model'].get('use_attention', True)
+        embedding_dim = self.config['model'].get('embedding_dim', 512)
 
         if model_type == 'siamese':
             return SiameseNetwork(
@@ -235,6 +238,8 @@ class Trainer:
                 embedding_dim=emb_dim,
                 pretrained=pretrained,
                 in_channels=in_channels,
+                architecture=architecture,
+                use_attention=use_attention,
             )
         elif model_type == 'prototypical':
             distance = self.config['model'].get('distance', 'euclidean')
@@ -244,6 +249,8 @@ class Trainer:
                 pretrained=pretrained,
                 in_channels=in_channels,
                 distance=distance,
+                architecture=architecture,
+                use_attention=use_attention,
             )
         else:
             raise ValueError(f"Unknown model type: {model_type}")
@@ -288,6 +295,14 @@ class Trainer:
             elif loss_type == 'bce':
                 return BinaryCrossEntropyLoss()
         elif model_type == 'prototypical':
+            criterion_name = self.config['training'].get('criterion', 'prototypical')
+            if criterion_name == 'arcface':
+                from losses.losses import ArcFaceLoss
+                num_classes = self.config['training'].get('num_classes', 1000)
+                return ArcFaceLoss(
+                    embedding_dim=self.config['model'].get('embedding_dim', 512),
+                    num_classes=num_classes
+                )
             return PrototypicalLoss()
         raise ValueError(f"Cannot build criterion for config")
 
