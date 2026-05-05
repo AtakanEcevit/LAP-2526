@@ -27,16 +27,19 @@ class PrototypicalNetwork(nn.Module):
     Paper: Prototypical Networks for Few-shot Learning (Snell et al., 2017)
     """
 
-    def __init__(self, backbone='resnet50', embedding_dim=512, 
-                 pretrained=True, in_channels=3):
+    def __init__(self, backbone='resnet50', embedding_dim=512,
+                 pretrained=True, in_channels=3, distance='euclidean'):
         """
         Args:
-            backbone: 'resnet50', 'efficientnet', or 'light'
+            backbone:      'resnet50', 'efficientnet', or 'light'
             embedding_dim: Output embedding dimension (512 recommended)
-            pretrained: Use ImageNet pretrained weights
-            in_channels: 3 (RGB) or 1 (grayscale)
+            pretrained:    Use ImageNet pretrained weights
+            in_channels:   3 (RGB) or 1 (grayscale)
+            distance:      'euclidean' or 'cosine' — used in forward() and inference
         """
         super().__init__()
+
+        self.distance_type = distance
 
         # Encoder selection
         if backbone == 'resnet50':
@@ -68,14 +71,18 @@ class PrototypicalNetwork(nn.Module):
     def encode(self, images):
         """
         Encode images to embeddings.
-        
+
         Args:
             images: (B, C, H, W) tensor
-        
+
         Returns:
             embeddings: (B, embedding_dim) L2-normalized
         """
         return self.encoder(images)
+
+    def get_embedding(self, images):
+        """Alias for encode() — used by inference engine."""
+        return self.encode(images)
 
     def create_prototype(self, support_images):
         """
@@ -186,28 +193,43 @@ class PrototypicalNetwork(nn.Module):
                         for conf in confidences.cpu().numpy()],
         }
 
-    def forward(self, query_images, support_images=None):
+    def forward(self, support_images, support_labels, query_images):
         """
-        Forward pass for training (optional).
-        
+        Episode forward pass for training.
+
         Args:
-            query_images: (B, C, H, W)
-            support_images: (B, N, C, H, W) optional, N=support set size
-        
+            support_images: (N_support, C, H, W) — flat support set for the episode
+            support_labels: (N_support,)          — class indices (may be non-contiguous)
+            query_images:   (N_query,  C, H, W)  — flat query set
+
         Returns:
-            embeddings or (query_embs, prototypes)
+            dict:
+                'logits': (N_query, N_way) — negative squared distances to prototypes
         """
-        query_embs = self.encode(query_images)  # (B, embedding_dim)
-        
-        if support_images is not None:
-            B, N, C, H, W = support_images.shape
-            support_images = support_images.view(B * N, C, H, W)
-            support_embs = self.encode(support_images)  # (B*N, embedding_dim)
-            support_embs = support_embs.view(B, N, self.embedding_dim)
-            prototypes = support_embs.mean(dim=1)  # (B, embedding_dim)
-            return query_embs, prototypes
-        
-        return query_embs
+        # Encode support set and compute per-class prototypes (sorted by class ID)
+        support_embs = self.encode(support_images)          # (N_support, D)
+        unique_classes = support_labels.unique(sorted=True) # (N_way,)
+
+        prototypes = torch.stack([
+            support_embs[support_labels == cls].mean(dim=0)
+            for cls in unique_classes
+        ])  # (N_way, D)
+
+        # Encode query set
+        query_embs = self.encode(query_images)              # (N_query, D)
+
+        # Compute logits as negative squared distances (N_query, N_way)
+        if self.distance_type == 'cosine':
+            logits = F.cosine_similarity(
+                query_embs.unsqueeze(1),    # (N_query, 1, D)
+                prototypes.unsqueeze(0),    # (1, N_way, D)
+                dim=2,
+            )
+        else:  # euclidean (default)
+            diffs = query_embs.unsqueeze(1) - prototypes.unsqueeze(0)  # (N_query, N_way, D)
+            logits = -torch.sum(diffs ** 2, dim=2)                     # (N_query, N_way)
+
+        return {'logits': logits}
 
 
 # Alias for compatibility

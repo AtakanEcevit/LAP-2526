@@ -99,47 +99,42 @@ class TripletLoss(nn.Module):
 class PrototypicalLoss(nn.Module):
     """
     Prototypical Loss for few-shot learning.
-    
+
+    Takes pre-computed logits (negative squared distances from queries to
+    class prototypes) and query labels, returns (loss, accuracy).
+
     Formula:
-        L = -log(exp(-d(query, correct_prototype)) / Σ exp(-d(query, all_prototypes)))
-    
-    Which is equivalent to cross-entropy loss over distances.
+        L = CrossEntropy(logits, query_labels)
     """
 
     def __init__(self):
         super().__init__()
 
-    def forward(self, query_embs, support_embs, labels):
+    def forward(self, logits, query_labels):
         """
         Args:
-            query_embs: (B, embedding_dim) query embeddings
-            support_embs: (B, N, embedding_dim) support set embeddings per query
-            labels: (B, N) binary labels, 1=same, 0=different
-        
+            logits:       (N_query, N_way) — negative squared distances to prototypes
+            query_labels: (N_query,)       — class indices (may be non-contiguous)
+
         Returns:
-            loss: scalar
+            (loss, accuracy): scalar loss and float accuracy
         """
-        B, N, D = support_embs.shape
-        
-        # Compute prototypes (mean of same-person supports)
-        prototypes = []
-        for b in range(B):
-            same_mask = labels[b] == 1
-            if same_mask.sum() > 0:
-                proto = support_embs[b, same_mask].mean(dim=0)
-            else:
-                proto = support_embs[b, 0]  # fallback
-            prototypes.append(proto)
-        
-        prototypes = torch.stack(prototypes)  # (B, D)
-        
-        # Distance to prototype
-        distances = torch.sqrt(torch.sum((query_embs - prototypes) ** 2, dim=1) + 1e-8)
-        
-        # Cross-entropy style loss: penalize large distances
-        loss = distances.mean()
-        
-        return loss
+        # Remap non-contiguous class IDs to 0-based indices that match
+        # the sorted prototype column order used in PrototypicalNetwork.forward.
+        unique_classes = query_labels.unique(sorted=True)
+        label_to_idx = {cls.item(): i for i, cls in enumerate(unique_classes)}
+        mapped = torch.tensor(
+            [label_to_idx[l.item()] for l in query_labels],
+            dtype=torch.long, device=logits.device,
+        )
+
+        loss = F.cross_entropy(logits, mapped)
+
+        with torch.no_grad():
+            preds = logits.argmax(dim=1)
+            acc = (preds == mapped).float().mean().item()
+
+        return loss, acc
 
 
 class CosineContrastiveLoss(nn.Module):
@@ -183,25 +178,25 @@ class CosineContrastiveLoss(nn.Module):
 class ArcFaceLoss(nn.Module):
     """
     ArcFace Loss - State-of-the-art angular margin loss for face recognition.
-    
+
     Formula:
         L = -log(exp(s*cos(θ + m)) / (exp(s*cos(θ + m)) + Σ exp(s*cos(θ_j))))
-    
+
     Where:
         s = scale (64.0 typical)
         m = angular margin (0.5 ≈ 28.6°)
         θ = angle between embedding and class center
-    
+
     Reference: Deng et al., 2019 (ArcFace: Additive Angular Margin Loss)
     """
 
-    def __init__(self, num_classes, embedding_dim=512, scale=64.0, margin=0.5):
+    def __init__(self, embedding_dim, num_classes, s=64.0, m=0.5):
         super().__init__()
         self.num_classes = num_classes
         self.embedding_dim = embedding_dim
-        self.scale = scale
-        self.margin = margin
-        
+        self.s = s
+        self.m = m
+
         # Weight matrix (class centers)
         self.weight = nn.Parameter(
             torch.FloatTensor(num_classes, embedding_dim)
@@ -213,33 +208,33 @@ class ArcFaceLoss(nn.Module):
         Args:
             emb: (B, embedding_dim) L2-normalized embeddings
             labels: (B,) class indices
-        
+
         Returns:
             loss: scalar
         """
         # Normalize weight (class centers)
         W = F.normalize(self.weight, p=2, dim=1)  # (num_classes, embedding_dim)
-        
+
         # Cosine similarity: emb @ W.T
         cos_theta = F.linear(emb, W)  # (B, num_classes)
-        
+
         # Clamp to avoid numerical issues with acos
         cos_theta = torch.clamp(cos_theta, -1.0, 1.0)
-        
+
         # Compute angles
         theta = torch.acos(cos_theta)  # (B, num_classes)
-        
+
         # Add margin to correct class
         theta_m = theta.clone()
         batch_range = torch.arange(emb.size(0), device=emb.device)
-        theta_m[batch_range, labels] = theta[batch_range, labels] + self.margin
-        
+        theta_m[batch_range, labels] = theta[batch_range, labels] + self.m
+
         # Compute logits: s * cos(θ)
-        logits = self.scale * torch.cos(theta_m)  # (B, num_classes)
-        
+        logits = self.s * torch.cos(theta_m)  # (B, num_classes)
+
         # Cross-entropy loss
         loss = F.cross_entropy(logits, labels)
-        
+
         return loss
 
 
@@ -283,6 +278,24 @@ class CombinedFaceLoss(nn.Module):
         return combined
 
 
+class BinaryCrossEntropyLoss(nn.Module):
+    """BCE loss for Siamese similarity scores in [0, 1]."""
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, similarity, labels):
+        """
+        Args:
+            similarity: (B,) sigmoid scores in [0, 1]
+            labels:     (B,) binary labels, 1=same, 0=different
+
+        Returns:
+            loss: scalar
+        """
+        return F.binary_cross_entropy(similarity, labels.float())
+
+
 # Utility function to get loss by name
 def get_loss(loss_name='contrastive', **kwargs):
     """
@@ -303,6 +316,7 @@ def get_loss(loss_name='contrastive', **kwargs):
         'cosine_contrastive': CosineContrastiveLoss,
         'arcface': ArcFaceLoss,
         'combined': CombinedFaceLoss,
+        'bce': BinaryCrossEntropyLoss,
     }
     
     if loss_name not in losses:

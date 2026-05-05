@@ -390,7 +390,7 @@ class Trainer:
             if isinstance(self.criterion, CosineContrastiveLoss):
                 loss = self.criterion(output['emb1'], output['emb2'], labels)
             elif isinstance(self.criterion, ContrastiveLoss):
-                loss = self.criterion(output['distance'], labels)
+                loss = self.criterion(output['emb1'], output['emb2'], labels)
             else:
                 loss = self.criterion(output['similarity'], labels)
 
