@@ -37,7 +37,7 @@ DECISION_VERIFIED = "verified"
 DECISION_MANUAL_REVIEW = "manual_review"
 DECISION_REJECTED = "rejected"
 
-DEFAULT_FACE_MODEL = "siamese"
+DEFAULT_FACE_MODEL = "hybrid"
 DEFAULT_FACE_THRESHOLD = MODEL_REGISTRY.get(
     ("face", DEFAULT_FACE_MODEL), {}
 ).get("threshold", 0.65)
@@ -273,6 +273,12 @@ class CampusStore:
                     "sample_count": existing.get("sample_count", 0),
                     "reference_preview": existing.get("reference_preview"),
                     "enrolled_at": existing.get("enrolled_at"),
+                    "face_source": existing.get("face_source"),
+                    "face_identity": existing.get("face_identity"),
+                    "face_enrollment_images": existing.get("face_enrollment_images", []),
+                    "face_query_image": existing.get("face_query_image"),
+                    "face_dataset_dir": existing.get("face_dataset_dir"),
+                    "face_model_type": existing.get("face_model_type"),
                 }
                 imported.append(student_id)
             self._audit_unlocked(
@@ -305,6 +311,55 @@ class CampusStore:
             )
             self._save_unlocked()
             return deepcopy(students[student_id])
+
+    def record_flux_enrollment(
+        self,
+        student_id: str,
+        sample_count: int,
+        model_type: str,
+        face_identity: str,
+        enrollment_images: List[str],
+        query_image: str,
+        dataset_dir: str = None,
+        reference_preview: str = None,
+    ) -> dict:
+        """Attach a FLUXSynID identity to a campus student after embedding enrollment."""
+        with self._lock:
+            students = self._data.get("students", {})
+            if student_id not in students:
+                raise KeyError(f"Unknown student_id '{student_id}'.")
+            students[student_id].update({
+                "enrollment_status": "enrolled",
+                "sample_count": sample_count,
+                "enrolled_at": now_iso(),
+                "face_source": "flux_synid",
+                "face_identity": face_identity,
+                "face_enrollment_images": enrollment_images,
+                "face_query_image": query_image,
+                "face_dataset_dir": dataset_dir,
+                "face_model_type": model_type,
+            })
+            if reference_preview:
+                students[student_id]["reference_preview"] = reference_preview
+            self._audit_unlocked(
+                "student_preuploaded",
+                student_id,
+                f"{student_id} preuploaded from FLUXSynID identity {face_identity}.",
+            )
+            self._save_unlocked()
+            return deepcopy(students[student_id])
+
+    def flux_summary(self) -> dict:
+        with self._lock:
+            students = list(self._data.get("students", {}).values())
+        preuploaded = [
+            student for student in students
+            if student.get("face_source") == "flux_synid"
+        ]
+        return {
+            "preuploaded_students": len(preuploaded),
+            "student_ids": sorted(student["student_id"] for student in preuploaded),
+        }
 
     def record_attempt(
         self,

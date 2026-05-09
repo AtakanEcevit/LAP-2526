@@ -19,7 +19,9 @@ Thumbs.db
 # Project specific
 data/raw/
 data/downloads/
+data/campus_demo.json
 data/enrollments.json
+data/flux_test_uploads/
 results/
 data_raw.zip
 results_trained.zip

@@ -281,11 +281,14 @@ class Trainer:
             loss_type = self.config['training'].get('loss', 'cosine')
             if loss_type == 'contrastive':
                 margin = self.config['training'].get('margin', 1.0)
+                print(f"[Loss] ContrastiveLoss (L2 distance, margin={margin})")
                 return ContrastiveLoss(margin=margin)
             elif loss_type == 'cosine':
                 margin = self.config['training'].get('cosine_margin', 0.5)
+                print(f"[Loss] CosineContrastiveLoss (cosine similarity, margin={margin})")
                 return CosineContrastiveLoss(margin=margin)
             elif loss_type == 'bce':
+                print("[Loss] BinaryCrossEntropyLoss (classifier head)")
                 return BinaryCrossEntropyLoss()
         elif model_type == 'prototypical':
             return PrototypicalLoss()

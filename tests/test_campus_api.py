@@ -6,8 +6,11 @@ campus workflow can be checked without loading checkpoint files.
 """
 
 import io
+import json
 import os
 import sys
+import zipfile
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -68,6 +71,9 @@ def client(tmp_path, monkeypatch):
     api_module._campus_store = CampusStore(
         store_path=str(tmp_path / "campus_demo.json")
     )
+    api_module.DEFAULT_FLUX_TEST_EXPORT_DIR = (
+        tmp_path / "flux_test_uploads" / "current"
+    )
     api_module._campus_store.reset_demo()
 
     fake_engine = FakeFaceEngine()
@@ -89,6 +95,227 @@ def test_campus_status_shows_face_models(client):
     assert "siamese" in data["face_models_available"]
     assert "hybrid" in data["face_models_available"]
     assert data["students"] >= 20
+
+
+@pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
+def test_flux_status_reports_present_and_missing_dataset(client, tmp_path):
+    flux_dir = tmp_path / "FLUXSynID" / "FLUXSynID" / "FLUXSynID"
+    _write_flux_identity(flux_dir, "flux_001", age="20-29")
+
+    resp = client.get(
+        "/campus/flux/status",
+        params={"dataset_dir": str(tmp_path / "FLUXSynID")},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["available"] is True
+    assert data["eligible_identity_count"] == 1
+    assert data["normalized_path"].endswith(os.path.join("FLUXSynID", "FLUXSynID"))
+
+    missing = client.get(
+        "/campus/flux/status",
+        params={"dataset_dir": str(tmp_path / "missing")},
+    )
+    assert missing.status_code == 200
+    assert missing.json()["available"] is False
+
+
+@pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
+def test_flux_preupload_enrolls_students_idempotently(client, tmp_path):
+    flux_dir = tmp_path / "flux"
+    for idx in range(4):
+        _write_flux_identity(flux_dir, f"flux_{idx:03d}", age="20-29")
+
+    for _ in range(2):
+        resp = client.post(
+            "/campus/flux/preupload",
+            data={
+                "dataset_dir": str(flux_dir),
+                "count": "3",
+                "seed": "42",
+                "model_type": "hybrid",
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["imported_count"] == 3
+        assert data["skipped"] == []
+        assert data["export"]["image_count"] == 3
+        assert data["export"]["skipped"] == []
+
+    roster = client.get("/campus/exams/CS204-MIDTERM-1/roster").json()["roster"]
+    preuploaded = [row for row in roster if row.get("face_source") == "flux_synid"]
+    assert len(preuploaded) == 3
+    assert all(row["sample_count"] == 3 for row in preuploaded)
+    assert all(row["reference_preview"].startswith("data:image/jpeg;base64,") for row in preuploaded)
+
+    users = client.get("/users").json()
+    campus_users = [user for user in users if user["user_id"].startswith("campus_")]
+    assert len(campus_users) == 3
+    assert all(user["sample_count"] == 3 for user in campus_users)
+
+    test_set = client.get("/campus/flux/test-set")
+    assert test_set.status_code == 200
+    test_data = test_set.json()
+    assert test_data["image_count"] == 3
+    first_entry = test_data["manifest"][0]
+    assert Path(first_entry["exported_path"]).is_file()
+
+    per_student = client.get(
+        f"/campus/students/{first_entry['student_id']}/flux/test-image"
+    )
+    assert per_student.status_code == 200
+    assert per_student.content == Path(first_entry["exported_path"]).read_bytes()
+
+    zip_resp = client.get("/campus/flux/test-set.zip")
+    assert zip_resp.status_code == 200
+    zip_path = tmp_path / "flux_test_set.zip"
+    zip_path.write_bytes(zip_resp.content)
+    with zipfile.ZipFile(zip_path) as archive:
+        names = set(archive.namelist())
+    assert "manifest.json" in names
+    assert first_entry["exported_filename"] in names
+
+    verify = client.post(
+        "/campus/exams/CS204-MIDTERM-1/verify",
+        data={"student_id": first_entry["student_id"]},
+        files={
+            "image": (
+                first_entry["exported_filename"],
+                Path(first_entry["exported_path"]).read_bytes(),
+                "image/jpeg",
+            )
+        },
+    )
+    assert verify.status_code == 200
+    assert verify.json()["attempt"]["model_type"] == "hybrid"
+
+
+@pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
+def test_failed_flux_rerun_preserves_existing_enrollment(client, tmp_path):
+    good_flux = tmp_path / "good"
+    bad_flux = tmp_path / "bad"
+    _write_flux_identity(good_flux, "flux_good", age="20-29")
+    _write_tiny_flux_identity(bad_flux, "flux_bad", age="20-29")
+
+    good = client.post(
+        "/campus/flux/preupload",
+        data={
+            "dataset_dir": str(good_flux),
+            "count": "1",
+            "seed": "1",
+            "model_type": "hybrid",
+        },
+    )
+    assert good.status_code == 200
+    student_id = good.json()["imported"][0]["student_id"]
+
+    bad = client.post(
+        "/campus/flux/preupload",
+        data={
+            "dataset_dir": str(bad_flux),
+            "count": "1",
+            "seed": "1",
+            "model_type": "hybrid",
+        },
+    )
+    assert bad.status_code == 200
+    assert bad.json()["imported_count"] == 0
+    assert len(bad.json()["skipped"]) == 1
+
+    users = client.get("/users").json()
+    user = next(item for item in users if item["user_id"] == f"campus_{student_id}")
+    assert user["sample_count"] == 3
+
+    verify = client.post(
+        "/campus/exams/CS204-MIDTERM-1/verify-preloaded",
+        data={"student_id": student_id, "scenario": "matching"},
+    )
+    assert verify.status_code == 200
+
+
+@pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
+def test_verify_preloaded_matching_and_model_mismatch(client, tmp_path):
+    flux_dir = tmp_path / "flux"
+    for idx in range(2):
+        _write_flux_identity(flux_dir, f"flux_{idx:03d}", age="20-29")
+
+    preupload = client.post(
+        "/campus/flux/preupload",
+        data={
+            "dataset_dir": str(flux_dir),
+            "count": "2",
+            "seed": "7",
+            "model_type": "hybrid",
+        },
+    )
+    assert preupload.status_code == 200
+    student_id = preupload.json()["imported"][0]["student_id"]
+
+    verify = client.post(
+        "/campus/exams/CS204-MIDTERM-1/verify-preloaded",
+        data={"student_id": student_id, "scenario": "matching"},
+    )
+    assert verify.status_code == 200
+    attempt = verify.json()["attempt"]
+    assert attempt["model_type"] == "hybrid"
+    assert attempt["query_preview"].startswith("data:image/jpeg;base64,")
+
+    client.post(
+        "/campus/exams",
+        data={
+            "exam_id": "CS204-SIAMESE",
+            "course_id": "CS204-2026S",
+            "name": "Model Mismatch",
+            "start_time": "2026-05-12T10:00",
+            "end_time": "2026-05-12T11:30",
+            "threshold": "0.65",
+            "model_type": "siamese",
+        },
+    )
+    mismatch = client.post(
+        "/campus/exams/CS204-SIAMESE/verify-preloaded",
+        data={"student_id": student_id, "scenario": "matching"},
+    )
+    assert mismatch.status_code == 409
+    assert "requires siamese" in mismatch.json()["detail"]
+
+
+@pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
+def test_flux_export_reports_missing_source_and_non_flux_download(client, tmp_path):
+    flux_dir = tmp_path / "flux"
+    _write_flux_identity(flux_dir, "flux_001", age="20-29")
+
+    preupload = client.post(
+        "/campus/flux/preupload",
+        data={
+            "dataset_dir": str(flux_dir),
+            "count": "1",
+            "seed": "7",
+            "model_type": "hybrid",
+        },
+    )
+    assert preupload.status_code == 200
+    student_id = preupload.json()["imported"][0]["student_id"]
+
+    student = next(
+        item for item in client.get("/campus/students").json()
+        if item["student_id"] == student_id
+    )
+    Path(student["face_query_image"]).unlink()
+
+    export = client.post("/campus/flux/export-test-set")
+    assert export.status_code == 200
+    data = export.json()
+    assert data["image_count"] == 0
+    assert data["skipped"][0]["student_id"] == student_id
+    assert "missing" in data["skipped"][0]["reason"]
+
+    missing_download = client.get(f"/campus/students/{student_id}/flux/test-image")
+    assert missing_download.status_code == 404
+
+    non_flux_download = client.get("/campus/students/NB-2026-1043/flux/test-image")
+    assert non_flux_download.status_code == 409
 
 
 @pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
@@ -229,3 +456,29 @@ def test_hybrid_enrollment_and_verification_path(client):
     attempt = verify_resp.json()["attempt"]
     assert attempt["model_type"] == "hybrid"
     assert attempt["score"] >= attempt["threshold"]
+
+
+def _write_flux_identity(root, identity, age="20-29"):
+    identity_dir = root / identity
+    identity_dir.mkdir(parents=True, exist_ok=True)
+    (identity_dir / f"{identity}_f_doc.jpg").write_bytes(image_bytes(101))
+    (identity_dir / f"{identity}_f_live_0_a_d1.jpg").write_bytes(image_bytes(102))
+    (identity_dir / f"{identity}_f_live_0_e_d1.jpg").write_bytes(image_bytes(103))
+    (identity_dir / f"{identity}_f_live_0_p_d1.jpg").write_bytes(image_bytes(104))
+    (identity_dir / f"{identity}_f.json").write_text(
+        json.dumps({"attributes": {"ages.txt": age}}),
+        encoding="utf-8",
+    )
+
+
+def _write_tiny_flux_identity(root, identity, age="20-29"):
+    identity_dir = root / identity
+    identity_dir.mkdir(parents=True, exist_ok=True)
+    for suffix in ("doc", "live_0_a_d1", "live_0_e_d1", "live_0_p_d1"):
+        out = io.BytesIO()
+        Image.new("RGB", (8, 8), (120, 120, 120)).save(out, format="JPEG")
+        (identity_dir / f"{identity}_f_{suffix}.jpg").write_bytes(out.getvalue())
+    (identity_dir / f"{identity}_f.json").write_text(
+        json.dumps({"attributes": {"ages.txt": age}}),
+        encoding="utf-8",
+    )

@@ -6,9 +6,16 @@ const state = {
     selectedReviewStudent: null,
     selectedEnrollmentFiles: [],
     attemptHistory: [],
+    auditRows: [],
+    fluxStatus: null,
+    fluxTestSet: null,
     studentResultAttemptId: null,
     studentStep: 'consent',
-    activeView: 'launch'
+    activeView: 'simulation',
+    simulationScenario: 'matching',
+    simulationMobilePane: 'student',
+    simulationSelectedStudentId: null,
+    simulationSelectedAttemptId: null
 };
 
 const ENROLLMENT_TARGET = 3;
@@ -23,8 +30,11 @@ const REVIEW_STATUSES = new Set(['Manual Review', 'Fallback Requested']);
 const ACCESS_GRANTED_STATUSES = new Set(['Verified', 'Approved by Proctor']);
 const BLOCKED_STATUSES = new Set(['Rejected']);
 const WAITING_STATUSES = new Set(['Not Started', 'Enrollment Needed', 'Pending Verification']);
+const STUDENT_STEP_ORDER = ['consent', 'enrollment', 'verification', 'result'];
+const KPI_KEYS = ['attempts', 'verified', 'review', 'blocked', 'no-enrollment'];
 const PERSONAS = {
     launch: 'Demo Operator',
+    simulation: 'Live Simulation',
     student: 'Student: Aylin Kaya',
     proctor: 'Review Desk: Proctor Lee',
     admin: 'Operations: Registrar Admin',
@@ -34,6 +44,9 @@ const PERSONAS = {
 document.addEventListener('DOMContentLoaded', () => {
     bindTabs();
     bindActions();
+    updateSidebarClock();
+    window.setInterval(updateSidebarClock, 60000);
+    showView('simulation');
     refreshAll();
     setStudentStep('consent');
 });
@@ -55,6 +68,10 @@ function showView(viewName) {
     });
     updateScenarioRail(viewName);
     updateContextBar();
+    if (normalizedView === 'simulation') {
+        syncSimulationSelection();
+        renderSimulation();
+    }
     if (viewName === 'evidence' || viewName === 'lab') {
         openOperationPanel('operation-model-evidence');
     }
@@ -74,6 +91,7 @@ function bindActions() {
     });
     document.getElementById('student-refresh-btn').addEventListener('click', refreshAll);
     document.getElementById('proctor-refresh-btn').addEventListener('click', refreshAll);
+    document.getElementById('simulation-refresh-btn').addEventListener('click', refreshAll);
     document.getElementById('consent-next-btn').addEventListener('click', () => {
         if (requireConsent()) setStudentStep('enrollment');
     });
@@ -91,16 +109,38 @@ function bindActions() {
     });
     document.getElementById('enroll-student-btn').addEventListener('click', enrollStudent);
     document.getElementById('verify-student-btn').addEventListener('click', verifyStudent);
+    document.getElementById('simulation-verify-btn').addEventListener('click', verifySimulationStudent);
     document.getElementById('wrong-face-demo-btn').addEventListener('click', () => showView('proctor'));
     document.getElementById('save-course-btn').addEventListener('click', saveCourse);
     document.getElementById('save-exam-btn').addEventListener('click', saveExam);
     document.getElementById('import-roster-btn').addEventListener('click', importRoster);
     document.getElementById('reset-demo-btn').addEventListener('click', resetDemo);
+    document.getElementById('flux-preupload-btn').addEventListener('click', preuploadFlux);
+    document.getElementById('flux-export-btn').addEventListener('click', exportFluxTestSet);
+    document.getElementById('verify-preloaded-btn').addEventListener('click', () => verifyPreloadedStudent(false));
+    document.getElementById('simulation-preloaded-btn').addEventListener('click', () => verifyPreloadedStudent(true));
     document.getElementById('lab-compare-btn').addEventListener('click', compareInLab);
     ['proctor-filter-status', 'proctor-filter-decision', 'proctor-filter-name', 'proctor-filter-id', 'proctor-sort']
         .forEach(id => document.getElementById(id).addEventListener('input', renderRoster));
     document.querySelectorAll('[data-review-action]').forEach(button => {
         button.addEventListener('click', () => reviewAttempt(button.dataset.reviewAction));
+    });
+    document.querySelectorAll('[data-simulation-scenario]').forEach(button => {
+        button.addEventListener('click', () => setSimulationScenario(button.dataset.simulationScenario));
+    });
+    document.querySelectorAll('[data-simulation-review-action]').forEach(button => {
+        button.addEventListener('click', () => reviewSimulationAttempt(button.dataset.simulationReviewAction));
+    });
+    document.querySelectorAll('[data-simulation-pane]').forEach(button => {
+        button.addEventListener('click', () => {
+            state.simulationMobilePane = button.dataset.simulationPane;
+            renderSimulationPaneSwitch();
+        });
+    });
+    document.getElementById('simulation-feed-table').addEventListener('click', event => {
+        const button = event.target.closest('[data-simulation-attempt]');
+        if (!button) return;
+        openSimulationAttempt(button.dataset.simulationAttempt, button.dataset.simulationStudent);
     });
     document.getElementById('student-exam').addEventListener('change', async () => {
         resetStudentResultPanel();
@@ -108,12 +148,35 @@ function bindActions() {
         syncAdminFields();
         updateContextBar();
         renderEnrollmentGuidance();
+        syncSimulationControls();
+        renderSimulation();
     });
     document.getElementById('student-select').addEventListener('change', () => {
         resetStudentResultPanel();
         updateContextBar();
         renderEnrollmentGuidance();
+        syncSimulationSelection();
+        renderSimulation();
     });
+    document.getElementById('simulation-exam').addEventListener('change', async () => {
+        setSelectValue('student-exam', valueOf('simulation-exam'));
+        resetStudentResultPanel();
+        await refreshRosterOnly();
+        syncAdminFields();
+        updateContextBar();
+        renderEnrollmentGuidance();
+        renderSimulation();
+    });
+    document.getElementById('simulation-student').addEventListener('change', () => {
+        setSelectValue('student-select', valueOf('simulation-student'));
+        resetStudentResultPanel();
+        syncSimulationSelection();
+        updateContextBar();
+        renderEnrollmentGuidance();
+        renderSimulation();
+    });
+    document.getElementById('simulation-consent-check').addEventListener('change', renderSimulation);
+    document.getElementById('simulation-verify-file').addEventListener('change', renderSimulation);
     document.getElementById('enroll-files').addEventListener('change', renderEnrollmentFileState);
     document.getElementById('consent-check').addEventListener('change', updateStudentProgress);
     document.getElementById('verify-file').addEventListener('change', updateStudentProgress);
@@ -124,23 +187,32 @@ function bindActions() {
 
 async function refreshAll() {
     try {
-        const [health, snapshot, audit, enrollments] = await Promise.all([
+        const [health, snapshot, audit, enrollments, fluxStatus, fluxTestSet] = await Promise.all([
             api.health(),
             api.snapshot(),
             api.audit(),
-            api.users()
+            api.users(),
+            api.fluxStatus().catch(err => ({ available: false, error: err.message })),
+            api.fluxTestSet().catch(err => ({ available: false, error: err.message }))
         ]);
         state.snapshot = snapshot;
         state.enrollments = enrollments;
-        setStatus(`Online | ${health.students} students | ${health.face_models_available.length} face models`, true);
+        state.auditRows = audit;
+        state.fluxStatus = fluxStatus;
+        state.fluxTestSet = fluxTestSet;
+        setStatus('All systems operational', true);
         populateSelectors();
         syncAdminFields();
         await refreshRosterOnly();
         renderEnrollmentGuidance();
         renderAudit(audit);
+        renderFluxPanel(fluxStatus, fluxTestSet);
+        syncSimulationSelection();
+        renderSimulation();
         updateContextBar();
     } catch (err) {
-        setStatus('Offline', false);
+        setStatus('Connection interrupted', false);
+        renderSimulation();
         toast(err.message, 'error');
     }
 }
@@ -153,6 +225,8 @@ async function refreshRosterOnly() {
         renderRoster();
         renderMetrics();
         renderEnrollmentGuidance();
+        syncSimulationSelection();
+        renderSimulation();
         updateContextBar();
     } catch (err) {
         toast(err.message, 'error');
@@ -169,33 +243,61 @@ function jumpFromGuide(viewName) {
     if (viewName === 'proctor') {
         setReviewFilter('needs_review');
     }
+    if (viewName === 'simulation') {
+        document.getElementById('simulation-consent-check').checked = true;
+        syncSimulationSelection();
+        renderSimulation();
+    }
     showView(viewName);
 }
 
 function setStatus(text, ok) {
     const status = document.getElementById('system-status');
     document.getElementById('status-text').textContent = text;
-    status.style.color = ok ? 'var(--green)' : 'var(--red)';
-    status.style.borderColor = ok ? 'rgba(40, 122, 74, 0.25)' : 'rgba(178, 56, 56, 0.25)';
-    status.style.background = ok ? 'rgba(40, 122, 74, 0.08)' : 'rgba(178, 56, 56, 0.08)';
+    status.classList.toggle('offline', !ok);
+    status.classList.toggle('online', ok);
+}
+
+function updateSidebarClock() {
+    const now = new Date();
+    setTextIfPresent('sidebar-clock-time', now.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit'
+    }));
+    setTextIfPresent('sidebar-clock-date', now.toLocaleDateString([], {
+        month: 'short',
+        day: 'numeric',
+        year: 'numeric'
+    }));
 }
 
 function populateSelectors() {
     if (!state.snapshot) return;
     const examSelect = document.getElementById('student-exam');
     const studentSelect = document.getElementById('student-select');
+    const simulationExamSelect = document.getElementById('simulation-exam');
+    const simulationStudentSelect = document.getElementById('simulation-student');
     const priorExam = examSelect.value;
     const priorStudent = studentSelect.value;
+    const priorSimulationExam = simulationExamSelect.value;
+    const priorSimulationStudent = simulationStudentSelect.value;
 
-    examSelect.innerHTML = state.snapshot.exams.map(exam =>
+    const examOptions = state.snapshot.exams.map(exam =>
         `<option value="${escapeHtml(exam.exam_id)}">${escapeHtml(displayExamName(exam.name))} (${escapeHtml(exam.exam_id)})</option>`
     ).join('');
-    studentSelect.innerHTML = state.snapshot.students.map(student =>
+    const studentOptions = state.snapshot.students.map(student =>
         `<option value="${escapeHtml(student.student_id)}">${escapeHtml(student.name)} - ${escapeHtml(displayStudentId(student.student_id))}</option>`
     ).join('');
 
+    examSelect.innerHTML = examOptions;
+    studentSelect.innerHTML = studentOptions;
+    simulationExamSelect.innerHTML = examOptions;
+    simulationStudentSelect.innerHTML = studentOptions;
+
     setSelectValue('student-exam', priorExam || demoExamId());
     setSelectValue('student-select', priorStudent || demoStudentId());
+    setSelectValue('simulation-exam', priorSimulationExam || examSelect.value);
+    setSelectValue('simulation-student', priorSimulationStudent || studentSelect.value);
 }
 
 function syncAdminFields() {
@@ -219,19 +321,91 @@ function syncAdminFields() {
 
 function renderMetrics() {
     const roster = state.roster?.roster || [];
-    const verified = roster.filter(row =>
-        ACCESS_GRANTED_STATUSES.has(row.exam_status)
-    ).length;
-    const review = roster.filter(row =>
-        REVIEW_STATUSES.has(row.exam_status)
-    ).length;
-    const waiting = roster.filter(row => WAITING_STATUSES.has(row.exam_status)).length;
-    const rejected = roster.filter(row => BLOCKED_STATUSES.has(row.exam_status)).length;
+    const metrics = dashboardMetrics(roster);
 
     document.getElementById('metric-students').textContent = roster.length;
-    document.getElementById('metric-verified').textContent = verified;
-    document.getElementById('metric-review').textContent = review;
-    setTextIfPresent('queue-summary', `${review} need review | ${verified} verified | ${waiting} waiting | ${rejected} blocked`);
+    document.getElementById('metric-verified').textContent = metrics.verified;
+    document.getElementById('metric-review').textContent = metrics.review;
+    setTextIfPresent('sidebar-review-count', metrics.review);
+    setTextIfPresent('sidebar-blocked-count', metrics.blocked);
+    setTextIfPresent(
+        'queue-summary',
+        `${metrics.review} need review | ${metrics.verified} verified | ${metrics.waiting} waiting | ${metrics.blocked} blocked`
+    );
+    renderKpiDeck('simulation', metrics);
+    renderKpiDeck('review', metrics);
+}
+
+function dashboardMetrics(roster) {
+    const rows = roster || [];
+    return {
+        roster: rows.length,
+        attempts: rows.filter(row => row.latest_attempt).length,
+        verified: rows.filter(row => ACCESS_GRANTED_STATUSES.has(row.exam_status)).length,
+        review: rows.filter(row => REVIEW_STATUSES.has(row.exam_status)).length,
+        waiting: rows.filter(row => WAITING_STATUSES.has(row.exam_status)).length,
+        blocked: rows.filter(row => BLOCKED_STATUSES.has(row.exam_status)).length,
+        noEnrollment: rows.filter(row =>
+            row.exam_status === 'Enrollment Needed' || Number(row.sample_count || 0) <= 0
+        ).length,
+    };
+}
+
+function renderKpiDeck(prefix, metrics) {
+    if (!document.getElementById(`${prefix}-kpi-attempts-count`)) return;
+    const denominator = Math.max(1, metrics.roster || 0);
+    const values = {
+        attempts: metrics.attempts,
+        verified: metrics.verified,
+        review: metrics.review,
+        blocked: metrics.blocked,
+        'no-enrollment': metrics.noEnrollment,
+    };
+
+    KPI_KEYS.forEach(key => {
+        const count = values[key] || 0;
+        setTextIfPresent(`${prefix}-kpi-${key}-count`, count);
+        setTextIfPresent(
+            `${prefix}-kpi-${key}-rate`,
+            key === 'attempts' ? 'Live' : `${((count / denominator) * 100).toFixed(1)}%`
+        );
+        const spark = document.getElementById(`${prefix}-kpi-${key}-spark`);
+        if (spark) {
+            spark.innerHTML = sparklineSvg(kpiSparkValues(key, metrics), key);
+        }
+    });
+}
+
+function kpiSparkValues(key, metrics) {
+    const total = Math.max(1, metrics.roster || 0);
+    const end = key === 'attempts'
+        ? metrics.attempts
+        : key === 'verified'
+            ? metrics.verified
+            : key === 'review'
+                ? metrics.review
+                : key === 'blocked'
+                    ? metrics.blocked
+                    : metrics.noEnrollment;
+    const values = [];
+    for (let index = 0; index < 10; index += 1) {
+        const progress = index / 9;
+        const curve = Math.sin((index + key.length) * 1.3) * Math.max(1, total * 0.05);
+        values.push(Math.max(0, Math.min(total, Math.round(end * progress + curve))));
+    }
+    return values;
+}
+
+function sparklineSvg(values, key) {
+    const width = 140;
+    const height = 34;
+    const max = Math.max(1, ...values);
+    const points = values.map((value, index) => {
+        const x = (index / Math.max(1, values.length - 1)) * width;
+        const y = height - (value / max) * (height - 4) - 2;
+        return `${x.toFixed(1)},${y.toFixed(1)}`;
+    }).join(' ');
+    return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(key)} trend"><polyline points="${points}"></polyline></svg>`;
 }
 
 function renderRoster() {
@@ -256,7 +430,7 @@ function renderRoster() {
         const selected = latest?.attempt_id === state.selectedAttempt?.attempt_id ? ' class="selected-row"' : '';
         return `
             <tr${selected}>
-                <td><strong>${escapeHtml(row.name)}</strong><span class="row-subtext">${escapeHtml(displayStudentId(row.student_id))}</span></td>
+                <td>${studentNameCell(row)}</td>
                 <td><span class="badge ${statusClass(row.exam_status)}">${escapeHtml(row.exam_status)}</span></td>
                 <td>${score}</td>
                 <td>${action}</td>
@@ -331,8 +505,10 @@ async function selectAttempt(attemptId, options = {}) {
         state.selectedAttempt = attempt;
         state.selectedReviewStudent = student;
         state.attemptHistory = history;
+        state.simulationSelectedAttemptId = attempt.attempt_id;
         renderReviewAttempt(attempt, student, history);
         renderRoster();
+        renderSimulation();
         if (options.scroll !== false) {
             const panel = document.getElementById('review-panel');
             panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -361,6 +537,7 @@ function renderReviewAttempt(attempt, student, history = []) {
         history.length > 1 ? `${history.length - 1} earlier attempt(s) for this exam.` : 'No earlier attempts for this exam.';
     setPreview('reference-preview', student.reference_preview);
     setPreview('query-preview', attempt.query_preview);
+    renderAuditRail('review-audit-rail', attempt, student);
     setReviewButtonsEnabled(true);
 }
 
@@ -404,6 +581,7 @@ function clearReviewDetails() {
         });
     setPreview('reference-preview', null);
     setPreview('query-preview', null);
+    renderAuditRail('review-audit-rail', null, null);
 }
 
 function setReviewButtonsEnabled(enabled) {
@@ -414,7 +592,32 @@ function setReviewButtonsEnabled(enabled) {
 
 function setPreview(id, dataUrl) {
     const host = document.getElementById(id);
+    if (!host) return;
     host.innerHTML = dataUrl ? `<img src="${dataUrl}" alt="">` : 'No image';
+}
+
+function setAvatar(id, dataUrl) {
+    const host = document.getElementById(id);
+    if (!host) return;
+    host.innerHTML = dataUrl ? `<img src="${dataUrl}" alt="">` : '<span>FV</span>';
+}
+
+function studentNameCell(row) {
+    return `
+        <div class="student-face-cell">
+            ${avatarHtml(row?.reference_preview)}
+            <div>
+                <strong>${escapeHtml(row?.name || '-')}</strong>
+                <span class="row-subtext">${escapeHtml(displayStudentId(row?.student_id))}</span>
+            </div>
+        </div>
+    `;
+}
+
+function avatarHtml(dataUrl) {
+    return dataUrl
+        ? `<span class="student-avatar"><img src="${dataUrl}" alt=""></span>`
+        : '<span class="student-avatar empty">FV</span>';
 }
 
 async function enrollStudent() {
@@ -586,6 +789,40 @@ async function verifyStudent() {
     }
 }
 
+async function verifyPreloadedStudent(fromSimulation = false) {
+    const examId = currentExamId();
+    const studentId = fromSimulation
+        ? document.getElementById('simulation-student').value
+        : document.getElementById('student-select').value;
+    const consentId = fromSimulation ? 'simulation-consent-check' : 'consent-check';
+    if (!document.getElementById(consentId).checked) {
+        toast('Consent is required before using the preloaded selfie.', 'error');
+        return;
+    }
+    if (!examId || !studentId) {
+        toast('Select an exam and student first.', 'error');
+        return;
+    }
+    try {
+        if (fromSimulation) {
+            setSelectValue('student-select', studentId);
+        }
+        const result = await api.verifyPreloadedStudent(examId, studentId, 'matching');
+        state.simulationSelectedAttemptId = result.attempt.attempt_id;
+        state.selectedAttempt = result.attempt;
+        renderStudentResult(result);
+        await refreshAll();
+        await selectAttempt(result.attempt.attempt_id, { scroll: false });
+    } catch (err) {
+        if (err.message.includes('preuploaded') || err.message.includes('enrolled with')) {
+            document.getElementById('enroll-warning').textContent = err.message;
+            renderEnrollmentGuidance();
+        }
+        toast(err.message, 'error');
+        renderSimulation();
+    }
+}
+
 function renderStudentResult(result) {
     const attempt = result.attempt;
     state.studentResultAttemptId = attempt.attempt_id;
@@ -665,13 +902,97 @@ async function importRoster() {
     }
 }
 
+function renderFluxPanel(status = state.fluxStatus, testSet = state.fluxTestSet) {
+    if (!document.getElementById('flux-status')) return;
+    const available = Boolean(status?.available);
+    const preuploaded = Number(status?.preuploaded_students || 0);
+    const eligible = Number(status?.eligible_identity_count || 0);
+    const configuredPath = status?.configured_path || '';
+    const exported = Number(testSet?.image_count || 0);
+
+    if (!valueOf('flux-dataset-dir') && configuredPath) {
+        document.getElementById('flux-dataset-dir').value = configuredPath;
+    }
+
+    document.getElementById('flux-status').textContent = available
+        ? `${eligible} eligible identities found | ${preuploaded} students preuploaded`
+        : (status?.error || 'FLUXSynID dataset not found on this machine.');
+    document.getElementById('flux-status').classList.toggle('warning', !available);
+    document.getElementById('flux-status').classList.toggle('ready', available && preuploaded > 0);
+    document.getElementById('flux-normalized-path').textContent = status?.normalized_path || '-';
+    document.getElementById('flux-test-output').textContent = testSet?.output_dir || '-';
+    document.getElementById('flux-test-count').textContent =
+        `${exported} matching selfie${exported === 1 ? '' : 'ies'} exported`;
+
+    const downloadLink = document.getElementById('flux-download-zip');
+    downloadLink.href = api.fluxTestSetZipUrl();
+    downloadLink.classList.toggle('hidden', exported <= 0);
+}
+
+async function preuploadFlux() {
+    const button = document.getElementById('flux-preupload-btn');
+    const priorText = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Preuploading...';
+    try {
+        const result = await api.preuploadFlux({
+            dataset_dir: valueOf('flux-dataset-dir'),
+            count: valueOf('flux-count') || 25,
+            seed: valueOf('flux-seed') || 42,
+            model_type: valueOf('flux-model') || 'hybrid'
+        });
+        state.fluxStatus = result.status;
+        state.fluxTestSet = result.export;
+        renderFluxPanel(result.status, result.export);
+        document.getElementById('flux-result').textContent =
+            `Preuploaded ${result.imported_count} student(s); exported ${result.export?.image_count || 0} test selfie file(s); skipped ${result.skipped.length}.`;
+        toast('FLUXSynID preupload complete.', 'success');
+        await refreshAll();
+    } catch (err) {
+        document.getElementById('flux-result').textContent = err.message;
+        toast(err.message, 'error');
+    } finally {
+        button.disabled = false;
+        button.textContent = priorText;
+    }
+}
+
+async function exportFluxTestSet() {
+    const button = document.getElementById('flux-export-btn');
+    const priorText = button.textContent;
+    button.disabled = true;
+    button.textContent = 'Exporting...';
+    try {
+        const result = await api.exportFluxTestSet();
+        state.fluxTestSet = result;
+        renderFluxPanel(state.fluxStatus, result);
+        document.getElementById('flux-result').textContent =
+            `Exported ${result.image_count} matching selfie file(s); skipped ${result.skipped.length}.`;
+        toast('FLUXSynID test selfies exported.', 'success');
+        renderGateContextPanel();
+    } catch (err) {
+        document.getElementById('flux-result').textContent = err.message;
+        toast(err.message, 'error');
+    } finally {
+        button.disabled = false;
+        button.textContent = priorText;
+    }
+}
+
 async function resetDemo() {
     if (!window.confirm('Reset FaceVerify Campus demo data?')) return;
     try {
-        await api.resetDemo();
+        const result = await api.resetDemo();
         resetReviewPanel();
         resetStudentResultPanel();
-        toast('Demo reset.', 'success');
+        const flux = result.flux_preupload;
+        if (flux?.imported_count) {
+            toast(`Demo reset with ${flux.imported_count} FLUXSynID faces.`, 'success');
+        } else if (flux?.error) {
+            toast(`Demo reset. FLUXSynID preupload skipped: ${flux.error}`, 'error');
+        } else {
+            toast('Demo reset.', 'success');
+        }
         await refreshAll();
     } catch (err) {
         toast(err.message, 'error');
@@ -727,6 +1048,406 @@ function renderAudit(rows) {
     `).join('');
 }
 
+function syncSimulationControls() {
+    setSelectValue('simulation-exam', currentExamId());
+    setSelectValue('simulation-student', document.getElementById('student-select').value);
+}
+
+function syncSimulationSelection() {
+    const selectedStudentId = document.getElementById('student-select').value || demoStudentId();
+    state.simulationSelectedStudentId = selectedStudentId;
+    syncSimulationControls();
+}
+
+function setSimulationScenario(scenario) {
+    state.simulationScenario = scenario;
+    const targetStudentId = findSimulationScenarioStudent(scenario);
+    if (targetStudentId) {
+        setSelectValue('student-select', targetStudentId);
+        setSelectValue('simulation-student', targetStudentId);
+        state.simulationSelectedStudentId = targetStudentId;
+        resetStudentResultPanel();
+        updateContextBar();
+        renderEnrollmentGuidance();
+    }
+
+    const targetAttempt = currentRosterRow()?.latest_attempt;
+    if (targetAttempt) {
+        state.simulationSelectedAttemptId = targetAttempt.attempt_id;
+    } else if (scenario === 'matching' || scenario === 'no_enrollment' || scenario === 'model_mismatch') {
+        state.simulationSelectedAttemptId = null;
+    }
+
+    renderSimulation();
+}
+
+function findSimulationScenarioStudent(scenario) {
+    const rows = state.roster?.roster || [];
+    const exam = selectedExam();
+    if (!rows.length) return null;
+
+    if (scenario === 'matching') {
+        return rows.find(row => row.student_id === demoStudentId())?.student_id || rows[0]?.student_id;
+    }
+
+    if (scenario === 'needs_review') {
+        const row = rows.find(item => REVIEW_STATUSES.has(item.exam_status));
+        if (!row) toast('No manual-review attempt exists yet. Submit a low-confidence or wrong-face selfie to create one.', 'info');
+        return row?.student_id || null;
+    }
+
+    if (scenario === 'no_enrollment') {
+        const row = rows.find(item => item.exam_status === 'Enrollment Needed' || Number(item.sample_count || 0) <= 0);
+        if (!row) toast('Every rostered student is currently enrolled. Reset the demo or import a new roster row to show this path.', 'info');
+        return row?.student_id || null;
+    }
+
+    if (scenario === 'model_mismatch') {
+        const enrollment = state.enrollments.find(item =>
+            item.user_id?.startsWith('campus_') && exam?.model_type && item.model_type !== exam.model_type
+        );
+        const studentId = enrollment?.user_id?.replace(/^campus_/, '');
+        const row = rows.find(item => item.student_id === studentId);
+        if (!row) toast('No model-mismatch enrollment exists for this exam yet. Change the exam model after enrolling a student to show this path.', 'info');
+        return row?.student_id || null;
+    }
+
+    if (scenario === 'fallback_requested') {
+        const row = rows.find(item => item.exam_status === 'Fallback Requested');
+        if (!row) toast('No fallback request exists yet. Use Request Fallback after opening a review attempt.', 'info');
+        return row?.student_id || null;
+    }
+
+    return null;
+}
+
+function renderSimulation() {
+    if (!document.getElementById('view-simulation')) return;
+    syncSimulationControls();
+    renderSimulationStudentPane();
+    renderSimulationInstructorPane();
+    renderSimulationFeed();
+    renderSimulationTimeline();
+    document.querySelectorAll('[data-simulation-scenario]').forEach(button => {
+        button.classList.toggle('active', button.dataset.simulationScenario === state.simulationScenario);
+    });
+    renderSimulationPaneSwitch();
+}
+
+function renderSimulationStudentPane() {
+    const context = enrollmentContext();
+    const student = context.student;
+    const exam = context.exam;
+    const row = context.rosterRow;
+    const attempt = simulationAttempt();
+    const status = row?.exam_status || (context.sampleCount > 0 ? 'Pending Verification' : 'Enrollment Needed');
+    const consentDone = document.getElementById('simulation-consent-check').checked;
+    const enrollmentDone = !context.modelMismatch && context.sampleCount >= ENROLLMENT_TARGET;
+    const verificationDone = Boolean(attempt);
+
+    setTextIfPresent('simulation-student-title', `${displayExamName(exam?.name)} access gate`);
+    setTextIfPresent('simulation-student-id', displayStudentId(student?.student_id || '-'));
+    setTextIfPresent('simulation-student-name', student?.name || 'Select a student');
+    setAvatar('simulation-student-avatar', row?.reference_preview || student?.reference_preview);
+    setTextIfPresent('simulation-exam-window', formatExamWindow(exam));
+    setSimulationBadge('simulation-student-status', status);
+    setSimulationMiniStep('simulation-mini-consent', consentDone, !consentDone);
+    setSimulationMiniStep('simulation-mini-enrollment', enrollmentDone, consentDone && !enrollmentDone);
+    setSimulationMiniStep('simulation-mini-verification', verificationDone, enrollmentDone && !verificationDone);
+    setSimulationMiniStep('simulation-mini-result', verificationDone, verificationDone);
+    renderGateHeader(
+        'simulation',
+        `${displayExamName(exam?.name)} access gate`,
+        gateStatusInfo(context, attempt || row?.latest_attempt || null),
+        simulationGateStep(consentDone, enrollmentDone, verificationDone)
+    );
+    setTextIfPresent('simulation-student-guidance', simulationStudentGuidance(context, attempt));
+    setPreview('simulation-student-camera-preview', attempt?.query_preview);
+
+    const resultCard = document.getElementById('simulation-result-card');
+    resultCard.classList.remove('verified', 'review', 'rejected');
+    if (attempt) {
+        resultCard.classList.add(resultClass(attempt.decision));
+        setTextIfPresent('simulation-result-title', studentFacingTitle(attempt));
+        setTextIfPresent('simulation-result-message', studentFacingMessage(attempt));
+        setTextIfPresent('simulation-result-score', numberOrDash(attempt.score));
+        setTextIfPresent('simulation-result-threshold', numberOrDash(attempt.threshold));
+        setTextIfPresent('simulation-result-attempt', attempt.attempt_id);
+        updateScoreBar('simulation', attempt.score, attempt.threshold, attempt.decision);
+    } else {
+        setTextIfPresent('simulation-result-title', 'No attempt yet');
+        setTextIfPresent('simulation-result-message', 'The student has not submitted an exam-day selfie in this simulation.');
+        setTextIfPresent('simulation-result-score', '-');
+        setTextIfPresent('simulation-result-threshold', numberOrDash(exam?.threshold));
+        setTextIfPresent('simulation-result-attempt', '-');
+        updateScoreBar('simulation', 0, exam?.threshold || 0, 'rejected');
+    }
+}
+
+function renderSimulationInstructorPane() {
+    const exam = selectedExam();
+    const course = selectedCourse();
+    const student = selectedStudent();
+    const row = currentRosterRow();
+    const attempt = simulationAttempt();
+    const roster = state.roster?.roster || [];
+    const metrics = dashboardMetrics(roster);
+    const threshold = Number(exam?.threshold);
+    const thresholdText = Number.isFinite(threshold) ? threshold.toFixed(3) : '-';
+
+    setTextIfPresent('simulation-admin-title', `${courseCode(displayCourseName(course?.name))} operations cockpit`);
+    setSimulationBadge('simulation-admin-model', modelLabel(exam?.model_type || '-'), 'model');
+    renderKpiDeck('simulation', metrics);
+    setTextIfPresent('simulation-policy-title', `${modelLabel(exam?.model_type || '-')} verification before exam access`);
+    setTextIfPresent('simulation-policy-detail', `Threshold ${thresholdText}. Window ${formatExamWindow(exam)}. Instructor ${displayInstructor(course?.instructor)}.`);
+    setTextIfPresent('simulation-admin-student', student ? `${student.name} - ${displayStudentId(student.student_id)}` : '-');
+    setSimulationBadge('simulation-admin-status', row?.exam_status || '-');
+    setTextIfPresent('simulation-admin-decision', humanizeDecision(attempt?.decision));
+    setTextIfPresent('simulation-admin-warnings', attempt?.warnings?.length ? attempt.warnings.join('; ') : 'None');
+    setTextIfPresent('simulation-admin-time', attempt?.timestamp || '-');
+    setPreview('simulation-reference-preview', row?.reference_preview || student?.reference_preview);
+    setPreview('simulation-query-preview', attempt?.query_preview);
+    renderAuditRail('simulation-audit-rail', attempt, row);
+
+    document.querySelectorAll('[data-simulation-review-action]').forEach(button => {
+        button.disabled = !attempt;
+    });
+}
+
+function renderSimulationFeed() {
+    const body = document.getElementById('simulation-feed-table');
+    if (!body) return;
+    const exam = selectedExam();
+    const rows = [...(state.roster?.roster || [])]
+        .sort((a, b) => statusPriority(a.exam_status) - statusPriority(b.exam_status)
+            || String(a.name || '').localeCompare(String(b.name || '')))
+        .slice(0, 5);
+
+    if (!rows.length) {
+        body.innerHTML = '<tr><td colspan="5" class="empty-cell">No students in this exam roster.</td></tr>';
+        return;
+    }
+
+    body.innerHTML = rows.map(row => {
+        const attempt = row.latest_attempt;
+        const score = attempt ? `${(attempt.score * 100).toFixed(1)}%` : '-';
+        const actionLabel = REVIEW_STATUSES.has(row.exam_status) || BLOCKED_STATUSES.has(row.exam_status) ? 'Review' : 'View';
+        const action = attempt
+            ? `<button class="row-button ${REVIEW_STATUSES.has(row.exam_status) || BLOCKED_STATUSES.has(row.exam_status) ? 'review-action' : ''}" data-simulation-attempt="${escapeHtml(attempt.attempt_id)}" data-simulation-student="${escapeHtml(row.student_id)}">${actionLabel}</button>`
+            : '<span class="muted action-waiting">Waiting</span>';
+        return `
+            <tr class="${statusClass(row.exam_status)}">
+                <td>${studentNameCell(row)}</td>
+                <td>${escapeHtml(displayExamName(exam?.name))}</td>
+                <td><span class="badge ${statusClass(row.exam_status)}">${escapeHtml(row.exam_status)}</span></td>
+                <td>${score}</td>
+                <td>${action}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+async function openSimulationAttempt(attemptId, studentId) {
+    if (studentId) {
+        setSelectValue('student-select', studentId);
+        setSelectValue('simulation-student', studentId);
+        syncSimulationSelection();
+    }
+    state.simulationSelectedAttemptId = attemptId;
+    await selectAttempt(attemptId, { scroll: false });
+    renderSimulation();
+}
+
+function renderSimulationTimeline() {
+    const list = document.getElementById('simulation-timeline-list');
+    const rows = [...(state.auditRows || [])].reverse().slice(0, 8);
+    if (!rows.length) {
+        list.innerHTML = '<li class="empty-timeline">No campus events yet.</li>';
+        return;
+    }
+    list.innerHTML = rows.map(row => `
+        <li>
+            <span>${escapeHtml(row.timestamp || '-')}</span>
+            <strong>${escapeHtml(row.event_type || 'event')}</strong>
+            <p>${escapeHtml(row.message || '-')}</p>
+        </li>
+    `).join('');
+}
+
+function renderAuditRail(containerId, attempt, row = null) {
+    const host = document.getElementById(containerId);
+    if (!host) return;
+    if (!attempt) {
+        host.innerHTML = '<div class="audit-empty-state">No verification attempt selected yet.</div>';
+        return;
+    }
+
+    const stages = auditRailStages(attempt, row);
+    host.innerHTML = stages.map((stage, index) => `
+        <div class="audit-stage ${stage.kind}">
+            <span class="audit-stage-icon">${escapeHtml(stage.icon)}</span>
+            <div>
+                <time>${escapeHtml(stage.time)}</time>
+                <strong>${escapeHtml(stage.title)}</strong>
+                <small>${escapeHtml(stage.detail)}</small>
+            </div>
+            ${index < stages.length - 1 ? '<i aria-hidden="true"></i>' : ''}
+        </div>
+    `).join('');
+}
+
+function auditRailStages(attempt, row) {
+    const time = formatAuditTime(attempt.timestamp);
+    const score = Number.isFinite(Number(attempt.score))
+        ? `${(Number(attempt.score) * 100).toFixed(1)}%`
+        : '-';
+    const warnings = attempt.warnings || [];
+    const finalStatus = attempt.final_status || row?.exam_status || attempt.status || 'Pending Verification';
+    const livenessDetail = warnings.length ? 'Warnings present' : 'Passed';
+    return [
+        { icon: 'P', title: 'Attempt Started', detail: displayStudentId(attempt.student_id), time, kind: 'started' },
+        { icon: 'C', title: 'Photo Captured', detail: attempt.query_preview ? 'Webcam / upload' : 'No photo preview', time, kind: 'captured' },
+        { icon: 'L', title: 'Liveness Check', detail: livenessDetail, time, kind: warnings.length ? 'review' : 'passed' },
+        { icon: 'F', title: 'Face Analyzed', detail: modelLabel(attempt.model_type), time, kind: 'analyzed' },
+        { icon: '%', title: `Match Score: ${score}`, detail: scoreDetail(attempt), time, kind: resultClass(attempt.decision) },
+        { icon: finalStatusIcon(finalStatus), title: finalStatus, detail: finalStatusDetail(finalStatus), time, kind: resultClass(attempt.decision) },
+    ];
+}
+
+function scoreDetail(attempt) {
+    const score = Number(attempt.score);
+    const threshold = Number(attempt.threshold);
+    if (!Number.isFinite(score) || !Number.isFinite(threshold)) return 'Awaiting threshold';
+    if (score >= threshold) return 'At or above threshold';
+    return 'Below threshold';
+}
+
+function finalStatusIcon(status) {
+    if (ACCESS_GRANTED_STATUSES.has(status)) return 'G';
+    if (REVIEW_STATUSES.has(status)) return 'R';
+    if (BLOCKED_STATUSES.has(status)) return 'D';
+    return 'W';
+}
+
+function finalStatusDetail(status) {
+    if (ACCESS_GRANTED_STATUSES.has(status)) return 'Access can proceed';
+    if (REVIEW_STATUSES.has(status)) return 'Auto-flagged';
+    if (BLOCKED_STATUSES.has(status)) return 'Access denied';
+    return 'Awaiting action';
+}
+
+function formatAuditTime(timestamp) {
+    if (!timestamp) return '-';
+    const parsed = new Date(timestamp);
+    if (Number.isNaN(parsed.getTime())) return String(timestamp).split('T').pop() || timestamp;
+    return parsed.toLocaleTimeString([], {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+    });
+}
+
+function renderSimulationPaneSwitch() {
+    document.querySelectorAll('[data-simulation-pane]').forEach(button => {
+        button.classList.toggle('active', button.dataset.simulationPane === state.simulationMobilePane);
+    });
+    document.querySelector('.student-pov')?.classList.toggle('mobile-active', state.simulationMobilePane === 'student');
+    document.querySelector('.instructor-pov')?.classList.toggle('mobile-active', state.simulationMobilePane === 'instructor');
+}
+
+function simulationAttempt() {
+    const row = currentRosterRow();
+    if (state.selectedAttempt?.attempt_id === state.simulationSelectedAttemptId) return state.selectedAttempt;
+    if (row?.latest_attempt?.attempt_id === state.simulationSelectedAttemptId) return row.latest_attempt;
+    return row?.latest_attempt || null;
+}
+
+function simulationStudentGuidance(context, attempt) {
+    if (!context.student) return 'Select a student to start the split-screen simulation.';
+    if (context.modelMismatch) return modelMismatchMessage(context);
+    if (context.sampleCount <= 0) return 'Enrollment is missing. The student cannot verify until face samples are enrolled.';
+    if (context.sampleCount < ENROLLMENT_TARGET) return enrollmentGuidanceMessage(context);
+    if (!document.getElementById('simulation-consent-check').checked) return 'Consent is required before the exam-day selfie can be submitted.';
+    if (!attempt) return 'Enrollment is ready. Submit an exam-day selfie to see the instructor dashboard update.';
+    return statusConsequence(attempt.final_status || attempt.status);
+}
+
+function studentFacingTitle(attempt) {
+    if (ACCESS_GRANTED_STATUSES.has(attempt.final_status)) return 'Access granted';
+    if (REVIEW_STATUSES.has(attempt.final_status)) return 'Manual review required';
+    if (BLOCKED_STATUSES.has(attempt.final_status)) return 'Access blocked';
+    return humanizeDecision(attempt.decision);
+}
+
+function studentFacingMessage(attempt) {
+    if (ACCESS_GRANTED_STATUSES.has(attempt.final_status)) return 'You may continue into the exam.';
+    if (attempt.final_status === 'Fallback Requested') return 'A proctor has requested a fallback ID check before exam access.';
+    if (attempt.decision === 'manual_review') return 'A proctor must review this attempt before access is granted.';
+    return 'This attempt did not meet the exam access policy.';
+}
+
+function setSimulationMiniStep(id, done, active) {
+    const item = document.getElementById(id);
+    item.classList.toggle('done', done);
+    item.classList.toggle('active', active);
+}
+
+function setSimulationBadge(id, text, extraClass = '') {
+    const badge = document.getElementById(id);
+    badge.className = `badge ${statusClass(text)} ${extraClass}`.trim();
+    badge.textContent = text || '-';
+}
+
+async function verifySimulationStudent() {
+    const examId = currentExamId();
+    const studentId = valueOf('simulation-student');
+    const file = document.getElementById('simulation-verify-file').files[0];
+    if (!document.getElementById('simulation-consent-check').checked) {
+        toast('Consent is required before camera or upload verification.', 'error');
+        return;
+    }
+    if (!examId || !studentId || !file) {
+        toast('Select an exam, student, and exam-day selfie.', 'error');
+        return;
+    }
+    try {
+        setSelectValue('student-select', studentId);
+        const result = await api.verifyStudent(examId, studentId, file);
+        state.simulationSelectedAttemptId = result.attempt.attempt_id;
+        state.selectedAttempt = result.attempt;
+        renderStudentResult(result);
+        document.getElementById('simulation-verify-file').value = '';
+        await refreshAll();
+        await selectAttempt(result.attempt.attempt_id, { scroll: false });
+    } catch (err) {
+        setTextIfPresent('simulation-student-guidance', err.message);
+        toast(err.message, 'error');
+        renderSimulation();
+    }
+}
+
+async function reviewSimulationAttempt(action) {
+    const attempt = simulationAttempt();
+    if (!attempt) {
+        toast('Submit or select an attempt before reviewing.', 'error');
+        return;
+    }
+    try {
+        await api.reviewAttempt(
+            attempt.attempt_id,
+            valueOf('simulation-reviewer-name'),
+            action,
+            valueOf('simulation-review-reason')
+        );
+        state.simulationSelectedAttemptId = attempt.attempt_id;
+        toast('Simulation review saved.', 'success');
+        await refreshAll();
+        await selectAttempt(attempt.attempt_id, { scroll: false });
+    } catch (err) {
+        toast(err.message, 'error');
+    }
+}
+
 async function compareInLab() {
     const modelType = valueOf('lab-model');
     const imageA = document.getElementById('lab-file-a').files[0];
@@ -750,8 +1471,9 @@ async function compareInLab() {
 function updateScoreBar(prefix, score, threshold, decision) {
     const fill = document.getElementById(`${prefix}-score-fill`);
     const line = document.getElementById(`${prefix}-threshold-line`);
-    fill.classList.remove('verified', 'rejected');
+    fill.classList.remove('verified', 'review', 'rejected');
     if (decision === 'verified') fill.classList.add('verified');
+    if (decision === 'manual_review') fill.classList.add('review');
     if (decision === 'rejected') fill.classList.add('rejected');
     fill.style.width = `${Math.max(0, Math.min(1, score)) * 100}%`;
     line.style.left = `${Math.max(0, Math.min(1, threshold)) * 100}%`;
@@ -775,6 +1497,14 @@ function updateStudentProgress() {
     setStepState('step-enrollment', enrollmentDone, state.studentStep === 'enrollment');
     setStepState('step-verification', resultDone, state.studentStep === 'verification');
     setStepState('step-result', resultDone, state.studentStep === 'result');
+    const gateAttempt = context.rosterRow?.latest_attempt
+        || (state.selectedAttempt?.student_id === context.student?.student_id ? state.selectedAttempt : null);
+    renderGateHeader(
+        'gate',
+        `${displayExamName(context.exam?.name)} access gate`,
+        gateStatusInfo(context, gateAttempt),
+        currentStudentGateStep()
+    );
     renderStudentStepPanels();
 }
 
@@ -789,6 +1519,49 @@ function setStudentStep(step) {
     state.studentStep = targetStep;
     renderStudentStepPanels();
     updateStudentProgress();
+}
+
+function currentStudentGateStep() {
+    const index = STUDENT_STEP_ORDER.indexOf(state.studentStep);
+    return index >= 0 ? index + 1 : 1;
+}
+
+function simulationGateStep(consentDone, enrollmentDone, verificationDone) {
+    if (verificationDone) return 4;
+    if (enrollmentDone) return 3;
+    if (consentDone) return 2;
+    return 1;
+}
+
+function gateStatusInfo(context, attempt) {
+    if (attempt?.final_status || attempt?.status) {
+        const status = attempt.final_status || attempt.status;
+        return { label: status, className: gateStatusClass(status, attempt.decision) };
+    }
+    if (!context.student) return { label: 'Waiting', className: 'pending' };
+    if (context.modelMismatch) return { label: 'Model Mismatch', className: 'review' };
+    if (context.sampleCount <= 0) return { label: 'No Enrollment', className: 'pending' };
+    if (context.sampleCount < ENROLLMENT_TARGET) return { label: 'Partial Enrollment', className: 'review' };
+    return { label: 'Ready', className: 'verified' };
+}
+
+function gateStatusClass(status, decision = '') {
+    if (ACCESS_GRANTED_STATUSES.has(status) || decision === 'verified') return 'verified';
+    if (REVIEW_STATUSES.has(status) || decision === 'manual_review') return 'review';
+    if (BLOCKED_STATUSES.has(status) || decision === 'rejected') return 'rejected';
+    return 'pending';
+}
+
+function renderGateHeader(prefix, title, status, stepNumber) {
+    const titleId = prefix === 'simulation' ? 'simulation-gate-title' : 'gate-step-title';
+    const pillId = prefix === 'simulation' ? 'simulation-gate-status-pill' : 'gate-status-pill';
+    const stepId = prefix === 'simulation' ? 'simulation-gate-step-pill' : 'gate-step-pill';
+    setTextIfPresent(titleId, title || 'Exam access gate');
+    setTextIfPresent(stepId, `Step ${Math.max(1, Math.min(4, stepNumber || 1))} of 4`);
+    const pill = document.getElementById(pillId);
+    if (!pill) return;
+    pill.textContent = status?.label || 'Waiting';
+    pill.className = `gate-status-pill ${status?.className || 'pending'}`;
 }
 
 function renderStudentStepPanels() {
@@ -827,6 +1600,7 @@ function updateContextBar() {
     }
 
     renderPolicySummaries();
+    renderGateContextPanel();
 }
 
 function renderPolicySummaries() {
@@ -839,9 +1613,52 @@ function renderPolicySummaries() {
     setTextIfPresent('student-policy-title', title);
     setTextIfPresent('student-policy-detail', detail);
     setTextIfPresent('student-policy-model', model);
+    setTextIfPresent('gate-policy-title', title);
+    setTextIfPresent('gate-policy-detail', detail);
+    setTextIfPresent('gate-policy-model', model);
     setTextIfPresent('admin-policy-title', title);
     setTextIfPresent('admin-policy-detail', `${detail} Model-specific enrollment is required.`);
     setTextIfPresent('admin-policy-model', model);
+}
+
+function renderGateContextPanel() {
+    if (!document.getElementById('gate-selected-student')) return;
+    const context = enrollmentContext();
+    const row = context.rosterRow;
+    const attempt = row?.latest_attempt;
+    const studentText = context.student
+        ? `${context.student.name} - ${displayStudentId(context.student.student_id)}`
+        : 'Select a student';
+
+    let enrollmentText = '-';
+    if (!context.student) {
+        enrollmentText = 'Select a student';
+    } else if (context.modelMismatch) {
+        enrollmentText = modelMismatchMessage(context);
+    } else if (context.sampleCount <= 0) {
+        enrollmentText = 'Enrollment needed before verification';
+    } else if (context.sampleCount < ENROLLMENT_TARGET) {
+        enrollmentText = `${context.sampleCount}/${ENROLLMENT_TARGET} samples; usable, but not ideal`;
+    } else {
+        enrollmentText = `Ready with ${context.sampleCount} sample(s)`;
+    }
+
+    const lastAttemptText = attempt
+        ? `${attempt.final_status || row?.exam_status || 'Attempt recorded'} | score ${numberOrDash(attempt.score)} | ${attempt.timestamp || '-'}`
+        : statusConsequence(row?.exam_status || 'Not Started');
+
+    setTextIfPresent('gate-selected-student', studentText);
+    setTextIfPresent('gate-enrollment-state', enrollmentText);
+    setTextIfPresent('gate-last-attempt', lastAttemptText);
+    setAvatar('gate-student-avatar', row?.reference_preview || context.student?.reference_preview);
+    const testImageLink = document.getElementById('gate-download-test-image');
+    if (testImageLink) {
+        const canDownload = context.student?.face_source === 'flux_synid';
+        testImageLink.classList.toggle('hidden', !canDownload);
+        testImageLink.href = canDownload
+            ? api.studentFluxTestImageUrl(context.student.student_id)
+            : '#';
+    }
 }
 
 function normalizeViewName(viewName) {

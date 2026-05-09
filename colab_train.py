@@ -268,6 +268,7 @@ if __name__ == '__main__':
     for c in selected:
         t = c['training']
         print(f"  → {c['name']}  (epochs={t['epochs']}, lr={t['lr']}, "
-              f"batch_size={t['batch_size']}, patience={t['patience']})")
+              f"batch_size={t['batch_size']}, patience={t['patience']}, "
+              f"loss={t.get('loss', 'cosine')})")
 
     run_all_training(selected)

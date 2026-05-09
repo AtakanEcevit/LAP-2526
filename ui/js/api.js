@@ -61,6 +61,48 @@ const api = {
         return parseResponse(resp, 'Failed to import roster');
     },
 
+    async fluxStatus(datasetDir = '') {
+        const params = new URLSearchParams();
+        if (datasetDir) params.set('dataset_dir', datasetDir);
+        const suffix = params.toString() ? `?${params.toString()}` : '';
+        const resp = await fetch(`${API_BASE}/campus/flux/status${suffix}`);
+        return parseResponse(resp, 'Failed to inspect FLUXSynID dataset');
+    },
+
+    async preuploadFlux(options) {
+        const form = new FormData();
+        Object.entries(options).forEach(([key, value]) => {
+            if (value !== undefined && value !== null && String(value).trim() !== '') {
+                form.append(key, value);
+            }
+        });
+        const resp = await fetch(`${API_BASE}/campus/flux/preupload`, {
+            method: 'POST',
+            body: form
+        });
+        return parseResponse(resp, 'Failed to preupload FLUXSynID faces');
+    },
+
+    async fluxTestSet() {
+        const resp = await fetch(`${API_BASE}/campus/flux/test-set`);
+        return parseResponse(resp, 'Failed to inspect FLUXSynID test set');
+    },
+
+    async exportFluxTestSet() {
+        const resp = await fetch(`${API_BASE}/campus/flux/export-test-set`, {
+            method: 'POST'
+        });
+        return parseResponse(resp, 'Failed to export FLUXSynID test selfies');
+    },
+
+    fluxTestSetZipUrl() {
+        return `${API_BASE}/campus/flux/test-set.zip`;
+    },
+
+    studentFluxTestImageUrl(studentId) {
+        return `${API_BASE}/campus/students/${encodeURIComponent(studentId)}/flux/test-image`;
+    },
+
     async examRoster(examId) {
         const resp = await fetch(`${API_BASE}/campus/exams/${encodeURIComponent(examId)}/roster`);
         return parseResponse(resp, 'Failed to load exam roster');
@@ -99,6 +141,17 @@ const api = {
             body: form
         });
         return parseResponse(resp, 'Verification failed');
+    },
+
+    async verifyPreloadedStudent(examId, studentId, scenario = 'matching') {
+        const form = new FormData();
+        form.append('student_id', studentId);
+        form.append('scenario', scenario);
+        const resp = await fetch(`${API_BASE}/campus/exams/${encodeURIComponent(examId)}/verify-preloaded`, {
+            method: 'POST',
+            body: form
+        });
+        return parseResponse(resp, 'Preloaded verification failed');
     },
 
     async reviewAttempt(attemptId, reviewer, action, reason) {
