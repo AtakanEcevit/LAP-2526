@@ -9,6 +9,7 @@ import yaml
 import torch
 import numpy as np
 
+from models.hybrid_face import HybridFaceModel, preprocess_hybrid_face
 from models.siamese import SiameseNetwork
 from inference.validation import validate_image
 from models.prototypical import PrototypicalNetwork
@@ -89,7 +90,11 @@ class VerificationEngine:
         emb_dim = config["model"].get("embedding_dim", 128)
         in_channels = config["model"].get("in_channels", 1)
 
-        if model_type == "siamese":
+        if model_type == "hybrid":
+            if modality != "face":
+                raise ValueError("Hybrid model is only supported for face modality.")
+            self.model = None
+        elif model_type == "siamese":
             self.model = SiameseNetwork(
                 backbone=backbone,
                 embedding_dim=emb_dim,
@@ -110,7 +115,18 @@ class VerificationEngine:
         checkpoint = torch.load(
             checkpoint_path, map_location="cpu", weights_only=False
         )
-        self.model.load_state_dict(checkpoint["model_state_dict"])
+        if model_type == "hybrid":
+            self.model = HybridFaceModel.from_checkpoint(checkpoint)
+            self.threshold = threshold if threshold is not None else checkpoint.get(
+                "val_threshold",
+                entry["threshold"],
+            )
+            if hasattr(self.threshold, "item"):
+                self.threshold = float(self.threshold.item())
+            else:
+                self.threshold = float(self.threshold)
+        else:
+            self.model.load_state_dict(checkpoint["model_state_dict"])
         self.model.to(self.device)
         self.model.eval()
 
@@ -151,7 +167,7 @@ class VerificationEngine:
                     f"Image validation failed: {'; '.join(val.warnings)}"
                 )
 
-        tensor = preprocess_image(image_input, self.modality).to(self.device)
+        tensor = self._preprocess_for_model(image_input).to(self.device)
 
         with torch.no_grad():
             embedding = self.model.get_embedding(tensor)
@@ -183,11 +199,11 @@ class VerificationEngine:
         val1 = validate_image(image1_input, self.modality) if validate else None
         val2 = validate_image(image2_input, self.modality) if validate else None
 
-        tensor1 = preprocess_image(image1_input, self.modality).to(self.device)
-        tensor2 = preprocess_image(image2_input, self.modality).to(self.device)
+        tensor1 = self._preprocess_for_model(image1_input).to(self.device)
+        tensor2 = self._preprocess_for_model(image2_input).to(self.device)
 
         with torch.no_grad():
-            if self.model_type == "siamese":
+            if self.model_type in {"siamese", "hybrid"}:
                 # Use cosine similarity of L2-normalized embeddings directly.
                 # This is loss-function agnostic (works with both BCE and
                 # contrastive training) and correctly scores identical
@@ -254,12 +270,15 @@ class VerificationEngine:
         )
 
         # Get query embedding
-        query_tensor = preprocess_image(query_input, self.modality).to(self.device)
+        query_tensor = self._preprocess_for_model(query_input).to(self.device)
 
         with torch.no_grad():
             query_emb = self.model.get_embedding(query_tensor)
 
-            if self.model_type == "siamese":
+            if self.model_type == "hybrid":
+                sim = torch.mm(query_emb, prototype_tensor.t()).squeeze().item()
+                score = (sim + 1.0) / 2.0
+            elif self.model_type == "siamese":
                 # Use the classifier head for Siamese
                 diff = torch.abs(query_emb - prototype_tensor)
                 similarity = torch.sigmoid(
@@ -300,3 +319,8 @@ class VerificationEngine:
             "threshold": self.threshold,
             "device": str(self.device) if self.device else None,
         }
+
+    def _preprocess_for_model(self, image_input) -> torch.Tensor:
+        if self.model_type == "hybrid":
+            return preprocess_hybrid_face(image_input)
+        return preprocess_image(image_input, self.modality)

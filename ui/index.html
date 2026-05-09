@@ -4,251 +4,497 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description"
-        content="Biometric Few-Shot Verification System — Verify identities using signatures, faces, and fingerprints with AI-powered few-shot learning.">
-    <title>Biometric Verification System</title>
+    <meta name="description" content="FaceVerify Campus exam identity verification showcase.">
+    <title>FaceVerify Campus</title>
     <link rel="stylesheet" href="/css/style.css">
 </head>
 
 <body>
-
-    <div class="app-container">
-
-        <!-- ── Header ──────────────────────────────────────────────── -->
-        <header class="app-header">
-            <h1>Biometric Verification</h1>
-            <p class="subtitle">Few-Shot Learning &bull; Signature &bull; Face &bull; Fingerprint</p>
-            <div class="status-badge" id="status-badge">
+    <div class="app-shell">
+        <header class="topbar">
+            <div>
+                <p class="eyebrow">Atılım University Demo</p>
+                <h1>FaceVerify Campus</h1>
+            </div>
+            <div class="system-status" id="system-status">
                 <span class="status-dot"></span>
-                <span id="status-text">Connecting...</span>
+                <span id="status-text">Connecting</span>
             </div>
         </header>
 
-        <!-- ── Tab Navigation ──────────────────────────────────────── -->
-        <nav class="tab-nav" role="tablist">
-            <button class="tab-btn active" data-tab="verify" role="tab" aria-selected="true">
-                <span class="tab-icon">&#128274;</span>
-                <span class="tab-text">Verify</span>
-            </button>
-            <button class="tab-btn" data-tab="compare" role="tab" aria-selected="false">
-                <span class="tab-icon">&#8596;</span>
-                <span class="tab-text">Compare</span>
-            </button>
-            <button class="tab-btn" data-tab="enroll" role="tab" aria-selected="false">
-                <span class="tab-icon">&#128100;</span>
-                <span class="tab-text">Enroll</span>
-            </button>
+        <section class="context-strip" aria-label="Active exam policy">
+            <strong id="context-summary">Atılım University Demo · SE 204 Midterm · Hybrid FaceNet · Threshold 0.300</strong>
+            <details class="context-details">
+                <summary>Details</summary>
+                <dl>
+                    <div><dt>University</dt><dd id="context-university">Atılım University Demo</dd></div>
+                    <div><dt>Course</dt><dd id="context-course">SE 204 - Data Structures</dd></div>
+                    <div><dt>Exam</dt><dd id="context-exam">Midterm Exam</dd></div>
+                    <div><dt>Model</dt><dd id="context-model">-</dd></div>
+                    <div><dt>Threshold</dt><dd id="context-threshold">-</dd></div>
+                    <div><dt>Window</dt><dd id="context-window">-</dd></div>
+                    <div><dt>Persona</dt><dd id="context-persona">Demo Operator</dd></div>
+                </dl>
+                <div class="model-badge hidden" id="context-hybrid-badge">
+                    <strong>Hybrid FaceNet</strong>
+                    <span>512-d</span>
+                    <span>Threshold 0.300</span>
+                    <span id="context-calibration">Calibration pending</span>
+                </div>
+            </details>
+        </section>
+
+        <nav class="workspace-tabs" aria-label="Workspace views">
+            <button class="tab-button" data-view="student">Exam Gate</button>
+            <button class="tab-button" data-view="proctor">Review Desk</button>
+            <button class="tab-button" data-view="admin">Operations</button>
         </nav>
 
-        <!-- ══════════════════════════════════════════════════════════
-         TAB 1: Verification
-         ══════════════════════════════════════════════════════════ -->
-        <section class="tab-content active" id="tab-verify">
-            <div class="glass-card">
-                <div class="card-title"><span class="icon">&#128274;</span> Identity Verification</div>
+        <div class="scenario-layout">
+            <nav class="scenario-rail" aria-label="Demo scenario">
+                <button class="scenario-step active" data-demo-jump="admin">
+                    <span>1</span>
+                    <strong>Policy</strong>
+                </button>
+                <button class="scenario-step" data-demo-jump="student">
+                    <span>2</span>
+                    <strong>Student Gate</strong>
+                </button>
+                <button class="scenario-step" data-demo-jump="proctor">
+                    <span>3</span>
+                    <strong>Review Desk</strong>
+                </button>
+                <button class="scenario-step" data-demo-jump="evidence">
+                    <span>4</span>
+                    <strong>Audit/Evidence</strong>
+                </button>
+            </nav>
 
-                <div class="form-row">
-                    <div class="form-group" style="flex: 2">
-                        <label for="verify-user">Enrolled User</label>
-                        <select id="verify-user">
-                            <option value="" disabled selected>Loading users...</option>
-                        </select>
+            <main>
+            <section class="view active" id="view-launch">
+                <div class="course-band guide-hero">
+                    <div>
+                        <p class="eyebrow">Atılım-styled campus scenario</p>
+                        <h2>SE 204 exam identity gate</h2>
+                        <p class="muted">A focused walkthrough: set the exam policy, enroll Aylin, verify access, trigger review, and show the audit trail.</p>
                     </div>
-                </div>
-
-                <div id="verify-user-info" style="margin-bottom: 16px; font-size: 0.8125rem; color: var(--text-muted);">
-                </div>
-
-                <div class="drop-zone" id="verify-drop">
-                    <input type="file" accept="image/*" id="verify-file">
-                    <span class="dz-icon">&#128247;</span>
-                    <span class="dz-text">Drop query image here or click to browse</span>
-                </div>
-
-                <div style="margin-top: 16px; text-align: center;">
-                    <button class="btn btn-primary btn-block" id="verify-btn" disabled>
-                        <span class="spinner" style="display:none" id="verify-spinner"></span>
-                        Verify Identity
-                    </button>
-                </div>
-            </div>
-
-            <div class="result-panel glass-card" id="verify-result">
-                <div class="result-verdict">
-                    <div class="verdict-icon" id="verify-verdict-icon"></div>
-                    <div class="verdict-label" id="verify-verdict-label"></div>
-                </div>
-                <div class="score-bar-container">
-                    <div class="score-bar-label">
-                        <span>0.0</span>
-                        <span id="verify-score-label">Score</span>
-                        <span>1.0</span>
-                    </div>
-                    <div class="score-bar-track">
-                        <div class="score-bar-fill" id="verify-score-fill"></div>
-                        <div class="threshold-marker" id="verify-threshold-marker"></div>
-                    </div>
-                </div>
-                <div class="score-stats">
-                    <div class="stat-item">
-                        <div class="stat-value" id="verify-stat-score">-</div>
-                        <div class="stat-label">Score</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="verify-stat-threshold">-</div>
-                        <div class="stat-label">Threshold</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="verify-stat-user">-</div>
-                        <div class="stat-label">User</div>
-                    </div>
-                </div>
-            </div>
-        </section>
-
-        <!-- ══════════════════════════════════════════════════════════
-         TAB 2: Direct Comparison
-         ══════════════════════════════════════════════════════════ -->
-        <section class="tab-content" id="tab-compare">
-            <div class="glass-card">
-                <div class="card-title"><span class="icon">&#8596;</span> Direct Comparison</div>
-
-                <div class="form-row">
-                    <div class="form-group">
-                        <label for="compare-modality">Modality</label>
-                        <select id="compare-modality">
-                            <option value="signature">Signature</option>
-                            <option value="face">Face</option>
-                            <option value="fingerprint">Fingerprint</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label for="compare-model">Model</label>
-                        <select id="compare-model">
-                            <option value="siamese">Siamese</option>
-                            <option value="prototypical">Prototypical</option>
-                        </select>
-                    </div>
+                    <button class="primary-action large-action" id="launch-exam-btn">Start Demo</button>
                 </div>
 
-                <div class="compare-grid">
-                    <div class="drop-zone" id="compare-drop1">
-                        <input type="file" accept="image/*" id="compare-file1">
-                        <span class="dz-icon">&#128444;</span>
-                        <span class="dz-text">Image 1</span>
+                <section class="panel guide-panel">
+                    <ol class="compact-script">
+                        <li><span>1</span>Confirm SE 204 exam policy</li>
+                        <li><span>2</span>Enroll Aylin's face samples</li>
+                        <li><span>3</span>Verify matching student access</li>
+                        <li><span>4</span>Trigger wrong-face review path</li>
+                        <li><span>5</span>Approve, deny, or export evidence</li>
+                    </ol>
+                    <div class="jump-row">
+                        <label>
+                            Jump to step
+                            <select id="guide-jump-select">
+                                <option value="admin">Policy and roster</option>
+                                <option value="student">Exam Gate</option>
+                                <option value="proctor">Review Desk</option>
+                                <option value="evidence">Audit and evidence</option>
+                            </select>
+                        </label>
+                        <button class="secondary-action" id="guide-jump-btn">Open Step</button>
                     </div>
-                    <div class="drop-zone" id="compare-drop2">
-                        <input type="file" accept="image/*" id="compare-file2">
-                        <span class="dz-icon">&#128444;</span>
-                        <span class="dz-text">Image 2</span>
+                    <details class="compact-disclosure">
+                        <summary>Demo data</summary>
+                        <div class="persona-grid">
+                            <div><span>Student</span><strong>Aylin Kaya</strong><small>AT-2026-1042</small></div>
+                            <div><span>Proctor</span><strong>Proctor Lee</strong><small>Review desk</small></div>
+                            <div><span>Admin</span><strong>Registrar Admin</strong><small>Operations</small></div>
+                            <div><span>Instructor</span><strong>Dr. Selin Demir</strong><small>SE 204 owner</small></div>
+                        </div>
+                        <div class="compact-metrics top-gap">
+                            <div class="metric-card">
+                                <span id="metric-students">0</span>
+                                <p>Roster</p>
+                            </div>
+                            <div class="metric-card">
+                                <span id="metric-verified">0</span>
+                                <p>Access Granted</p>
+                            </div>
+                            <div class="metric-card">
+                                <span id="metric-review">0</span>
+                                <p>Needs Review</p>
+                            </div>
+                        </div>
+                        <p class="notice">This showcase is consent-based 1:1 exam access verification. It does not claim surveillance, cheating detection, or legal identity proof.</p>
+                    </details>
+                </section>
+            </section>
+
+            <section class="view" id="view-student">
+                <div class="section-header">
+                    <div>
+                        <p class="eyebrow">Exam Gate</p>
+                        <h2>Student access check</h2>
+                    </div>
+                    <button class="secondary-action" id="student-refresh-btn">Refresh</button>
+                </div>
+
+                <section class="panel student-wizard">
+                    <details class="demo-controls">
+                        <summary>Demo controls</summary>
+                        <div class="form-grid">
+                            <label>
+                                Exam
+                                <select id="student-exam"></select>
+                            </label>
+                            <label>
+                                Student
+                                <select id="student-select"></select>
+                            </label>
+                        </div>
+                    </details>
+
+                    <div class="flow-checklist" aria-label="Student verification progress">
+                        <button class="flow-step" id="step-consent" data-student-step="consent"><span>1</span>Consent</button>
+                        <button class="flow-step" id="step-enrollment" data-student-step="enrollment"><span>2</span>Enrollment</button>
+                        <button class="flow-step" id="step-verification" data-student-step="verification"><span>3</span>Verification</button>
+                        <button class="flow-step" id="step-result" data-student-step="result"><span>4</span>Result</button>
+                    </div>
+
+                    <article class="student-step" id="student-step-consent" data-student-step-panel="consent">
+                        <p class="eyebrow">Step 1</p>
+                        <h3>Consent to one exam access check</h3>
+                        <p class="muted">Face verification is used only to confirm the student starting this exam matches the enrolled student profile.</p>
+                        <div class="consent-box">
+                            <label class="check-row">
+                                <input type="checkbox" id="consent-check">
+                                <span>I consent to a one-time face verification for this exam session.</span>
+                            </label>
+                        </div>
+                        <button class="primary-action full-width" id="consent-next-btn">Continue to Enrollment</button>
+                    </article>
+
+                    <article class="student-step" id="student-step-enrollment" data-student-step-panel="enrollment">
+                        <p class="eyebrow">Step 2</p>
+                        <h3>Enroll face samples</h3>
+                        <div class="enrollment-status" id="enrollment-status">
+                            <div>
+                                <p class="eyebrow">Enrollment Status</p>
+                                <h3 id="enrollment-student-label">Select a student</h3>
+                                <p class="muted" id="enrollment-model-label">Model-specific enrollment: -</p>
+                            </div>
+                            <div class="enrollment-counters">
+                                <div>
+                                    <span id="enrollment-count-label">0/3</span>
+                                    <p>Recommended</p>
+                                </div>
+                                <div>
+                                    <span id="enrollment-remaining-label">5</span>
+                                    <p>Slots Left</p>
+                                </div>
+                            </div>
+                            <p class="notice" id="enrollment-guidance">Add 3 clear face samples before verification.</p>
+                        </div>
+
+                        <p class="muted" id="enrollment-next-action">Add clear front-facing samples with small changes in expression or lighting.</p>
+                        <input type="file" id="enroll-files" accept="image/*" multiple>
+                        <p class="file-summary" id="enroll-selected-summary">No files selected.</p>
+                        <div class="selected-preview-grid" id="enroll-preview-grid"></div>
+                        <p class="field-warning" id="enroll-warning"></p>
+                        <div class="button-row">
+                            <button class="primary-action" id="enroll-student-btn">Add Face Samples</button>
+                            <button class="secondary-action" id="enrollment-next-btn">Continue to Verification</button>
+                        </div>
+                    </article>
+
+                    <article class="student-step" id="student-step-verification" data-student-step-panel="verification">
+                        <p class="eyebrow">Step 3</p>
+                        <h3>Submit exam-day selfie</h3>
+                        <p class="muted">Upload the image used for this exam access attempt.</p>
+                        <input type="file" id="verify-file" accept="image/*" capture="user">
+                        <button class="primary-action full-width" id="verify-student-btn">Verify for Exam Access</button>
+                        <details class="compact-disclosure top-gap">
+                            <summary>Demo tools</summary>
+                            <div class="wrong-face-box">
+                                <p class="eyebrow">Wrong-Face Demo Path</p>
+                                <h3>Need to prove Manual Review?</h3>
+                                <p>Submit a selfie from a different person for Aylin Kaya. The attempt should land in Manual Review or Rejected, then appear in Review Desk.</p>
+                                <button class="secondary-action" id="wrong-face-demo-btn">Open Review Desk After Attempt</button>
+                            </div>
+                        </details>
+                    </article>
+
+                    <article class="student-step result-panel" id="student-result" data-student-step-panel="result">
+                        <p class="eyebrow">Result</p>
+                        <h3 id="result-title">No attempt yet</h3>
+                        <p id="result-message" class="muted">Select a student, consent, and submit a selfie.</p>
+                        <div class="score-track">
+                            <div class="score-fill" id="result-score-fill"></div>
+                            <div class="threshold-line" id="result-threshold-line"></div>
+                        </div>
+                        <dl class="detail-list">
+                            <div><dt>Score</dt><dd id="result-score">-</dd></div>
+                            <div><dt>Threshold</dt><dd id="result-threshold">-</dd></div>
+                            <div><dt>Verification ID</dt><dd id="result-attempt-id">-</dd></div>
+                            <div><dt>Timestamp</dt><dd id="result-time">-</dd></div>
+                        </dl>
+                    </article>
+                </section>
+            </section>
+
+            <section class="view" id="view-proctor">
+                <div class="section-header">
+                    <div>
+                        <p class="eyebrow">Review Desk</p>
+                        <h2>Needs review queue</h2>
+                    </div>
+                    <button class="secondary-action" id="proctor-refresh-btn">Refresh Roster</button>
+                </div>
+
+                <section class="queue-alert" aria-label="Roster status summary">
+                    <strong id="queue-summary">0 need review</strong>
+                    <span>Only action-needed students are shown first. Expand filters to inspect the full roster.</span>
+                </section>
+
+                <div class="proctor-layout">
+                    <section class="panel roster-panel">
+                        <details class="compact-disclosure">
+                            <summary>Show full roster and filters</summary>
+                            <div class="filter-bar" aria-label="Roster filters">
+                                <label>
+                                    Status
+                                    <select id="proctor-filter-status">
+                                        <option value="needs_review">Needs review</option>
+                                        <option value="">All statuses</option>
+                                        <option value="Manual Review">Manual Review</option>
+                                        <option value="Fallback Requested">Fallback Requested</option>
+                                        <option value="Verified">Verified</option>
+                                        <option value="Approved by Proctor">Approved by Proctor</option>
+                                        <option value="Rejected">Rejected</option>
+                                        <option value="Not Started">Not Started</option>
+                                        <option value="Enrollment Needed">Enrollment Needed</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    Decision
+                                    <select id="proctor-filter-decision">
+                                        <option value="">All decisions</option>
+                                        <option value="verified">Verified</option>
+                                        <option value="manual_review">Manual Review</option>
+                                        <option value="rejected">Rejected</option>
+                                        <option value="none">No attempt</option>
+                                    </select>
+                                </label>
+                                <label>
+                                    Student name
+                                    <input type="search" id="proctor-filter-name" placeholder="Aylin">
+                                </label>
+                                <label>
+                                    Student ID
+                                    <input type="search" id="proctor-filter-id" placeholder="AT-2026">
+                                </label>
+                                <label>
+                                    Sort
+                                    <select id="proctor-sort">
+                                        <option value="priority">Needs review first</option>
+                                        <option value="name">Name A-Z</option>
+                                        <option value="student_id">Student ID</option>
+                                        <option value="score">Score low-high</option>
+                                    </select>
+                                </label>
+                            </div>
+                        </details>
+
+                        <div class="table-panel embedded">
+                            <table>
+                                <thead>
+                                    <tr>
+                                        <th>Student</th>
+                                        <th>Status</th>
+                                        <th>Score</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="roster-table"></tbody>
+                            </table>
+                        </div>
+                    </section>
+
+                    <aside class="panel review-panel review-empty" id="review-panel" tabindex="-1">
+                        <div class="panel-heading">
+                            <p class="eyebrow">Review Drawer</p>
+                            <h3 id="review-title">Select an attempt</h3>
+                        </div>
+                        <p class="muted" id="review-empty-state">Select an attempt from the Needs Review queue or roster.</p>
+                        <div id="review-content" class="review-content">
+                            <div class="review-grid">
+                                <div>
+                                    <p class="preview-label">Enrolled Reference</p>
+                                    <div class="image-preview" id="reference-preview">No image</div>
+                                </div>
+                                <div>
+                                    <p class="preview-label">Exam Attempt</p>
+                                    <div class="image-preview" id="query-preview">No image</div>
+                                </div>
+                            </div>
+                            <dl class="detail-list compact-details">
+                                <div><dt>Status</dt><dd id="review-status">-</dd></div>
+                                <div><dt>Decision</dt><dd id="review-decision">-</dd></div>
+                                <div><dt>Model</dt><dd id="review-model">-</dd></div>
+                                <div><dt>Score</dt><dd id="review-score">-</dd></div>
+                                <div><dt>Threshold</dt><dd id="review-threshold">-</dd></div>
+                                <div><dt>Timestamp</dt><dd id="review-time">-</dd></div>
+                                <div><dt>Warnings</dt><dd id="review-warnings">-</dd></div>
+                                <div><dt>Previous attempts</dt><dd id="review-previous-attempts">-</dd></div>
+                            </dl>
+                            <div class="form-grid stacked">
+                                <label>
+                                    Reviewer
+                                    <input type="text" id="reviewer-name" value="Proctor Lee">
+                                </label>
+                                <label>
+                                    Reason
+                                    <input type="text" id="review-reason" value="Manual ID check completed.">
+                                </label>
+                            </div>
+                            <div class="button-row">
+                                <button class="success-action" data-review-action="approve" disabled>Approve</button>
+                                <button class="danger-action" data-review-action="deny" disabled>Deny</button>
+                                <button class="secondary-action" data-review-action="fallback" disabled>Request Fallback</button>
+                            </div>
+                        </div>
+                    </aside>
+                </div>
+            </section>
+
+            <section class="view" id="view-admin">
+                <div class="section-header">
+                    <div>
+                        <p class="eyebrow">Operations</p>
+                        <h2>Policy, roster, audit, and evidence</h2>
                     </div>
                 </div>
 
-                <div style="margin-top: 16px; text-align: center;">
-                    <button class="btn btn-primary btn-block" id="compare-btn" disabled>
-                        <span class="spinner" style="display:none" id="compare-spinner"></span>
-                        Compare Images
-                    </button>
-                </div>
-            </div>
+                <details class="panel compact-disclosure admin-primary" id="admin-policy-summary" open>
+                    <summary>Exam policy</summary>
+                    <div class="policy-summary">
+                        <div>
+                            <p class="eyebrow">Current Policy Controls Every Screen</p>
+                            <h3 id="admin-policy-title">Face verification required before exam access.</h3>
+                            <p class="muted" id="admin-policy-detail">Changing model type requires students enrolled under another model to re-enroll.</p>
+                        </div>
+                        <span class="badge" id="admin-policy-model">-</span>
+                    </div>
+                    <div class="form-grid">
+                        <label>Exam ID<input type="text" id="exam-id" value="SE204-MIDTERM"></label>
+                        <label>Exam Name<input type="text" id="exam-name" value="Midterm Exam"></label>
+                        <label>Threshold<input type="number" id="exam-threshold" min="0" max="1" step="0.01" value="0.38"></label>
+                        <label>Model<select id="exam-model"><option value="siamese">Siamese</option><option value="prototypical">Prototypical</option><option value="hybrid">Hybrid FaceNet</option></select></label>
+                    </div>
+                    <details class="compact-disclosure top-gap">
+                        <summary>Exam window</summary>
+                        <div class="form-grid">
+                            <label>Start<input type="datetime-local" id="exam-start" value="2026-05-12T10:00"></label>
+                            <label>End<input type="datetime-local" id="exam-end" value="2026-05-12T11:30"></label>
+                        </div>
+                    </details>
+                    <button class="primary-action full-width" id="save-exam-btn">Save Exam Policy</button>
+                </details>
 
-            <div class="result-panel glass-card" id="compare-result">
-                <div class="result-verdict">
-                    <div class="verdict-icon" id="compare-verdict-icon"></div>
-                    <div class="verdict-label" id="compare-verdict-label"></div>
-                </div>
-                <div class="score-bar-container">
-                    <div class="score-bar-label">
-                        <span>0.0</span>
-                        <span id="compare-score-label">Score</span>
-                        <span>1.0</span>
+                <details class="panel compact-disclosure">
+                    <summary>Course details</summary>
+                    <div class="form-grid">
+                        <label>Course ID<input type="text" id="course-id" value="SE204-2026S"></label>
+                        <label>Term<input type="text" id="course-term" value="Spring 2026"></label>
+                        <label>Course Name<input type="text" id="course-name" value="SE 204 - Data Structures"></label>
+                        <label>Instructor<input type="text" id="course-instructor" value="Dr. Selin Demir"></label>
                     </div>
-                    <div class="score-bar-track">
-                        <div class="score-bar-fill" id="compare-score-fill"></div>
-                        <div class="threshold-marker" id="compare-threshold-marker"></div>
-                    </div>
-                </div>
-                <div class="score-stats">
-                    <div class="stat-item">
-                        <div class="stat-value" id="compare-stat-score">-</div>
-                        <div class="stat-label">Score</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="compare-stat-threshold">-</div>
-                        <div class="stat-label">Threshold</div>
-                    </div>
-                    <div class="stat-item">
-                        <div class="stat-value" id="compare-stat-verdict">-</div>
-                        <div class="stat-label">Verdict</div>
-                    </div>
-                </div>
-            </div>
-        </section>
+                    <button class="primary-action full-width" id="save-course-btn">Save Course</button>
+                </details>
 
-        <!-- ══════════════════════════════════════════════════════════
-         TAB 3: Enrollment Manager
-         ══════════════════════════════════════════════════════════ -->
-        <section class="tab-content" id="tab-enroll">
-            <!-- New Enrollment -->
-            <div class="glass-card">
-                <div class="card-title"><span class="icon">&#10133;</span> New Enrollment</div>
+                <details class="panel compact-disclosure">
+                    <summary>Roster</summary>
+                    <p class="muted">CSV columns: student_id,name,email. Duplicate rows update the existing demo roster entry.</p>
+                    <input type="file" id="roster-file" accept=".csv,text/csv">
+                    <button class="primary-action" id="import-roster-btn">Import CSV</button>
+                    <div id="import-result" class="inline-result"></div>
+                </details>
 
-                <div class="form-row">
-                    <div class="form-group" style="flex: 2">
-                        <label for="enroll-user-id">User ID</label>
-                        <input type="text" id="enroll-user-id" placeholder="e.g., john_doe">
+                <details class="panel compact-disclosure">
+                    <summary>Audit/export</summary>
+                    <div class="section-header compact">
+                        <h3>Audit Log</h3>
+                        <a class="secondary-link" href="/campus/audit.csv" target="_blank">Export CSV</a>
                     </div>
-                    <div class="form-group">
-                        <label for="enroll-modality">Modality</label>
-                        <select id="enroll-modality">
-                            <option value="signature">Signature</option>
-                            <option value="face">Face</option>
-                            <option value="fingerprint">Fingerprint</option>
-                        </select>
+                    <div class="table-panel embedded">
+                        <table>
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Event</th>
+                                    <th>Actor</th>
+                                    <th>Message</th>
+                                </tr>
+                            </thead>
+                            <tbody id="audit-table"></tbody>
+                        </table>
                     </div>
-                    <div class="form-group">
-                        <label for="enroll-model">Model</label>
-                        <select id="enroll-model">
-                            <option value="siamese">Siamese</option>
-                            <option value="prototypical">Prototypical</option>
-                        </select>
-                    </div>
-                </div>
+                </details>
 
-                <div class="drop-zone" id="enroll-drop">
-                    <input type="file" accept="image/*" id="enroll-files" multiple>
-                    <span class="dz-icon">&#128194;</span>
-                    <span class="dz-text">Drop reference image(s) here or click to browse</span>
-                </div>
+                <details class="panel compact-disclosure" id="operation-model-evidence">
+                    <summary>Model evidence</summary>
+                    <section class="evidence-panel">
+                        <div class="form-grid evidence-form">
+                            <label>
+                                Model
+                                <select id="lab-model">
+                                    <option value="siamese">Siamese</option>
+                                    <option value="prototypical">Prototypical</option>
+                                    <option value="hybrid">Hybrid FaceNet</option>
+                                </select>
+                            </label>
+                            <label>Face Image A<input type="file" id="lab-file-a" accept="image/*"></label>
+                            <label>Face Image B<input type="file" id="lab-file-b" accept="image/*"></label>
+                        </div>
+                        <button class="primary-action full-width" id="lab-compare-btn">Compare Faces</button>
 
-                <div style="margin-top: 16px; text-align: center;">
-                    <button class="btn btn-primary btn-block" id="enroll-btn" disabled>
-                        <span class="spinner" style="display:none" id="enroll-spinner"></span>
-                        Enroll User
-                    </button>
-                </div>
-            </div>
+                        <section class="result-panel visible evidence-result">
+                            <p class="eyebrow">Model Output</p>
+                            <h3 id="lab-title">Waiting for images</h3>
+                            <div class="score-track">
+                                <div class="score-fill" id="lab-score-fill"></div>
+                                <div class="threshold-line" id="lab-threshold-line"></div>
+                            </div>
+                            <dl class="detail-list">
+                                <div><dt>Score</dt><dd id="lab-score">-</dd></div>
+                                <div><dt>Threshold</dt><dd id="lab-threshold">-</dd></div>
+                                <div><dt>Decision</dt><dd id="lab-decision">-</dd></div>
+                                <div><dt>Calibration</dt><dd id="lab-calibration-status">Report-only workflow available</dd></div>
+                            </dl>
+                        </section>
 
-            <!-- User List -->
-            <div class="glass-card">
-                <div class="card-title"><span class="icon">&#128101;</span> Enrolled Users</div>
-                <div id="user-list-container">
-                    <div class="empty-state">
-                        <div class="empty-icon">&#128100;</div>
-                        <div>No users enrolled yet</div>
-                    </div>
-                </div>
-            </div>
-        </section>
+                        <details class="compact-disclosure top-gap">
+                            <summary>Model notes</summary>
+                            <div class="evidence-box">
+                                <p><strong>Higher score means stronger match.</strong></p>
+                                <p class="muted">Hybrid FaceNet uses RGB 160x160 input and a 512-d normalized embedding. The current runtime threshold is an initial setting until target-data calibration supports a production value.</p>
+                            </div>
+                        </details>
+                    </section>
+                </details>
 
+                <details class="panel compact-disclosure danger-zone">
+                    <summary>Reset demo</summary>
+                    <p class="muted">Clear courses, roster, enrollments, attempts, reviews, and audit history for a repeat presentation.</p>
+                    <button class="danger-action" id="reset-demo-btn">Reset Demo</button>
+                </details>
+
+            </section>
+            </main>
+        </div>
     </div>
 
-    <!-- Toast Container -->
-    <div class="toast-container" id="toast-container"></div>
-
+    <div class="toast-host" id="toast-host"></div>
     <script src="/js/api.js"></script>
     <script src="/js/app.js"></script>
-
 </body>
 
 </html>
