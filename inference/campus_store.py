@@ -370,6 +370,8 @@ class CampusStore:
         model_type: str,
         validation: dict = None,
         query_preview: str = None,
+        attempt_source: str = "upload",
+        scenario: str = None,
     ) -> dict:
         with self._lock:
             exam = self._data.get("exams", {}).get(exam_id)
@@ -397,6 +399,8 @@ class CampusStore:
                 "warnings": self._warnings_from_validation(validation),
                 "validation": validation or {},
                 "query_preview": query_preview,
+                "attempt_source": attempt_source,
+                "scenario": scenario,
                 "review": None,
             }
             self._data.setdefault("attempts", []).append(attempt)

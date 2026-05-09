@@ -189,6 +189,7 @@ def test_flux_preupload_enrolls_students_idempotently(client, tmp_path):
     )
     assert verify.status_code == 200
     assert verify.json()["attempt"]["model_type"] == "hybrid"
+    assert verify.json()["attempt"]["attempt_source"] == "upload"
 
 
 @pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
@@ -229,7 +230,7 @@ def test_failed_flux_rerun_preserves_existing_enrollment(client, tmp_path):
 
     verify = client.post(
         "/campus/exams/CS204-MIDTERM-1/verify-preloaded",
-        data={"student_id": student_id, "scenario": "matching"},
+        data={"student_id": student_id, "scenario": "matching", "confirmed": "true"},
     )
     assert verify.status_code == 200
 
@@ -252,13 +253,30 @@ def test_verify_preloaded_matching_and_model_mismatch(client, tmp_path):
     assert preupload.status_code == 200
     student_id = preupload.json()["imported"][0]["student_id"]
 
-    verify = client.post(
+    unconfirmed = client.post(
         "/campus/exams/CS204-MIDTERM-1/verify-preloaded",
         data={"student_id": student_id, "scenario": "matching"},
+    )
+    assert unconfirmed.status_code == 400
+    repeated_unconfirmed = client.post(
+        "/campus/exams/CS204-MIDTERM-1/verify-preloaded",
+        data={"student_id": student_id, "scenario": "matching", "confirmed": "false"},
+    )
+    assert repeated_unconfirmed.status_code == 400
+    assert client.get(
+        "/campus/attempts",
+        params={"exam_id": "CS204-MIDTERM-1", "student_id": student_id},
+    ).json() == []
+
+    verify = client.post(
+        "/campus/exams/CS204-MIDTERM-1/verify-preloaded",
+        data={"student_id": student_id, "scenario": "matching", "confirmed": "true"},
     )
     assert verify.status_code == 200
     attempt = verify.json()["attempt"]
     assert attempt["model_type"] == "hybrid"
+    assert attempt["attempt_source"] == "preloaded_demo"
+    assert attempt["scenario"] == "matching"
     assert attempt["query_preview"].startswith("data:image/jpeg;base64,")
 
     client.post(
@@ -275,7 +293,7 @@ def test_verify_preloaded_matching_and_model_mismatch(client, tmp_path):
     )
     mismatch = client.post(
         "/campus/exams/CS204-SIAMESE/verify-preloaded",
-        data={"student_id": student_id, "scenario": "matching"},
+        data={"student_id": student_id, "scenario": "matching", "confirmed": "true"},
     )
     assert mismatch.status_code == 409
     assert "requires siamese" in mismatch.json()["detail"]
@@ -456,6 +474,7 @@ def test_hybrid_enrollment_and_verification_path(client):
     attempt = verify_resp.json()["attempt"]
     assert attempt["model_type"] == "hybrid"
     assert attempt["score"] >= attempt["threshold"]
+    assert attempt["attempt_source"] == "upload"
 
 
 def _write_flux_identity(root, identity, age="20-29"):

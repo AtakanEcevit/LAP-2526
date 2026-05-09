@@ -22,6 +22,8 @@ def test_flux_controls_and_previews_are_wired_in_static_ui():
         "flux-status",
         "verify-preloaded-btn",
         "simulation-preloaded-btn",
+        "preloaded-stage-note",
+        "simulation-preloaded-stage-note",
         "simulation-student-avatar",
         "gate-student-avatar",
         "gate-download-test-image",
@@ -30,8 +32,12 @@ def test_flux_controls_and_previews_are_wired_in_static_ui():
 
     assert "async function preuploadFlux" in app
     assert "async function exportFluxTestSet" in app
-    assert "async function verifyPreloadedStudent" in app
+    assert "function stagePreloadedSelfie" in app
+    assert "function confirmVerification" in app
+    assert "function setVerificationInFlight" in app
     assert "studentFluxTestImageUrl" in app
+    assert "Load Preloaded Selfie" in index
+    assert "Use Preloaded Selfie" not in index
     assert "studentNameCell(row)" in app
     assert ".student-avatar" in css
 

@@ -281,8 +281,9 @@
                                 Exam-day selfie
                                 <input type="file" id="simulation-verify-file" accept="image/*" capture="user">
                             </label>
+                            <div class="preloaded-stage-note hidden" id="simulation-preloaded-stage-note"></div>
                             <button class="primary-action full-width" id="simulation-verify-btn">Verify for Exam Access</button>
-                            <button class="secondary-action full-width" id="simulation-preloaded-btn">Use Preloaded Selfie</button>
+                            <button class="secondary-action full-width" id="simulation-preloaded-btn">Load Preloaded Selfie</button>
                         </div>
 
                         <article class="simulation-result" id="simulation-result-card">
@@ -534,12 +535,18 @@
                         <h3>Submit exam-day selfie</h3>
                         <p class="muted">Upload the image used for this exam access attempt.</p>
                         <input type="file" id="verify-file" accept="image/*" capture="user">
+                        <div class="preloaded-stage-note hidden" id="preloaded-stage-note"></div>
                         <div class="workspace-action-row">
                             <button class="primary-action full-width" id="verify-student-btn">Verify for Exam Access</button>
-                            <button class="secondary-action full-width" id="verify-preloaded-btn">Use Preloaded Selfie</button>
                         </div>
                         <details class="compact-disclosure top-gap">
                             <summary>Demo tools</summary>
+                            <div class="wrong-face-box">
+                                <p class="eyebrow">Preloaded Demo Selfie</p>
+                                <h3>Stage the matching synthetic selfie</h3>
+                                <p>Loads the student's reserved FLUXSynID selfie for manual confirmation. It does not submit verification until you press Verify for Exam Access.</p>
+                                <button class="secondary-action" id="verify-preloaded-btn">Load Preloaded Selfie</button>
+                            </div>
                             <div class="wrong-face-box">
                                 <p class="eyebrow">Wrong-Face Demo Path</p>
                                 <h3>Need to prove Manual Review?</h3>
@@ -723,6 +730,7 @@
                                 <div><dt>Model</dt><dd id="review-model">-</dd></div>
                                 <div><dt>Score</dt><dd id="review-score">-</dd></div>
                                 <div><dt>Threshold</dt><dd id="review-threshold">-</dd></div>
+                                <div><dt>Source</dt><dd id="review-attempt-source">-</dd></div>
                                 <div><dt>Timestamp</dt><dd id="review-time">-</dd></div>
                                 <div><dt>Warnings</dt><dd id="review-warnings">-</dd></div>
                                 <div><dt>Previous attempts</dt><dd id="review-previous-attempts">-</dd></div>

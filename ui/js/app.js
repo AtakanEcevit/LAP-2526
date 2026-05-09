@@ -9,6 +9,8 @@ const state = {
     auditRows: [],
     fluxStatus: null,
     fluxTestSet: null,
+    stagedPreloadedSelfie: null,
+    verificationInFlight: false,
     studentResultAttemptId: null,
     studentStep: 'consent',
     activeView: 'simulation',
@@ -117,8 +119,8 @@ function bindActions() {
     document.getElementById('reset-demo-btn').addEventListener('click', resetDemo);
     document.getElementById('flux-preupload-btn').addEventListener('click', preuploadFlux);
     document.getElementById('flux-export-btn').addEventListener('click', exportFluxTestSet);
-    document.getElementById('verify-preloaded-btn').addEventListener('click', () => verifyPreloadedStudent(false));
-    document.getElementById('simulation-preloaded-btn').addEventListener('click', () => verifyPreloadedStudent(true));
+    document.getElementById('verify-preloaded-btn').addEventListener('click', () => stagePreloadedSelfie(false));
+    document.getElementById('simulation-preloaded-btn').addEventListener('click', () => stagePreloadedSelfie(true));
     document.getElementById('lab-compare-btn').addEventListener('click', compareInLab);
     ['proctor-filter-status', 'proctor-filter-decision', 'proctor-filter-name', 'proctor-filter-id', 'proctor-sort']
         .forEach(id => document.getElementById(id).addEventListener('input', renderRoster));
@@ -143,6 +145,7 @@ function bindActions() {
         openSimulationAttempt(button.dataset.simulationAttempt, button.dataset.simulationStudent);
     });
     document.getElementById('student-exam').addEventListener('change', async () => {
+        clearStagedPreloadedSelfie();
         resetStudentResultPanel();
         await refreshRosterOnly();
         syncAdminFields();
@@ -152,6 +155,7 @@ function bindActions() {
         renderSimulation();
     });
     document.getElementById('student-select').addEventListener('change', () => {
+        clearStagedPreloadedSelfie();
         resetStudentResultPanel();
         updateContextBar();
         renderEnrollmentGuidance();
@@ -159,6 +163,7 @@ function bindActions() {
         renderSimulation();
     });
     document.getElementById('simulation-exam').addEventListener('change', async () => {
+        clearStagedPreloadedSelfie();
         setSelectValue('student-exam', valueOf('simulation-exam'));
         resetStudentResultPanel();
         await refreshRosterOnly();
@@ -168,6 +173,7 @@ function bindActions() {
         renderSimulation();
     });
     document.getElementById('simulation-student').addEventListener('change', () => {
+        clearStagedPreloadedSelfie();
         setSelectValue('student-select', valueOf('simulation-student'));
         resetStudentResultPanel();
         syncSimulationSelection();
@@ -176,10 +182,16 @@ function bindActions() {
         renderSimulation();
     });
     document.getElementById('simulation-consent-check').addEventListener('change', renderSimulation);
-    document.getElementById('simulation-verify-file').addEventListener('change', renderSimulation);
+    document.getElementById('simulation-verify-file').addEventListener('change', () => {
+        clearStagedPreloadedSelfie('simulation');
+        renderSimulation();
+    });
     document.getElementById('enroll-files').addEventListener('change', renderEnrollmentFileState);
     document.getElementById('consent-check').addEventListener('change', updateStudentProgress);
-    document.getElementById('verify-file').addEventListener('change', updateStudentProgress);
+    document.getElementById('verify-file').addEventListener('change', () => {
+        clearStagedPreloadedSelfie('student');
+        updateStudentProgress();
+    });
     document.querySelectorAll('[data-student-step]').forEach(button => {
         button.addEventListener('click', () => setStudentStep(button.dataset.studentStep));
     });
@@ -236,7 +248,6 @@ async function refreshRosterOnly() {
 function jumpFromGuide(viewName) {
     setSelectValue('student-select', demoStudentId());
     if (viewName === 'student') {
-        document.getElementById('consent-check').checked = true;
         setStudentStep('enrollment');
         renderEnrollmentGuidance();
     }
@@ -244,7 +255,6 @@ function jumpFromGuide(viewName) {
         setReviewFilter('needs_review');
     }
     if (viewName === 'simulation') {
-        document.getElementById('simulation-consent-check').checked = true;
         syncSimulationSelection();
         renderSimulation();
     }
@@ -530,6 +540,7 @@ function renderReviewAttempt(attempt, student, history = []) {
     document.getElementById('review-model').textContent = modelLabel(attempt.model_type);
     document.getElementById('review-score').textContent = numberOrDash(attempt.score);
     document.getElementById('review-threshold').textContent = numberOrDash(attempt.threshold);
+    document.getElementById('review-attempt-source').textContent = attemptSourceLabel(attempt.attempt_source);
     document.getElementById('review-time').textContent = attempt.timestamp || '-';
     document.getElementById('review-warnings').textContent =
         attempt.warnings?.length ? attempt.warnings.join('; ') : 'None';
@@ -575,7 +586,7 @@ function resetReviewPanel() {
 }
 
 function clearReviewDetails() {
-    ['review-status', 'review-decision', 'review-model', 'review-score', 'review-threshold', 'review-time', 'review-warnings', 'review-previous-attempts']
+    ['review-status', 'review-decision', 'review-model', 'review-score', 'review-threshold', 'review-attempt-source', 'review-time', 'review-warnings', 'review-previous-attempts']
         .forEach(id => {
             document.getElementById(id).textContent = '-';
         });
@@ -771,14 +782,23 @@ async function verifyStudent() {
     const studentId = document.getElementById('student-select').value;
     const file = document.getElementById('verify-file').files[0];
     if (!requireConsent()) return;
-    if (!examId || !studentId || !file) {
+    if (!examId || !studentId) {
+        toast('Select an exam and student first.', 'error');
+        return;
+    }
+    if (!file && !isCurrentStagedPreloaded('student', examId, studentId)) {
         toast('Select an exam, student, and exam-day selfie.', 'error');
         return;
     }
+    if (!confirmVerification(examId, studentId, file ? 'upload' : 'preloaded_demo', file?.name)) return;
     try {
-        const result = await api.verifyStudent(examId, studentId, file);
+        setVerificationInFlight(true);
+        const result = file
+            ? await api.verifyStudent(examId, studentId, file)
+            : await api.verifyPreloadedStudent(examId, studentId, state.stagedPreloadedSelfie.scenario, true);
         renderStudentResult(result);
         document.getElementById('verify-file').value = '';
+        clearStagedPreloadedSelfie();
         await refreshAll();
     } catch (err) {
         if (err.message.includes('enrolled with') || err.message.includes('requires')) {
@@ -786,41 +806,110 @@ async function verifyStudent() {
             renderEnrollmentGuidance();
         }
         toast(err.message, 'error');
+    } finally {
+        setVerificationInFlight(false);
     }
 }
 
-async function verifyPreloadedStudent(fromSimulation = false) {
+function stagePreloadedSelfie(fromSimulation = false) {
     const examId = currentExamId();
     const studentId = fromSimulation
         ? document.getElementById('simulation-student').value
         : document.getElementById('student-select').value;
-    const consentId = fromSimulation ? 'simulation-consent-check' : 'consent-check';
-    if (!document.getElementById(consentId).checked) {
-        toast('Consent is required before using the preloaded selfie.', 'error');
-        return;
-    }
     if (!examId || !studentId) {
         toast('Select an exam and student first.', 'error');
         return;
     }
-    try {
-        if (fromSimulation) {
-            setSelectValue('student-select', studentId);
-        }
-        const result = await api.verifyPreloadedStudent(examId, studentId, 'matching');
-        state.simulationSelectedAttemptId = result.attempt.attempt_id;
-        state.selectedAttempt = result.attempt;
-        renderStudentResult(result);
-        await refreshAll();
-        await selectAttempt(result.attempt.attempt_id, { scroll: false });
-    } catch (err) {
-        if (err.message.includes('preuploaded') || err.message.includes('enrolled with')) {
-            document.getElementById('enroll-warning').textContent = err.message;
-            renderEnrollmentGuidance();
-        }
-        toast(err.message, 'error');
-        renderSimulation();
+    const row = (state.roster?.roster || []).find(item => item.student_id === studentId)
+        || state.snapshot?.students?.find(student => student.student_id === studentId);
+    if (row?.face_source !== 'flux_synid') {
+        toast('This student does not have a preloaded FLUXSynID selfie.', 'error');
+        return;
     }
+    if (fromSimulation) {
+        setSelectValue('student-select', studentId);
+    }
+    state.stagedPreloadedSelfie = {
+        examId,
+        studentId,
+        scenario: 'matching',
+        fromSimulation,
+        imageUrl: api.studentFluxTestImageUrl(studentId),
+    };
+    document.getElementById(fromSimulation ? 'simulation-verify-file' : 'verify-file').value = '';
+    renderStagedPreloadedSelfie();
+    toast('Preloaded demo selfie staged. Confirm verification to submit.', 'success');
+    renderSimulation();
+}
+
+function isCurrentStagedPreloaded(surface, examId, studentId) {
+    const staged = state.stagedPreloadedSelfie;
+    if (!staged) return false;
+    const surfaceMatches = surface === 'simulation'
+        ? staged.fromSimulation
+        : !staged.fromSimulation;
+    return surfaceMatches && staged.examId === examId && staged.studentId === studentId;
+}
+
+function clearStagedPreloadedSelfie(surface = null) {
+    if (!surface || isCurrentStagedPreloaded(surface, state.stagedPreloadedSelfie?.examId, state.stagedPreloadedSelfie?.studentId)) {
+        state.stagedPreloadedSelfie = null;
+    }
+    renderStagedPreloadedSelfie();
+}
+
+function renderStagedPreloadedSelfie() {
+    const staged = state.stagedPreloadedSelfie;
+    const student = staged
+        ? state.snapshot?.students?.find(item => item.student_id === staged.studentId)
+        : null;
+    const text = staged
+        ? `Preloaded synthetic selfie staged for ${student?.name || displayStudentId(staged.studentId)}. Press Verify for Exam Access to submit.`
+        : '';
+
+    const studentNote = document.getElementById('preloaded-stage-note');
+    if (studentNote) {
+        studentNote.textContent = !staged?.fromSimulation ? text : '';
+        studentNote.classList.toggle('hidden', !staged || staged.fromSimulation);
+    }
+
+    const simulationNote = document.getElementById('simulation-preloaded-stage-note');
+    if (simulationNote) {
+        simulationNote.textContent = staged?.fromSimulation ? text : '';
+        simulationNote.classList.toggle('hidden', !staged || !staged.fromSimulation);
+    }
+
+    if (staged?.fromSimulation) {
+        setPreview('simulation-student-camera-preview', staged.imageUrl);
+    }
+}
+
+function confirmVerification(examId, studentId, source, filename = '') {
+    const student = state.snapshot?.students?.find(item => item.student_id === studentId);
+    const exam = state.snapshot?.exams?.find(item => item.exam_id === examId);
+    const sourceText = source === 'preloaded_demo'
+        ? 'preloaded synthetic FLUXSynID demo selfie'
+        : `uploaded selfie${filename ? ` (${filename})` : ''}`;
+    const confirmed = window.confirm(
+        `Submit verification?\n\nStudent: ${student?.name || studentId}\nExam: ${displayExamName(exam?.name) || examId}\nImage source: ${sourceText}\n\nThis will create a verification attempt.`
+    );
+    if (!confirmed) {
+        toast('Verification cancelled. No attempt was recorded.', 'info');
+    }
+    return confirmed;
+}
+
+function setVerificationInFlight(inFlight) {
+    state.verificationInFlight = inFlight;
+    [
+        'verify-student-btn',
+        'simulation-verify-btn',
+        'verify-preloaded-btn',
+        'simulation-preloaded-btn',
+    ].forEach(id => {
+        const button = document.getElementById(id);
+        if (button) button.disabled = inFlight;
+    });
 }
 
 function renderStudentResult(result) {
@@ -829,9 +918,9 @@ function renderStudentResult(result) {
     const panel = document.getElementById('student-result');
     panel.classList.remove('verified', 'review', 'rejected');
     panel.classList.add(resultClass(attempt.decision));
-    document.getElementById('result-title').textContent = result.message;
+    document.getElementById('result-title').textContent = studentFacingTitle(attempt);
     document.getElementById('result-message').textContent = attempt.decision === 'verified'
-        ? 'Exam access can be granted by the LMS.'
+        ? 'Model verified. Access can proceed if the exam policy allows it.'
         : 'Use proctor review or manual ID fallback before granting access.';
     document.getElementById('result-score').textContent = attempt.score.toFixed(3);
     document.getElementById('result-threshold').textContent = attempt.threshold.toFixed(3);
@@ -983,6 +1072,7 @@ async function resetDemo() {
     if (!window.confirm('Reset FaceVerify Campus demo data?')) return;
     try {
         const result = await api.resetDemo();
+        clearStagedPreloadedSelfie();
         resetReviewPanel();
         resetStudentResultPanel();
         const flux = result.flux_preupload;
@@ -1144,6 +1234,7 @@ function renderSimulationStudentPane() {
     const consentDone = document.getElementById('simulation-consent-check').checked;
     const enrollmentDone = !context.modelMismatch && context.sampleCount >= ENROLLMENT_TARGET;
     const verificationDone = Boolean(attempt);
+    const staged = isCurrentStagedPreloaded('simulation', currentExamId(), student?.student_id);
 
     setTextIfPresent('simulation-student-title', `${displayExamName(exam?.name)} access gate`);
     setTextIfPresent('simulation-student-id', displayStudentId(student?.student_id || '-'));
@@ -1161,8 +1252,17 @@ function renderSimulationStudentPane() {
         gateStatusInfo(context, attempt || row?.latest_attempt || null),
         simulationGateStep(consentDone, enrollmentDone, verificationDone)
     );
-    setTextIfPresent('simulation-student-guidance', simulationStudentGuidance(context, attempt));
-    setPreview('simulation-student-camera-preview', attempt?.query_preview);
+    setTextIfPresent(
+        'simulation-student-guidance',
+        staged
+            ? 'Preloaded demo selfie is staged. Press Verify for Exam Access to submit after confirmation.'
+            : simulationStudentGuidance(context, attempt)
+    );
+    setPreview(
+        'simulation-student-camera-preview',
+        attempt?.query_preview || (staged ? state.stagedPreloadedSelfie.imageUrl : null)
+    );
+    renderStagedPreloadedSelfie();
 
     const resultCard = document.getElementById('simulation-result-card');
     resultCard.classList.remove('verified', 'review', 'rejected');
@@ -1306,12 +1406,18 @@ function auditRailStages(attempt, row) {
     const livenessDetail = warnings.length ? 'Warnings present' : 'Passed';
     return [
         { icon: 'P', title: 'Attempt Started', detail: displayStudentId(attempt.student_id), time, kind: 'started' },
-        { icon: 'C', title: 'Photo Captured', detail: attempt.query_preview ? 'Webcam / upload' : 'No photo preview', time, kind: 'captured' },
+        { icon: 'C', title: 'Photo Captured', detail: attemptSourceLabel(attempt.attempt_source), time, kind: 'captured' },
         { icon: 'L', title: 'Liveness Check', detail: livenessDetail, time, kind: warnings.length ? 'review' : 'passed' },
         { icon: 'F', title: 'Face Analyzed', detail: modelLabel(attempt.model_type), time, kind: 'analyzed' },
         { icon: '%', title: `Match Score: ${score}`, detail: scoreDetail(attempt), time, kind: resultClass(attempt.decision) },
         { icon: finalStatusIcon(finalStatus), title: finalStatus, detail: finalStatusDetail(finalStatus), time, kind: resultClass(attempt.decision) },
     ];
+}
+
+function attemptSourceLabel(source) {
+    if (source === 'preloaded_demo') return 'Preloaded demo selfie';
+    if (source === 'upload') return 'Uploaded selfie';
+    return 'Uploaded selfie';
 }
 
 function scoreDetail(attempt) {
@@ -1373,14 +1479,16 @@ function simulationStudentGuidance(context, attempt) {
 }
 
 function studentFacingTitle(attempt) {
-    if (ACCESS_GRANTED_STATUSES.has(attempt.final_status)) return 'Access granted';
+    if (attempt.final_status === 'Approved by Proctor') return 'Approved by Proctor';
+    if (attempt.final_status === 'Verified' || attempt.decision === 'verified') return 'Model verified';
     if (REVIEW_STATUSES.has(attempt.final_status)) return 'Manual review required';
     if (BLOCKED_STATUSES.has(attempt.final_status)) return 'Access blocked';
     return humanizeDecision(attempt.decision);
 }
 
 function studentFacingMessage(attempt) {
-    if (ACCESS_GRANTED_STATUSES.has(attempt.final_status)) return 'You may continue into the exam.';
+    if (attempt.final_status === 'Approved by Proctor') return 'A proctor approved this access decision.';
+    if (attempt.final_status === 'Verified' || attempt.decision === 'verified') return 'Model verified. Access can proceed if the exam policy allows it.';
     if (attempt.final_status === 'Fallback Requested') return 'A proctor has requested a fallback ID check before exam access.';
     if (attempt.decision === 'manual_review') return 'A proctor must review this attempt before access is granted.';
     return 'This attempt did not meet the exam access policy.';
@@ -1406,23 +1514,34 @@ async function verifySimulationStudent() {
         toast('Consent is required before camera or upload verification.', 'error');
         return;
     }
-    if (!examId || !studentId || !file) {
+    if (!examId || !studentId) {
+        toast('Select an exam and student first.', 'error');
+        return;
+    }
+    if (!file && !isCurrentStagedPreloaded('simulation', examId, studentId)) {
         toast('Select an exam, student, and exam-day selfie.', 'error');
         return;
     }
+    if (!confirmVerification(examId, studentId, file ? 'upload' : 'preloaded_demo', file?.name)) return;
     try {
+        setVerificationInFlight(true);
         setSelectValue('student-select', studentId);
-        const result = await api.verifyStudent(examId, studentId, file);
+        const result = file
+            ? await api.verifyStudent(examId, studentId, file)
+            : await api.verifyPreloadedStudent(examId, studentId, state.stagedPreloadedSelfie.scenario, true);
         state.simulationSelectedAttemptId = result.attempt.attempt_id;
         state.selectedAttempt = result.attempt;
         renderStudentResult(result);
         document.getElementById('simulation-verify-file').value = '';
+        clearStagedPreloadedSelfie();
         await refreshAll();
         await selectAttempt(result.attempt.attempt_id, { scroll: false });
     } catch (err) {
         setTextIfPresent('simulation-student-guidance', err.message);
         toast(err.message, 'error');
         renderSimulation();
+    } finally {
+        setVerificationInFlight(false);
     }
 }
 

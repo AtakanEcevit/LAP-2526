@@ -143,10 +143,11 @@ const api = {
         return parseResponse(resp, 'Verification failed');
     },
 
-    async verifyPreloadedStudent(examId, studentId, scenario = 'matching') {
+    async verifyPreloadedStudent(examId, studentId, scenario = 'matching', confirmed = false) {
         const form = new FormData();
         form.append('student_id', studentId);
         form.append('scenario', scenario);
+        form.append('confirmed', confirmed ? 'true' : 'false');
         const resp = await fetch(`${API_BASE}/campus/exams/${encodeURIComponent(examId)}/verify-preloaded`, {
             method: 'POST',
             body: form

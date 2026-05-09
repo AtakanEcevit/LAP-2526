@@ -860,6 +860,7 @@ async def campus_verify_exam_attempt(
             model_type=exam["model_type"],
             validation=val.to_dict(),
             query_preview=_make_image_preview(image_bytes),
+            attempt_source="upload",
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Verification error: {str(e)}")
@@ -877,7 +878,14 @@ async def campus_verify_preloaded_exam_attempt(
     exam_id: str,
     student_id: str = Form(...),
     scenario: str = Form("matching"),
+    confirmed: bool = Form(False),
 ):
+    if not confirmed:
+        raise HTTPException(
+            status_code=400,
+            detail="Preloaded demo selfie verification requires explicit confirmation.",
+        )
+
     exam = _campus_store.get_exam(exam_id)
     if exam is None:
         raise HTTPException(status_code=404, detail=f"Unknown exam '{exam_id}'.")
@@ -944,6 +952,8 @@ async def campus_verify_preloaded_exam_attempt(
             model_type=exam["model_type"],
             validation=val.to_dict(),
             query_preview=_make_image_preview(image_bytes),
+            attempt_source="preloaded_demo",
+            scenario=scenario,
         )
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Verification error: {str(e)}")
