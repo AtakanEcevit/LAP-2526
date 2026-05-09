@@ -22,9 +22,9 @@ const state = {
 
 const ENROLLMENT_TARGET = 3;
 const ENROLLMENT_MAX = 5;
-const DISPLAY_UNIVERSITY = 'Atılım University Demo';
-const DISPLAY_COURSE = 'SE 204 - Data Structures';
-const DISPLAY_EXAM = 'Midterm Exam';
+const DISPLAY_UNIVERSITY = 'Atılım Üniversitesi Demo';
+const DISPLAY_COURSE = 'SE 204 - Veri Yapıları';
+const DISPLAY_EXAM = 'Ara Sınav';
 const DISPLAY_STUDENT_ID = 'AT-2026-1042';
 const FALLBACK_DEMO_STUDENT_ID = 'NB-2026-1042';
 const FALLBACK_DEMO_EXAM_ID = 'CS204-MIDTERM-1';
@@ -35,12 +35,12 @@ const WAITING_STATUSES = new Set(['Not Started', 'Enrollment Needed', 'Pending V
 const STUDENT_STEP_ORDER = ['consent', 'enrollment', 'verification', 'result'];
 const KPI_KEYS = ['attempts', 'verified', 'review', 'blocked', 'no-enrollment'];
 const PERSONAS = {
-    launch: 'Demo Operator',
-    simulation: 'Live Simulation',
-    student: 'Student: Aylin Kaya',
-    proctor: 'Review Desk: Proctor Lee',
-    admin: 'Operations: Registrar Admin',
-    evidence: 'Operations: Model Evidence'
+    launch: 'Demo Operatörü',
+    simulation: 'Canlı Simülasyon',
+    student: 'Öğrenci: Aylin Kaya',
+    proctor: 'İnceleme Masası: Proctor Lee',
+    admin: 'Operasyonlar: Kayıt Yetkilisi',
+    evidence: 'Operasyonlar: Model Kanıtı'
 };
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -225,7 +225,7 @@ async function refreshAll() {
     } catch (err) {
         setStatus('Connection interrupted', false);
         renderSimulation();
-        toast(err.message, 'error');
+        toast(err, 'error');
     }
 }
 
@@ -241,7 +241,7 @@ async function refreshRosterOnly() {
         renderSimulation();
         updateContextBar();
     } catch (err) {
-        toast(err.message, 'error');
+        toast(err, 'error');
     }
 }
 
@@ -263,18 +263,18 @@ function jumpFromGuide(viewName) {
 
 function setStatus(text, ok) {
     const status = document.getElementById('system-status');
-    document.getElementById('status-text').textContent = text;
+    document.getElementById('status-text').textContent = localizeText(text);
     status.classList.toggle('offline', !ok);
     status.classList.toggle('online', ok);
 }
 
 function updateSidebarClock() {
     const now = new Date();
-    setTextIfPresent('sidebar-clock-time', now.toLocaleTimeString([], {
+    setTextIfPresent('sidebar-clock-time', now.toLocaleTimeString('tr-TR', {
         hour: '2-digit',
         minute: '2-digit'
     }));
-    setTextIfPresent('sidebar-clock-date', now.toLocaleDateString([], {
+    setTextIfPresent('sidebar-clock-date', now.toLocaleDateString('tr-TR', {
         month: 'short',
         day: 'numeric',
         year: 'numeric'
@@ -317,7 +317,7 @@ function syncAdminFields() {
         document.getElementById('course-id').value = course.course_id;
         document.getElementById('course-name').value = displayCourseName(course.name);
         document.getElementById('course-instructor').value = displayInstructor(course.instructor);
-        document.getElementById('course-term').value = course.term;
+        document.getElementById('course-term').value = displayTerm(course.term);
     }
     if (exam) {
         document.getElementById('exam-id').value = exam.exam_id;
@@ -340,7 +340,7 @@ function renderMetrics() {
     setTextIfPresent('sidebar-blocked-count', metrics.blocked);
     setTextIfPresent(
         'queue-summary',
-        `${metrics.review} need review | ${metrics.verified} verified | ${metrics.waiting} waiting | ${metrics.blocked} blocked`
+        t('queue.summary', metrics)
     );
     renderKpiDeck('simulation', metrics);
     renderKpiDeck('review', metrics);
@@ -377,7 +377,7 @@ function renderKpiDeck(prefix, metrics) {
         setTextIfPresent(`${prefix}-kpi-${key}-count`, count);
         setTextIfPresent(
             `${prefix}-kpi-${key}-rate`,
-            key === 'attempts' ? 'Live' : `${((count / denominator) * 100).toFixed(1)}%`
+            key === 'attempts' ? localizeText('Live') : `${((count / denominator) * 100).toFixed(1)}%`
         );
         const spark = document.getElementById(`${prefix}-kpi-${key}-spark`);
         if (spark) {
@@ -415,7 +415,7 @@ function sparklineSvg(values, key) {
         const y = height - (value / max) * (height - 4) - 2;
         return `${x.toFixed(1)},${y.toFixed(1)}`;
     }).join(' ');
-    return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(key)} trend"><polyline points="${points}"></polyline></svg>`;
+    return `<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(t('sparkline.trend', { label: key }))}"><polyline points="${points}"></polyline></svg>`;
 }
 
 function renderRoster() {
@@ -423,25 +423,25 @@ function renderRoster() {
     const allRows = state.roster?.roster || [];
     const roster = filteredRosterRows(allRows);
     if (!allRows.length) {
-        body.innerHTML = '<tr><td colspan="4" class="empty-cell">No roster rows for this exam.</td></tr>';
+        body.innerHTML = `<tr><td colspan="4" class="empty-cell">${escapeHtml(localizeText('No roster rows for this exam.'))}</td></tr>`;
         return;
     }
     if (!roster.length) {
-        body.innerHTML = '<tr><td colspan="4" class="empty-cell">No roster rows match these filters.</td></tr>';
+        body.innerHTML = `<tr><td colspan="4" class="empty-cell">${escapeHtml(localizeText('No roster rows match these filters.'))}</td></tr>`;
         return;
     }
     body.innerHTML = roster.map(row => {
         const latest = row.latest_attempt;
         const score = latest ? latest.score.toFixed(3) : '-';
-        const actionLabel = REVIEW_STATUSES.has(row.exam_status) ? 'Review' : 'Open';
+        const actionLabel = REVIEW_STATUSES.has(row.exam_status) ? localizeText('Review') : localizeText('Open');
         const action = latest
             ? `<button class="row-button ${REVIEW_STATUSES.has(row.exam_status) ? 'review-action' : ''}" data-attempt="${escapeHtml(latest.attempt_id)}">${actionLabel}</button>`
-            : '<span class="muted action-waiting">Waiting</span>';
+            : `<span class="muted action-waiting">${escapeHtml(localizeText('Waiting'))}</span>`;
         const selected = latest?.attempt_id === state.selectedAttempt?.attempt_id ? ' class="selected-row"' : '';
         return `
             <tr${selected}>
                 <td>${studentNameCell(row)}</td>
-                <td><span class="badge ${statusClass(row.exam_status)}">${escapeHtml(row.exam_status)}</span></td>
+                <td><span class="badge ${statusClass(row.exam_status)}">${escapeHtml(statusLabel(row.exam_status))}</span></td>
                 <td>${score}</td>
                 <td>${action}</td>
             </tr>
@@ -475,15 +475,15 @@ function filteredRosterRows(rows) {
 }
 
 function sortRosterRows(a, b, sort) {
-    if (sort === 'name') return String(a.name || '').localeCompare(String(b.name || ''));
-    if (sort === 'student_id') return String(a.student_id || '').localeCompare(String(b.student_id || ''));
+    if (sort === 'name') return String(a.name || '').localeCompare(String(b.name || ''), 'tr-TR');
+    if (sort === 'student_id') return String(a.student_id || '').localeCompare(String(b.student_id || ''), 'tr-TR');
     if (sort === 'score') {
         const aScore = Number.isFinite(Number(a.latest_attempt?.score)) ? Number(a.latest_attempt.score) : 2;
         const bScore = Number.isFinite(Number(b.latest_attempt?.score)) ? Number(b.latest_attempt.score) : 2;
         return aScore - bScore;
     }
     return statusPriority(a.exam_status) - statusPriority(b.exam_status)
-        || String(a.name || '').localeCompare(String(b.name || ''));
+        || String(a.name || '').localeCompare(String(b.name || ''), 'tr-TR');
 }
 
 function statusPriority(status) {
@@ -526,26 +526,26 @@ async function selectAttempt(attemptId, options = {}) {
         }
     } catch (err) {
         setReviewError(err.message);
-        toast(err.message, 'error');
+        toast(err, 'error');
     }
 }
 
 function renderReviewAttempt(attempt, student, history = []) {
     document.getElementById('review-panel').classList.remove('review-empty');
     document.getElementById('review-title').textContent =
-        `${student.name || attempt.student_name || attempt.student_id} - ${attempt.final_status}`;
-    document.getElementById('review-empty-state').textContent = 'Attempt loaded. Review the images and status before taking action.';
-    document.getElementById('review-status').textContent = attempt.final_status || attempt.status || '-';
+        `${student.name || attempt.student_name || attempt.student_id} - ${statusLabel(attempt.final_status || attempt.status)}`;
+    document.getElementById('review-empty-state').textContent = localizeText('Attempt loaded. Review the images and status before taking action.');
+    document.getElementById('review-status').textContent = statusLabel(attempt.final_status || attempt.status || '-');
     document.getElementById('review-decision').textContent = humanizeDecision(attempt.decision);
     document.getElementById('review-model').textContent = modelLabel(attempt.model_type);
     document.getElementById('review-score').textContent = numberOrDash(attempt.score);
     document.getElementById('review-threshold').textContent = numberOrDash(attempt.threshold);
     document.getElementById('review-attempt-source').textContent = attemptSourceLabel(attempt.attempt_source);
-    document.getElementById('review-time').textContent = attempt.timestamp || '-';
+    document.getElementById('review-time').textContent = formatDateTime(attempt.timestamp);
     document.getElementById('review-warnings').textContent =
-        attempt.warnings?.length ? attempt.warnings.join('; ') : 'None';
+        attempt.warnings?.length ? attempt.warnings.join('; ') : localizeText('None');
     document.getElementById('review-previous-attempts').textContent =
-        history.length > 1 ? `${history.length - 1} earlier attempt(s) for this exam.` : 'No earlier attempts for this exam.';
+        history.length > 1 ? localizeText(`${history.length - 1} earlier attempt(s) for this exam.`) : localizeText('No earlier attempts for this exam.');
     setPreview('reference-preview', student.reference_preview);
     setPreview('query-preview', attempt.query_preview);
     renderAuditRail('review-audit-rail', attempt, student);
@@ -557,8 +557,8 @@ function setReviewLoading() {
     state.selectedReviewStudent = null;
     state.attemptHistory = [];
     document.getElementById('review-panel').classList.add('review-empty');
-    document.getElementById('review-title').textContent = 'Loading attempt...';
-    document.getElementById('review-empty-state').textContent = 'Loading attempt details and previews.';
+    document.getElementById('review-title').textContent = localizeText('Loading attempt...');
+    document.getElementById('review-empty-state').textContent = localizeText('Loading attempt details and previews.');
     clearReviewDetails();
     setReviewButtonsEnabled(false);
 }
@@ -568,8 +568,8 @@ function setReviewError(message) {
     state.selectedReviewStudent = null;
     state.attemptHistory = [];
     document.getElementById('review-panel').classList.add('review-empty');
-    document.getElementById('review-title').textContent = 'Attempt could not be loaded';
-    document.getElementById('review-empty-state').textContent = message || 'Attempt could not be loaded.';
+    document.getElementById('review-title').textContent = localizeText('Attempt could not be loaded');
+    document.getElementById('review-empty-state').textContent = message ? apiErrorMessage(message) : localizeText('Attempt could not be loaded.');
     clearReviewDetails();
     setReviewButtonsEnabled(false);
 }
@@ -579,8 +579,8 @@ function resetReviewPanel() {
     state.selectedReviewStudent = null;
     state.attemptHistory = [];
     document.getElementById('review-panel').classList.add('review-empty');
-    document.getElementById('review-title').textContent = 'Select an attempt';
-    document.getElementById('review-empty-state').textContent = 'Select an attempt from the Needs Review queue or roster.';
+    document.getElementById('review-title').textContent = localizeText('Select an attempt');
+    document.getElementById('review-empty-state').textContent = localizeText('Select an attempt from the Needs Review queue or roster.');
     clearReviewDetails();
     setReviewButtonsEnabled(false);
 }
@@ -604,7 +604,7 @@ function setReviewButtonsEnabled(enabled) {
 function setPreview(id, dataUrl) {
     const host = document.getElementById(id);
     if (!host) return;
-    host.innerHTML = dataUrl ? `<img src="${dataUrl}" alt="">` : 'No image';
+    host.innerHTML = dataUrl ? `<img src="${dataUrl}" alt="">` : localizeText('No image');
 }
 
 function setAvatar(id, dataUrl) {
@@ -646,7 +646,7 @@ async function enrollStudent() {
         return;
     }
     if (files.length > context.remaining) {
-        const message = `You selected ${files.length} file(s), but only ${context.remaining} enrollment slot(s) remain.`;
+        const message = localizeText(`You selected ${files.length} file(s), but only ${context.remaining} enrollment slot(s) remain.`);
         document.getElementById('enroll-warning').textContent = message;
         toast(message, 'error');
         return;
@@ -660,8 +660,8 @@ async function enrollStudent() {
         renderEnrollmentGuidance();
         setStudentStep('verification');
     } catch (err) {
-        document.getElementById('enroll-warning').textContent = err.message;
-        toast(err.message, 'error');
+        document.getElementById('enroll-warning').textContent = apiErrorMessage(err);
+        toast(err, 'error');
     }
 }
 
@@ -669,12 +669,12 @@ function renderEnrollmentGuidance() {
     const context = enrollmentContext();
     const studentText = context.student
         ? `${context.student.name} - ${displayStudentId(context.student.student_id)}`
-        : 'Select a student';
+        : localizeText('Select a student');
 
     renderPolicySummaries();
     document.getElementById('enrollment-student-label').textContent = studentText;
     document.getElementById('enrollment-model-label').textContent =
-        `${modelLabel(context.exam?.model_type || '-')} enrollment for this exam`;
+        `${modelLabel(context.exam?.model_type || '-')} ${localizeText('enrollment for this exam')}`;
     document.getElementById('enrollment-count-label').textContent =
         `${Math.min(context.sampleCount, ENROLLMENT_TARGET)}/${ENROLLMENT_TARGET}`;
     document.getElementById('enrollment-remaining-label').textContent = context.remaining;
@@ -702,20 +702,20 @@ function renderEnrollmentFileState() {
     const previewGrid = document.getElementById('enroll-preview-grid');
 
     summary.textContent = files.length
-        ? `${files.length} file(s) selected. ${context.remaining} enrollment slot(s) left.`
-        : 'No files selected.';
+        ? localizeText(`${files.length} file(s) selected. ${context.remaining} enrollment slot(s) left.`)
+        : localizeText('No files selected.');
 
     if (context.modelMismatch) {
         warning.textContent = modelMismatchMessage(context);
     } else if (files.length > context.remaining) {
-        warning.textContent = `You selected ${files.length} file(s), but only ${context.remaining} enrollment slot(s) remain.`;
+        warning.textContent = localizeText(`You selected ${files.length} file(s), but only ${context.remaining} enrollment slot(s) remain.`);
     } else {
         warning.textContent = '';
     }
 
     button.textContent = files.length
-        ? `Add ${files.length} Sample${files.length === 1 ? '' : 's'}`
-        : 'Add Face Samples';
+        ? localizeText(`Add ${files.length} Sample${files.length === 1 ? '' : 's'}`)
+        : localizeText('Add Face Samples');
     button.disabled = !files.length || files.length > context.remaining || context.modelMismatch;
 
     previewGrid.innerHTML = '';
@@ -754,27 +754,27 @@ function enrollmentContext() {
 }
 
 function enrollmentGuidanceMessage(context) {
-    if (!context.student) return 'Select a student to view enrollment guidance.';
+    if (!context.student) return localizeText('Select a student to view enrollment guidance.');
     if (context.modelMismatch) return modelMismatchMessage(context);
-    if (context.sampleCount <= 0) return 'Add 3 clear face samples before verification.';
+    if (context.sampleCount <= 0) return localizeText('Add 3 clear face samples before verification.');
     if (context.sampleCount < ENROLLMENT_TARGET) {
         const remainingRecommended = ENROLLMENT_TARGET - context.sampleCount;
-        return `Enrollment works, but add ${remainingRecommended} more sample${remainingRecommended === 1 ? '' : 's'} for a stronger prototype.`;
+        return localizeText(`Enrollment works, but add ${remainingRecommended} more sample${remainingRecommended === 1 ? '' : 's'} for a stronger prototype.`);
     }
-    return 'Enrollment ready. Continue to exam-day selfie.';
+    return localizeText('Enrollment ready. Continue to exam-day selfie.');
 }
 
 function enrollmentNextAction(context) {
-    if (context.modelMismatch) return 'This model needs a separate enrollment before verification.';
-    if (context.sampleCount <= 0) return 'Add 3 clear samples before submitting the exam-day selfie.';
+    if (context.modelMismatch) return localizeText('This model needs a separate enrollment before verification.');
+    if (context.sampleCount <= 0) return localizeText('Add 3 clear samples before submitting the exam-day selfie.');
     if (context.sampleCount < ENROLLMENT_TARGET) {
-        return `Add ${ENROLLMENT_TARGET - context.sampleCount} more sample(s), or continue with lower reliability for demo purposes.`;
+        return localizeText(`Add ${ENROLLMENT_TARGET - context.sampleCount} more sample(s), or continue with lower reliability for demo purposes.`);
     }
-    return 'Enrollment is ready. Submit the exam-day selfie to request exam access.';
+    return localizeText('Enrollment is ready. Submit the exam-day selfie to request exam access.');
 }
 
 function modelMismatchMessage(context) {
-    return `This exam uses ${modelLabel(context.exam?.model_type)}; re-enroll for this model.`;
+    return localizeText(`This exam uses ${modelLabel(context.exam?.model_type)}; re-enroll for this model.`);
 }
 
 async function verifyStudent() {
@@ -802,10 +802,10 @@ async function verifyStudent() {
         await refreshAll();
     } catch (err) {
         if (err.message.includes('enrolled with') || err.message.includes('requires')) {
-            document.getElementById('enroll-warning').textContent = err.message;
+            document.getElementById('enroll-warning').textContent = apiErrorMessage(err);
             renderEnrollmentGuidance();
         }
-        toast(err.message, 'error');
+        toast(err, 'error');
     } finally {
         setVerificationInFlight(false);
     }
@@ -864,7 +864,7 @@ function renderStagedPreloadedSelfie() {
         ? state.snapshot?.students?.find(item => item.student_id === staged.studentId)
         : null;
     const text = staged
-        ? `Preloaded synthetic selfie staged for ${student?.name || displayStudentId(staged.studentId)}. Press Verify for Exam Access to submit.`
+        ? localizeText(`Preloaded synthetic selfie staged for ${student?.name || displayStudentId(staged.studentId)}. Press Verify for Exam Access to submit.`)
         : '';
 
     const studentNote = document.getElementById('preloaded-stage-note');
@@ -888,10 +888,14 @@ function confirmVerification(examId, studentId, source, filename = '') {
     const student = state.snapshot?.students?.find(item => item.student_id === studentId);
     const exam = state.snapshot?.exams?.find(item => item.exam_id === examId);
     const sourceText = source === 'preloaded_demo'
-        ? 'preloaded synthetic FLUXSynID demo selfie'
-        : `uploaded selfie${filename ? ` (${filename})` : ''}`;
+        ? t('source.preloaded')
+        : (filename ? t('source.uploadedNamed', { filename }) : t('source.uploaded'));
     const confirmed = window.confirm(
-        `Submit verification?\n\nStudent: ${student?.name || studentId}\nExam: ${displayExamName(exam?.name) || examId}\nImage source: ${sourceText}\n\nThis will create a verification attempt.`
+        t('confirm.submitVerification', {
+            student: student?.name || studentId,
+            exam: displayExamName(exam?.name) || examId,
+            source: sourceText,
+        })
     );
     if (!confirmed) {
         toast('Verification cancelled. No attempt was recorded.', 'info');
@@ -920,12 +924,12 @@ function renderStudentResult(result) {
     panel.classList.add(resultClass(attempt.decision));
     document.getElementById('result-title').textContent = studentFacingTitle(attempt);
     document.getElementById('result-message').textContent = attempt.decision === 'verified'
-        ? 'Model verified. Access can proceed if the exam policy allows it.'
-        : 'Use proctor review or manual ID fallback before granting access.';
+        ? localizeText('Model verified. Access can proceed if the exam policy allows it.')
+        : localizeText('Use proctor review or manual ID fallback before granting access.');
     document.getElementById('result-score').textContent = attempt.score.toFixed(3);
     document.getElementById('result-threshold').textContent = attempt.threshold.toFixed(3);
     document.getElementById('result-attempt-id').textContent = attempt.attempt_id;
-    document.getElementById('result-time').textContent = attempt.timestamp;
+    document.getElementById('result-time').textContent = formatDateTime(attempt.timestamp);
     updateScoreBar('result', attempt.score, attempt.threshold, attempt.decision);
     setStudentStep('result');
     updateStudentProgress();
@@ -943,7 +947,7 @@ async function saveCourse() {
         toast('Course saved.', 'success');
         await refreshAll();
     } catch (err) {
-        toast(err.message, 'error');
+        toast(err, 'error');
     }
 }
 
@@ -969,7 +973,7 @@ async function saveExam() {
         );
         await refreshAll();
     } catch (err) {
-        toast(err.message, 'error');
+        toast(err, 'error');
     }
 }
 
@@ -983,11 +987,11 @@ async function importRoster() {
     try {
         const result = await api.importRoster(courseId, file);
         document.getElementById('import-result').textContent =
-            `Imported ${result.imported.length}; rejected ${result.rejected.length}.`;
+            localizeText(`Imported ${result.imported.length}; rejected ${result.rejected.length}.`);
         toast('Roster import complete.', 'success');
         await refreshAll();
     } catch (err) {
-        toast(err.message, 'error');
+        toast(err, 'error');
     }
 }
 
@@ -1004,14 +1008,14 @@ function renderFluxPanel(status = state.fluxStatus, testSet = state.fluxTestSet)
     }
 
     document.getElementById('flux-status').textContent = available
-        ? `${eligible} eligible identities found | ${preuploaded} students preuploaded`
-        : (status?.error || 'FLUXSynID dataset not found on this machine.');
+        ? localizeText(`${eligible} eligible identities found | ${preuploaded} students preuploaded`)
+        : apiErrorMessage(status?.error || 'FLUXSynID dataset not found on this machine.');
     document.getElementById('flux-status').classList.toggle('warning', !available);
     document.getElementById('flux-status').classList.toggle('ready', available && preuploaded > 0);
     document.getElementById('flux-normalized-path').textContent = status?.normalized_path || '-';
     document.getElementById('flux-test-output').textContent = testSet?.output_dir || '-';
     document.getElementById('flux-test-count').textContent =
-        `${exported} matching selfie${exported === 1 ? '' : 'ies'} exported`;
+        localizeText(`${exported} matching selfie${exported === 1 ? '' : 'ies'} exported`);
 
     const downloadLink = document.getElementById('flux-download-zip');
     downloadLink.href = api.fluxTestSetZipUrl();
@@ -1022,7 +1026,7 @@ async function preuploadFlux() {
     const button = document.getElementById('flux-preupload-btn');
     const priorText = button.textContent;
     button.disabled = true;
-    button.textContent = 'Preuploading...';
+    button.textContent = localizeText('Preuploading...');
     try {
         const result = await api.preuploadFlux({
             dataset_dir: valueOf('flux-dataset-dir'),
@@ -1034,12 +1038,12 @@ async function preuploadFlux() {
         state.fluxTestSet = result.export;
         renderFluxPanel(result.status, result.export);
         document.getElementById('flux-result').textContent =
-            `Preuploaded ${result.imported_count} student(s); exported ${result.export?.image_count || 0} test selfie file(s); skipped ${result.skipped.length}.`;
+            localizeText(`Preuploaded ${result.imported_count} student(s); exported ${result.export?.image_count || 0} test selfie file(s); skipped ${result.skipped.length}.`);
         toast('FLUXSynID preupload complete.', 'success');
         await refreshAll();
     } catch (err) {
-        document.getElementById('flux-result').textContent = err.message;
-        toast(err.message, 'error');
+        document.getElementById('flux-result').textContent = apiErrorMessage(err);
+        toast(err, 'error');
     } finally {
         button.disabled = false;
         button.textContent = priorText;
@@ -1050,18 +1054,18 @@ async function exportFluxTestSet() {
     const button = document.getElementById('flux-export-btn');
     const priorText = button.textContent;
     button.disabled = true;
-    button.textContent = 'Exporting...';
+    button.textContent = localizeText('Exporting...');
     try {
         const result = await api.exportFluxTestSet();
         state.fluxTestSet = result;
         renderFluxPanel(state.fluxStatus, result);
         document.getElementById('flux-result').textContent =
-            `Exported ${result.image_count} matching selfie file(s); skipped ${result.skipped.length}.`;
+            localizeText(`Exported ${result.image_count} matching selfie file(s); skipped ${result.skipped.length}.`);
         toast('FLUXSynID test selfies exported.', 'success');
         renderGateContextPanel();
     } catch (err) {
-        document.getElementById('flux-result').textContent = err.message;
-        toast(err.message, 'error');
+        document.getElementById('flux-result').textContent = apiErrorMessage(err);
+        toast(err, 'error');
     } finally {
         button.disabled = false;
         button.textContent = priorText;
@@ -1069,7 +1073,7 @@ async function exportFluxTestSet() {
 }
 
 async function resetDemo() {
-    if (!window.confirm('Reset FaceVerify Campus demo data?')) return;
+    if (!window.confirm(t('confirm.resetDemo'))) return;
     try {
         const result = await api.resetDemo();
         clearStagedPreloadedSelfie();
@@ -1085,7 +1089,7 @@ async function resetDemo() {
         }
         await refreshAll();
     } catch (err) {
-        toast(err.message, 'error');
+        toast(err, 'error');
     }
 }
 
@@ -1093,8 +1097,8 @@ function resetStudentResultPanel() {
     state.studentResultAttemptId = null;
     const panel = document.getElementById('student-result');
     panel.classList.remove('verified', 'review', 'rejected', 'active');
-    document.getElementById('result-title').textContent = 'No attempt yet';
-    document.getElementById('result-message').textContent = 'Select a student, consent, and submit a selfie.';
+    document.getElementById('result-title').textContent = localizeText('No attempt yet');
+    document.getElementById('result-message').textContent = localizeText('Select a student, consent, and submit a selfie.');
     document.getElementById('result-score').textContent = '-';
     document.getElementById('result-threshold').textContent = '-';
     document.getElementById('result-attempt-id').textContent = '-';
@@ -1121,7 +1125,7 @@ async function reviewAttempt(action) {
         await refreshAll();
         await selectAttempt(attemptId, { scroll: false });
     } catch (err) {
-        toast(err.message, 'error');
+        toast(err, 'error');
     }
 }
 
@@ -1130,10 +1134,10 @@ function renderAudit(rows) {
     const latest = [...rows].reverse().slice(0, 12);
     body.innerHTML = latest.map(row => `
         <tr>
-            <td>${escapeHtml(row.timestamp)}</td>
-            <td>${escapeHtml(row.event_type)}</td>
+            <td>${escapeHtml(formatDateTime(row.timestamp))}</td>
+            <td>${escapeHtml(eventLabel(row.event_type))}</td>
             <td>${escapeHtml(row.actor)}</td>
-            <td>${escapeHtml(row.message)}</td>
+            <td>${escapeHtml(localizeText(row.message))}</td>
         </tr>
     `).join('');
 }
@@ -1255,7 +1259,7 @@ function renderSimulationStudentPane() {
     setTextIfPresent(
         'simulation-student-guidance',
         staged
-            ? 'Preloaded demo selfie is staged. Press Verify for Exam Access to submit after confirmation.'
+            ? localizeText('Preloaded demo selfie is staged. Press Verify for Exam Access to submit after confirmation.')
             : simulationStudentGuidance(context, attempt)
     );
     setPreview(
@@ -1304,7 +1308,7 @@ function renderSimulationInstructorPane() {
     setSimulationBadge('simulation-admin-status', row?.exam_status || '-');
     setTextIfPresent('simulation-admin-decision', humanizeDecision(attempt?.decision));
     setTextIfPresent('simulation-admin-warnings', attempt?.warnings?.length ? attempt.warnings.join('; ') : 'None');
-    setTextIfPresent('simulation-admin-time', attempt?.timestamp || '-');
+    setTextIfPresent('simulation-admin-time', formatDateTime(attempt?.timestamp));
     setPreview('simulation-reference-preview', row?.reference_preview || student?.reference_preview);
     setPreview('simulation-query-preview', attempt?.query_preview);
     renderAuditRail('simulation-audit-rail', attempt, row);
@@ -1320,26 +1324,26 @@ function renderSimulationFeed() {
     const exam = selectedExam();
     const rows = [...(state.roster?.roster || [])]
         .sort((a, b) => statusPriority(a.exam_status) - statusPriority(b.exam_status)
-            || String(a.name || '').localeCompare(String(b.name || '')))
+            || String(a.name || '').localeCompare(String(b.name || ''), 'tr-TR'))
         .slice(0, 5);
 
     if (!rows.length) {
-        body.innerHTML = '<tr><td colspan="5" class="empty-cell">No students in this exam roster.</td></tr>';
+        body.innerHTML = `<tr><td colspan="5" class="empty-cell">${escapeHtml(localizeText('No students in this exam roster.'))}</td></tr>`;
         return;
     }
 
     body.innerHTML = rows.map(row => {
         const attempt = row.latest_attempt;
         const score = attempt ? `${(attempt.score * 100).toFixed(1)}%` : '-';
-        const actionLabel = REVIEW_STATUSES.has(row.exam_status) || BLOCKED_STATUSES.has(row.exam_status) ? 'Review' : 'View';
+        const actionLabel = REVIEW_STATUSES.has(row.exam_status) || BLOCKED_STATUSES.has(row.exam_status) ? localizeText('Review') : localizeText('View');
         const action = attempt
             ? `<button class="row-button ${REVIEW_STATUSES.has(row.exam_status) || BLOCKED_STATUSES.has(row.exam_status) ? 'review-action' : ''}" data-simulation-attempt="${escapeHtml(attempt.attempt_id)}" data-simulation-student="${escapeHtml(row.student_id)}">${actionLabel}</button>`
-            : '<span class="muted action-waiting">Waiting</span>';
+            : `<span class="muted action-waiting">${escapeHtml(localizeText('Waiting'))}</span>`;
         return `
             <tr class="${statusClass(row.exam_status)}">
                 <td>${studentNameCell(row)}</td>
                 <td>${escapeHtml(displayExamName(exam?.name))}</td>
-                <td><span class="badge ${statusClass(row.exam_status)}">${escapeHtml(row.exam_status)}</span></td>
+                <td><span class="badge ${statusClass(row.exam_status)}">${escapeHtml(statusLabel(row.exam_status))}</span></td>
                 <td>${score}</td>
                 <td>${action}</td>
             </tr>
@@ -1362,14 +1366,14 @@ function renderSimulationTimeline() {
     const list = document.getElementById('simulation-timeline-list');
     const rows = [...(state.auditRows || [])].reverse().slice(0, 8);
     if (!rows.length) {
-        list.innerHTML = '<li class="empty-timeline">No campus events yet.</li>';
+        list.innerHTML = `<li class="empty-timeline">${escapeHtml(localizeText('No campus events yet.'))}</li>`;
         return;
     }
     list.innerHTML = rows.map(row => `
         <li>
-            <span>${escapeHtml(row.timestamp || '-')}</span>
-            <strong>${escapeHtml(row.event_type || 'event')}</strong>
-            <p>${escapeHtml(row.message || '-')}</p>
+            <span>${escapeHtml(formatDateTime(row.timestamp))}</span>
+            <strong>${escapeHtml(eventLabel(row.event_type || 'event'))}</strong>
+            <p>${escapeHtml(localizeText(row.message || '-'))}</p>
         </li>
     `).join('');
 }
@@ -1378,7 +1382,7 @@ function renderAuditRail(containerId, attempt, row = null) {
     const host = document.getElementById(containerId);
     if (!host) return;
     if (!attempt) {
-        host.innerHTML = '<div class="audit-empty-state">No verification attempt selected yet.</div>';
+        host.innerHTML = `<div class="audit-empty-state">${escapeHtml(localizeText('No verification attempt selected yet.'))}</div>`;
         return;
     }
 
@@ -1403,29 +1407,29 @@ function auditRailStages(attempt, row) {
         : '-';
     const warnings = attempt.warnings || [];
     const finalStatus = attempt.final_status || row?.exam_status || attempt.status || 'Pending Verification';
-    const livenessDetail = warnings.length ? 'Warnings present' : 'Passed';
+    const livenessDetail = warnings.length ? localizeText('Warnings present') : localizeText('Passed');
     return [
-        { icon: 'P', title: 'Attempt Started', detail: displayStudentId(attempt.student_id), time, kind: 'started' },
-        { icon: 'C', title: 'Photo Captured', detail: attemptSourceLabel(attempt.attempt_source), time, kind: 'captured' },
-        { icon: 'L', title: 'Liveness Check', detail: livenessDetail, time, kind: warnings.length ? 'review' : 'passed' },
-        { icon: 'F', title: 'Face Analyzed', detail: modelLabel(attempt.model_type), time, kind: 'analyzed' },
-        { icon: '%', title: `Match Score: ${score}`, detail: scoreDetail(attempt), time, kind: resultClass(attempt.decision) },
-        { icon: finalStatusIcon(finalStatus), title: finalStatus, detail: finalStatusDetail(finalStatus), time, kind: resultClass(attempt.decision) },
+        { icon: 'P', title: localizeText('Attempt Started'), detail: displayStudentId(attempt.student_id), time, kind: 'started' },
+        { icon: 'C', title: localizeText('Photo Captured'), detail: attemptSourceLabel(attempt.attempt_source), time, kind: 'captured' },
+        { icon: 'L', title: localizeText('Liveness Check'), detail: livenessDetail, time, kind: warnings.length ? 'review' : 'passed' },
+        { icon: 'F', title: localizeText('Face Analyzed'), detail: modelLabel(attempt.model_type), time, kind: 'analyzed' },
+        { icon: '%', title: localizeText(`Match Score: ${score}`), detail: scoreDetail(attempt), time, kind: resultClass(attempt.decision) },
+        { icon: finalStatusIcon(finalStatus), title: statusLabel(finalStatus), detail: finalStatusDetail(finalStatus), time, kind: resultClass(attempt.decision) },
     ];
 }
 
 function attemptSourceLabel(source) {
-    if (source === 'preloaded_demo') return 'Preloaded demo selfie';
-    if (source === 'upload') return 'Uploaded selfie';
-    return 'Uploaded selfie';
+    if (source === 'preloaded_demo') return localizeText('Preloaded demo selfie');
+    if (source === 'upload') return localizeText('Uploaded selfie');
+    return localizeText('Uploaded selfie');
 }
 
 function scoreDetail(attempt) {
     const score = Number(attempt.score);
     const threshold = Number(attempt.threshold);
-    if (!Number.isFinite(score) || !Number.isFinite(threshold)) return 'Awaiting threshold';
-    if (score >= threshold) return 'At or above threshold';
-    return 'Below threshold';
+    if (!Number.isFinite(score) || !Number.isFinite(threshold)) return localizeText('Awaiting threshold');
+    if (score >= threshold) return localizeText('At or above threshold');
+    return localizeText('Below threshold');
 }
 
 function finalStatusIcon(status) {
@@ -1436,21 +1440,17 @@ function finalStatusIcon(status) {
 }
 
 function finalStatusDetail(status) {
-    if (ACCESS_GRANTED_STATUSES.has(status)) return 'Access can proceed';
-    if (REVIEW_STATUSES.has(status)) return 'Auto-flagged';
-    if (BLOCKED_STATUSES.has(status)) return 'Access denied';
-    return 'Awaiting action';
+    if (ACCESS_GRANTED_STATUSES.has(status)) return localizeText('Access can proceed');
+    if (REVIEW_STATUSES.has(status)) return localizeText('Auto-flagged');
+    if (BLOCKED_STATUSES.has(status)) return localizeText('Access denied');
+    return localizeText('Awaiting action');
 }
 
 function formatAuditTime(timestamp) {
     if (!timestamp) return '-';
     const parsed = new Date(timestamp);
     if (Number.isNaN(parsed.getTime())) return String(timestamp).split('T').pop() || timestamp;
-    return parsed.toLocaleTimeString([], {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit'
-    });
+    return formatTime(parsed, { second: '2-digit' });
 }
 
 function renderSimulationPaneSwitch() {
@@ -1469,29 +1469,29 @@ function simulationAttempt() {
 }
 
 function simulationStudentGuidance(context, attempt) {
-    if (!context.student) return 'Select a student to start the split-screen simulation.';
+    if (!context.student) return localizeText('Select a student to start the split-screen simulation.');
     if (context.modelMismatch) return modelMismatchMessage(context);
-    if (context.sampleCount <= 0) return 'Enrollment is missing. The student cannot verify until face samples are enrolled.';
+    if (context.sampleCount <= 0) return localizeText('Enrollment is missing. The student cannot verify until face samples are enrolled.');
     if (context.sampleCount < ENROLLMENT_TARGET) return enrollmentGuidanceMessage(context);
-    if (!document.getElementById('simulation-consent-check').checked) return 'Consent is required before the exam-day selfie can be submitted.';
-    if (!attempt) return 'Enrollment is ready. Submit an exam-day selfie to see the instructor dashboard update.';
+    if (!document.getElementById('simulation-consent-check').checked) return localizeText('Consent is required before the exam-day selfie can be submitted.');
+    if (!attempt) return localizeText('Enrollment is ready. Submit an exam-day selfie to see the instructor dashboard update.');
     return statusConsequence(attempt.final_status || attempt.status);
 }
 
 function studentFacingTitle(attempt) {
-    if (attempt.final_status === 'Approved by Proctor') return 'Approved by Proctor';
-    if (attempt.final_status === 'Verified' || attempt.decision === 'verified') return 'Model verified';
-    if (REVIEW_STATUSES.has(attempt.final_status)) return 'Manual review required';
-    if (BLOCKED_STATUSES.has(attempt.final_status)) return 'Access blocked';
+    if (attempt.final_status === 'Approved by Proctor') return statusLabel('Approved by Proctor');
+    if (attempt.final_status === 'Verified' || attempt.decision === 'verified') return localizeText('Model verified');
+    if (REVIEW_STATUSES.has(attempt.final_status)) return localizeText('Manual review required');
+    if (BLOCKED_STATUSES.has(attempt.final_status)) return localizeText('Access blocked');
     return humanizeDecision(attempt.decision);
 }
 
 function studentFacingMessage(attempt) {
-    if (attempt.final_status === 'Approved by Proctor') return 'A proctor approved this access decision.';
-    if (attempt.final_status === 'Verified' || attempt.decision === 'verified') return 'Model verified. Access can proceed if the exam policy allows it.';
-    if (attempt.final_status === 'Fallback Requested') return 'A proctor has requested a fallback ID check before exam access.';
-    if (attempt.decision === 'manual_review') return 'A proctor must review this attempt before access is granted.';
-    return 'This attempt did not meet the exam access policy.';
+    if (attempt.final_status === 'Approved by Proctor') return localizeText('A proctor approved this access decision.');
+    if (attempt.final_status === 'Verified' || attempt.decision === 'verified') return localizeText('Model verified. Access can proceed if the exam policy allows it.');
+    if (attempt.final_status === 'Fallback Requested') return localizeText('A proctor has requested a fallback ID check before exam access.');
+    if (attempt.decision === 'manual_review') return localizeText('A proctor must review this attempt before access is granted.');
+    return localizeText('This attempt did not meet the exam access policy.');
 }
 
 function setSimulationMiniStep(id, done, active) {
@@ -1503,7 +1503,7 @@ function setSimulationMiniStep(id, done, active) {
 function setSimulationBadge(id, text, extraClass = '') {
     const badge = document.getElementById(id);
     badge.className = `badge ${statusClass(text)} ${extraClass}`.trim();
-    badge.textContent = text || '-';
+    badge.textContent = statusLabel(text || '-');
 }
 
 async function verifySimulationStudent() {
@@ -1537,8 +1537,8 @@ async function verifySimulationStudent() {
         await refreshAll();
         await selectAttempt(result.attempt.attempt_id, { scroll: false });
     } catch (err) {
-        setTextIfPresent('simulation-student-guidance', err.message);
-        toast(err.message, 'error');
+        setTextIfPresent('simulation-student-guidance', apiErrorMessage(err));
+        toast(err, 'error');
         renderSimulation();
     } finally {
         setVerificationInFlight(false);
@@ -1563,7 +1563,7 @@ async function reviewSimulationAttempt(action) {
         await refreshAll();
         await selectAttempt(attempt.attempt_id, { scroll: false });
     } catch (err) {
-        toast(err.message, 'error');
+        toast(err, 'error');
     }
 }
 
@@ -1577,13 +1577,13 @@ async function compareInLab() {
     }
     try {
         const result = await api.modelLabCompare(modelType, imageA, imageB);
-        document.getElementById('lab-title').textContent = result.match ? 'Likely Match' : 'Likely Different';
+        document.getElementById('lab-title').textContent = result.match ? localizeText('Likely Match') : localizeText('Likely Different');
         document.getElementById('lab-score').textContent = result.score.toFixed(3);
         document.getElementById('lab-threshold').textContent = result.threshold.toFixed(3);
-        document.getElementById('lab-decision').textContent = result.match ? 'Pass' : 'Review';
+        document.getElementById('lab-decision').textContent = result.match ? decisionLabel('Pass') : decisionLabel('Review');
         updateScoreBar('lab', result.score, result.threshold, result.match ? 'verified' : 'rejected');
     } catch (err) {
-        toast(err.message, 'error');
+        toast(err, 'error');
     }
 }
 
@@ -1676,10 +1676,10 @@ function renderGateHeader(prefix, title, status, stepNumber) {
     const pillId = prefix === 'simulation' ? 'simulation-gate-status-pill' : 'gate-status-pill';
     const stepId = prefix === 'simulation' ? 'simulation-gate-step-pill' : 'gate-step-pill';
     setTextIfPresent(titleId, title || 'Exam access gate');
-    setTextIfPresent(stepId, `Step ${Math.max(1, Math.min(4, stepNumber || 1))} of 4`);
+    setTextIfPresent(stepId, t('gate.step', { step: Math.max(1, Math.min(4, stepNumber || 1)) }));
     const pill = document.getElementById(pillId);
     if (!pill) return;
-    pill.textContent = status?.label || 'Waiting';
+    pill.textContent = statusLabel(status?.label || 'Waiting');
     pill.className = `gate-status-pill ${status?.className || 'pending'}`;
 }
 
@@ -1698,12 +1698,12 @@ function updateContextBar() {
     const courseName = displayCourseName(course?.name || state.roster?.course?.name);
     const examName = displayExamName(exam?.name);
     const scenarioName = `${courseCode(courseName)} ${examShortName(examName)}`.trim();
-    const contextSummary = [
-        DISPLAY_UNIVERSITY,
-        scenarioName || 'SE 204 Midterm',
-        modelLabel(exam?.model_type || '-'),
-        `Threshold ${thresholdText}`
-    ].join(' · ');
+    const contextSummary = t('context.summary', {
+        university: DISPLAY_UNIVERSITY,
+        scenario: scenarioName || 'SE 204 Ara Sınav',
+        model: modelLabel(exam?.model_type || '-'),
+        threshold: thresholdText,
+    });
     setTextIfPresent('context-summary', contextSummary);
     setTextIfPresent('context-university', DISPLAY_UNIVERSITY);
     setTextIfPresent('context-course', courseName || DISPLAY_COURSE);
@@ -1727,8 +1727,8 @@ function renderPolicySummaries() {
     const model = modelLabel(exam?.model_type || '-');
     const threshold = Number(exam?.threshold);
     const thresholdText = Number.isFinite(threshold) ? threshold.toFixed(3) : '-';
-    const title = `This exam requires ${model} verification before access.`;
-    const detail = `Threshold ${thresholdText}. Higher score means stronger match. Students can request fallback ID review if not verified.`;
+    const title = t('policy.title', { model });
+    const detail = t('policy.detail', { threshold: thresholdText });
     setTextIfPresent('student-policy-title', title);
     setTextIfPresent('student-policy-detail', detail);
     setTextIfPresent('student-policy-model', model);
@@ -1736,7 +1736,7 @@ function renderPolicySummaries() {
     setTextIfPresent('gate-policy-detail', detail);
     setTextIfPresent('gate-policy-model', model);
     setTextIfPresent('admin-policy-title', title);
-    setTextIfPresent('admin-policy-detail', `${detail} Model-specific enrollment is required.`);
+    setTextIfPresent('admin-policy-detail', `${detail} ${t('policy.adminDetail')}`);
     setTextIfPresent('admin-policy-model', model);
 }
 
@@ -1747,23 +1747,23 @@ function renderGateContextPanel() {
     const attempt = row?.latest_attempt;
     const studentText = context.student
         ? `${context.student.name} - ${displayStudentId(context.student.student_id)}`
-        : 'Select a student';
+        : localizeText('Select a student');
 
     let enrollmentText = '-';
     if (!context.student) {
-        enrollmentText = 'Select a student';
+        enrollmentText = localizeText('Select a student');
     } else if (context.modelMismatch) {
         enrollmentText = modelMismatchMessage(context);
     } else if (context.sampleCount <= 0) {
-        enrollmentText = 'Enrollment needed before verification';
+        enrollmentText = localizeText('Enrollment needed before verification');
     } else if (context.sampleCount < ENROLLMENT_TARGET) {
-        enrollmentText = `${context.sampleCount}/${ENROLLMENT_TARGET} samples; usable, but not ideal`;
+        enrollmentText = localizeText(`${context.sampleCount}/${ENROLLMENT_TARGET} samples; usable, but not ideal`);
     } else {
-        enrollmentText = `Ready with ${context.sampleCount} sample(s)`;
+        enrollmentText = localizeText(`Ready with ${context.sampleCount} sample(s)`);
     }
 
     const lastAttemptText = attempt
-        ? `${attempt.final_status || row?.exam_status || 'Attempt recorded'} | score ${numberOrDash(attempt.score)} | ${attempt.timestamp || '-'}`
+        ? `${statusLabel(attempt.final_status || row?.exam_status || 'Attempt recorded')} | skor ${numberOrDash(attempt.score)} | ${formatDateTime(attempt.timestamp)}`
         : statusConsequence(row?.exam_status || 'Not Started');
 
     setTextIfPresent('gate-selected-student', studentText);
@@ -1811,17 +1811,24 @@ function demoExamId() {
 
 function displayCourseName(name) {
     if (!name) return DISPLAY_COURSE;
-    return String(name).replace('CS 204', 'SE 204');
+    return String(name)
+        .replace('CS 204', 'SE 204')
+        .replace('Data Structures', 'Veri Yapıları');
 }
 
 function displayExamName(name) {
     if (!name || name === 'Midterm 1') return DISPLAY_EXAM;
-    return String(name);
+    return String(name).replace('Midterm Exam', DISPLAY_EXAM).replace('Midterm 1', DISPLAY_EXAM);
 }
 
 function displayInstructor(name) {
     if (!name || name === 'Dr. Elena Morris') return 'Dr. Selin Demir';
     return String(name);
+}
+
+function displayTerm(term) {
+    if (!term) return 'Demo Dönemi';
+    return String(term).replace('Spring', 'Bahar').replace('Demo Term', 'Demo Dönemi');
 }
 
 function displayStudentId(studentId) {
@@ -1884,7 +1891,12 @@ function toDatetimeLocal(value) {
 
 function formatExamWindow(exam) {
     if (!exam?.start_time || !exam?.end_time) return '-';
-    return `${exam.start_time.slice(0, 16).replace('T', ' ')} - ${exam.end_time.slice(11, 16)}`;
+    const start = new Date(exam.start_time);
+    const end = new Date(exam.end_time);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+        return `${exam.start_time.slice(0, 16).replace('T', ' ')} - ${exam.end_time.slice(11, 16)}`;
+    }
+    return `${formatDateTime(start)} - ${formatTime(end)}`;
 }
 
 function statusClass(status) {
@@ -1907,22 +1919,17 @@ function modelLabel(modelType) {
 }
 
 function humanizeDecision(decision) {
-    const labels = {
-        verified: 'Verified',
-        manual_review: 'Manual Review',
-        rejected: 'Rejected'
-    };
-    return labels[decision] || String(decision || '-');
+    return decisionLabel(decision);
 }
 
 function statusConsequence(status) {
-    if (ACCESS_GRANTED_STATUSES.has(status)) return 'Access granted';
-    if (REVIEW_STATUSES.has(status)) return 'Proctor action needed';
-    if (BLOCKED_STATUSES.has(status)) return 'Exam access blocked';
-    if (status === 'Enrollment Needed') return 'Enroll before verification';
-    if (status === 'Not Started') return 'Waiting for student';
-    if (status === 'Pending Verification') return 'Verification in progress';
-    return 'Waiting';
+    if (ACCESS_GRANTED_STATUSES.has(status)) return localizeText('Access granted');
+    if (REVIEW_STATUSES.has(status)) return localizeText('Proctor action needed');
+    if (BLOCKED_STATUSES.has(status)) return localizeText('Exam access blocked');
+    if (status === 'Enrollment Needed') return localizeText('Enroll before verification');
+    if (status === 'Not Started') return localizeText('Waiting for student');
+    if (status === 'Pending Verification') return localizeText('Verification in progress');
+    return localizeText('Waiting');
 }
 
 function numberOrDash(value) {
@@ -1931,7 +1938,7 @@ function numberOrDash(value) {
 
 function setTextIfPresent(id, text) {
     const element = document.getElementById(id);
-    if (element) element.textContent = text;
+    if (element) element.textContent = localizeText(text);
 }
 
 function escapeHtml(value) {
@@ -1947,7 +1954,7 @@ function toast(message, type = 'info') {
     const host = document.getElementById('toast-host');
     const item = document.createElement('div');
     item.className = `toast ${type}`;
-    item.textContent = message;
+    item.textContent = apiErrorMessage(message);
     host.appendChild(item);
     setTimeout(() => item.remove(), 4200);
 }
