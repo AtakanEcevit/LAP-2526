@@ -327,7 +327,7 @@
         'Report-only workflow available': 'Yalnızca raporlama akışı mevcut',
         'Model notes': 'Model notları',
         'Higher score means stronger match.': 'Yüksek skor daha güçlü eşleşme anlamına gelir.',
-        'Hybrid FaceNet uses RGB 160x160 input and a 512-d normalized embedding. The current runtime threshold is an initial setting until target-data calibration supports a production value.': 'Hybrid FaceNet, RGB 160x160 girdi ve 512 boyutlu normalize embedding kullanır. Geçerli çalışma zamanı eşiği, hedef veri kalibrasyonu üretim değerini destekleyene kadar başlangıç ayarıdır.',
+        'Hybrid FaceNet and FaceNet Proto use RGB 160x160 input and a 512-d normalized embedding. The current runtime threshold is an initial setting until target-data calibration supports a production value.': 'Hybrid FaceNet ve FaceNet Proto, RGB 160x160 girdi ve 512 boyutlu normalize embedding kullanır. Geçerli çalışma zamanı eşiği, hedef veri kalibrasyonu üretim değerini destekleyene kadar başlangıç ayarıdır.',
         'Reset demo': 'Demoyu sıfırla',
         'Clear courses, roster, enrollments, attempts, reviews, and audit history for a repeat presentation.': 'Tekrar sunum için dersleri, listeyi, kayıtları, denemeleri, incelemeleri ve denetim geçmişini temizler.',
         'Reset Demo': 'Demoyu Sıfırla',

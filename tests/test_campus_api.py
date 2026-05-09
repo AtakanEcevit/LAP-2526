@@ -94,6 +94,9 @@ def test_campus_status_shows_face_models(client):
     assert data["product"] == "FaceVerify Campus"
     assert "siamese" in data["face_models_available"]
     assert "hybrid" in data["face_models_available"]
+    assert "facenet_proto" in data["face_models_available"]
+    assert data["face_model_defaults"]["hybrid"]["threshold"] == pytest.approx(0.3000000119)
+    assert data["face_model_defaults"]["facenet_proto"]["threshold"] == pytest.approx(0.47)
     assert data["students"] >= 20
 
 
@@ -475,6 +478,76 @@ def test_hybrid_enrollment_and_verification_path(client):
     assert attempt["model_type"] == "hybrid"
     assert attempt["score"] >= attempt["threshold"]
     assert attempt["attempt_source"] == "upload"
+
+
+@pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
+def test_facenet_proto_enrollment_verification_flux_and_lab_paths(client, tmp_path):
+    exam_resp = client.post(
+        "/campus/exams",
+        data={
+            "exam_id": "CS204-FACENET-PROTO",
+            "course_id": "CS204-2026S",
+            "name": "FaceNet Proto Demo",
+            "start_time": "2026-05-12T10:00",
+            "end_time": "2026-05-12T11:30",
+            "threshold": "0.47",
+            "model_type": "facenet_proto",
+        },
+    )
+    assert exam_resp.status_code == 200
+    assert exam_resp.json()["model_type"] == "facenet_proto"
+
+    enroll_resp = client.post(
+        "/campus/students/NB-2026-1042/enroll",
+        data={"model_type": "facenet_proto"},
+        files=[("images", ("face1.png", image_bytes(20), "image/png"))],
+    )
+    assert enroll_resp.status_code == 200
+    assert enroll_resp.json()["sample_count"] == 1
+
+    verify_resp = client.post(
+        "/campus/exams/CS204-FACENET-PROTO/verify",
+        data={"student_id": "NB-2026-1042"},
+        files={"image": ("selfie.png", image_bytes(21), "image/png")},
+    )
+    assert verify_resp.status_code == 200
+    attempt = verify_resp.json()["attempt"]
+    assert attempt["model_type"] == "facenet_proto"
+    assert attempt["threshold"] == pytest.approx(0.47)
+    assert attempt["score"] >= attempt["threshold"]
+
+    flux_dir = tmp_path / "facenet_proto_flux"
+    _write_flux_identity(flux_dir, "flux_facenet", age="20-29")
+    preupload = client.post(
+        "/campus/flux/preupload",
+        data={
+            "dataset_dir": str(flux_dir),
+            "count": "1",
+            "seed": "3",
+            "model_type": "facenet_proto",
+        },
+    )
+    assert preupload.status_code == 200
+    assert preupload.json()["imported_count"] == 1
+    assert preupload.json()["imported"][0]["sample_count"] == 3
+
+    users = client.get("/users").json()
+    assert any(
+        user["model_type"] == "facenet_proto"
+        for user in users
+        if user["user_id"].startswith("campus_")
+    )
+
+    lab_resp = client.post(
+        "/campus/model-lab/compare",
+        data={"model_type": "facenet_proto"},
+        files=[
+            ("image1", ("face-a.png", image_bytes(30), "image/png")),
+            ("image2", ("face-b.png", image_bytes(31), "image/png")),
+        ],
+    )
+    assert lab_resp.status_code == 200
+    assert lab_resp.json()["match"] is True
 
 
 def _write_flux_identity(root, identity, age="20-29"):

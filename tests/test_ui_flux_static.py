@@ -43,6 +43,11 @@ def test_flux_controls_and_previews_are_wired_in_static_ui():
     assert "Load Preloaded Selfie" in index
     assert "Hazır Selfieyi Yükle" in i18n
     assert "FaceVerifyI18n" in i18n
+    assert '<option value="facenet_proto">FaceNet Proto</option>' in index
+    assert "facenet_proto: 'FaceNet Proto'" in app
+    assert "function applySelectedModelDefaultThreshold" in app
+    assert "facenet_proto: { threshold: 0.47 }" in app
+    assert "Hybrid FaceNet ve FaceNet Proto" in i18n
     assert "Use Preloaded Selfie" not in index
     assert "studentNameCell(row)" in app
     assert ".student-avatar" in css

@@ -1,7 +1,7 @@
 """
 Core verification engine.
 
-Loads a trained checkpoint (Siamese or Prototypical) and exposes
+Loads a trained checkpoint (Siamese, Prototypical, or FaceNet-style) and exposes
 embedding extraction, pair comparison, and enrollment-based verification.
 """
 
@@ -18,6 +18,24 @@ from inference.preprocessing import preprocess_image
 from utils import get_device
 
 
+FACENET_STYLE_MODEL_TYPES = {"hybrid", "facenet_proto"}
+
+
+def _float_value(value) -> float:
+    if hasattr(value, "item"):
+        value = value.item()
+    return float(value)
+
+
+def _checkpoint_threshold(checkpoint: dict, explicit, default: float) -> float:
+    if explicit is not None:
+        return _float_value(explicit)
+    for key in ("val_threshold", "threshold"):
+        if key in checkpoint and checkpoint[key] is not None:
+            return _float_value(checkpoint[key])
+    return _float_value(default)
+
+
 class VerificationEngine:
     """
     High-level interface for biometric verification inference.
@@ -26,7 +44,7 @@ class VerificationEngine:
         engine = VerificationEngine()
         engine.load("signature", "siamese")  # or "prototypical"
 
-        # Extract a 128-d embedding
+        # Extract an embedding
         emb = engine.extract_embedding("path/to/image.png")
 
         # Compare two images directly
@@ -39,7 +57,7 @@ class VerificationEngine:
 
     def __init__(self):
         self.model = None
-        self.model_type = None   # "siamese" or "prototypical"
+        self.model_type = None   # "siamese", "prototypical", or FaceNet-style
         self.modality = None     # "signature", "face", "fingerprint"
         self.threshold = 0.5
         self.device = None
@@ -52,7 +70,7 @@ class VerificationEngine:
 
         Args:
             modality:   "signature", "face", or "fingerprint"
-            model_type: "siamese" or "prototypical"
+            model_type: "siamese", "prototypical", "hybrid", or "facenet_proto"
             device:     torch device (auto-detected if None)
             threshold:  override the default decision threshold
         """
@@ -90,9 +108,11 @@ class VerificationEngine:
         emb_dim = config["model"].get("embedding_dim", 128)
         in_channels = config["model"].get("in_channels", 1)
 
-        if model_type == "hybrid":
+        if model_type in FACENET_STYLE_MODEL_TYPES:
             if modality != "face":
-                raise ValueError("Hybrid model is only supported for face modality.")
+                raise ValueError(
+                    f"{model_type} model is only supported for face modality."
+                )
             self.model = None
         elif model_type == "siamese":
             self.model = SiameseNetwork(
@@ -115,16 +135,13 @@ class VerificationEngine:
         checkpoint = torch.load(
             checkpoint_path, map_location="cpu", weights_only=False
         )
-        if model_type == "hybrid":
+        if model_type in FACENET_STYLE_MODEL_TYPES:
             self.model = HybridFaceModel.from_checkpoint(checkpoint)
-            self.threshold = threshold if threshold is not None else checkpoint.get(
-                "val_threshold",
+            self.threshold = _checkpoint_threshold(
+                checkpoint,
+                threshold,
                 entry["threshold"],
             )
-            if hasattr(self.threshold, "item"):
-                self.threshold = float(self.threshold.item())
-            else:
-                self.threshold = float(self.threshold)
         else:
             self.model.load_state_dict(checkpoint["model_state_dict"])
         self.model.to(self.device)
@@ -146,14 +163,14 @@ class VerificationEngine:
 
     def extract_embedding(self, image_input, validate: bool = True) -> np.ndarray:
         """
-        Extract a 128-dimensional embedding from an image.
+        Extract a model embedding from an image.
 
         Args:
             image_input: file path (str), raw bytes, PIL.Image, or numpy array.
             validate:    run input validation before processing.
 
         Returns:
-            numpy array of shape (128,), L2-normalized.
+            numpy array of shape (embedding_dim,), L2-normalized.
 
         Raises:
             ValueError: if validation hard-check fails.
@@ -203,7 +220,7 @@ class VerificationEngine:
         tensor2 = self._preprocess_for_model(image2_input).to(self.device)
 
         with torch.no_grad():
-            if self.model_type in {"siamese", "hybrid"}:
+            if self.model_type in {"siamese", *FACENET_STYLE_MODEL_TYPES}:
                 # Use cosine similarity of L2-normalized embeddings directly.
                 # This is loss-function agnostic (works with both BCE and
                 # contrastive training) and correctly scores identical
@@ -251,7 +268,7 @@ class VerificationEngine:
 
         Args:
             query_input:         image (path, bytes, PIL, or ndarray)
-            enrolled_embeddings: numpy array of shape (N, 128) —
+            enrolled_embeddings: numpy array of shape (N, embedding_dim) —
                                  the enrolled reference samples.
             validate:            run input validation before processing.
 
@@ -275,7 +292,7 @@ class VerificationEngine:
         with torch.no_grad():
             query_emb = self.model.get_embedding(query_tensor)
 
-            if self.model_type == "hybrid":
+            if self.model_type in FACENET_STYLE_MODEL_TYPES:
                 sim = torch.mm(query_emb, prototype_tensor.t()).squeeze().item()
                 score = (sim + 1.0) / 2.0
             elif self.model_type == "siamese":
@@ -321,6 +338,6 @@ class VerificationEngine:
         }
 
     def _preprocess_for_model(self, image_input) -> torch.Tensor:
-        if self.model_type == "hybrid":
+        if self.model_type in FACENET_STYLE_MODEL_TYPES:
             return preprocess_hybrid_face(image_input)
         return preprocess_image(image_input, self.modality)

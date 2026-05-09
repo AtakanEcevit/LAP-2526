@@ -1,7 +1,7 @@
 """
-Hybrid FaceNet-style adapter for FaceVerify Campus.
+FaceNet-style adapter for FaceVerify Campus.
 
-The checkpoint used by this adapter stores an InceptionResnetV1-like backbone
+The checkpoints used by this adapter store an InceptionResnetV1-like backbone
 under ``model_state`` with keys prefixed by ``backbone.``. Verification uses the
 512-dimensional backbone embedding; classifier/logits heads are ignored.
 """

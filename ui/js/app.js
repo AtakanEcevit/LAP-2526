@@ -1,4 +1,5 @@
 const state = {
+    health: null,
     snapshot: null,
     roster: null,
     enrollments: [],
@@ -115,6 +116,7 @@ function bindActions() {
     document.getElementById('wrong-face-demo-btn').addEventListener('click', () => showView('proctor'));
     document.getElementById('save-course-btn').addEventListener('click', saveCourse);
     document.getElementById('save-exam-btn').addEventListener('click', saveExam);
+    document.getElementById('exam-model').addEventListener('change', applySelectedModelDefaultThreshold);
     document.getElementById('import-roster-btn').addEventListener('click', importRoster);
     document.getElementById('reset-demo-btn').addEventListener('click', resetDemo);
     document.getElementById('flux-preupload-btn').addEventListener('click', preuploadFlux);
@@ -208,6 +210,7 @@ async function refreshAll() {
             api.fluxTestSet().catch(err => ({ available: false, error: err.message }))
         ]);
         state.snapshot = snapshot;
+        state.health = health;
         state.enrollments = enrollments;
         state.auditRows = audit;
         state.fluxStatus = fluxStatus;
@@ -327,6 +330,28 @@ function syncAdminFields() {
         document.getElementById('exam-threshold').value = exam.threshold;
         document.getElementById('exam-model').value = exam.model_type;
     }
+}
+
+function faceModelDefaults() {
+    return {
+        siamese: { threshold: 0.65 },
+        prototypical: { threshold: 0.65 },
+        hybrid: { threshold: 0.3000000119 },
+        facenet_proto: { threshold: 0.47 },
+        ...(state.health?.face_model_defaults || {})
+    };
+}
+
+function modelDefaultThreshold(modelType) {
+    const value = faceModelDefaults()[modelType]?.threshold;
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? numeric : null;
+}
+
+function applySelectedModelDefaultThreshold() {
+    const threshold = modelDefaultThreshold(valueOf('exam-model'));
+    if (threshold === null) return;
+    document.getElementById('exam-threshold').value = threshold.toFixed(2);
 }
 
 function renderMetrics() {
@@ -1913,7 +1938,8 @@ function modelLabel(modelType) {
     const labels = {
         siamese: 'Siamese',
         prototypical: 'Prototypical',
-        hybrid: 'Hybrid FaceNet'
+        hybrid: 'Hybrid FaceNet',
+        facenet_proto: 'FaceNet Proto'
     };
     return labels[modelType] || String(modelType || '-');
 }

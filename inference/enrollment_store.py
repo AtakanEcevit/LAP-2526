@@ -28,7 +28,7 @@ class EnrollmentStore:
                 "john_doe": {
                     "modality": "signature",
                     "model_type": "siamese",
-                    "embeddings": [[0.12, -0.34, ...], ...],
+            "embeddings": [[0.12, -0.34, ...], ...],
                     "enrolled_at": "2026-03-07T15:00:00",
                     "sample_count": 5
                 }
@@ -65,7 +65,7 @@ class EnrollmentStore:
             user_id:    Unique identifier (e.g. "john_doe")
             modality:   "signature", "face", or "fingerprint"
             model_type: "siamese" or "prototypical"
-            embedding:  numpy array of shape (128,)
+            embedding:  numpy array of shape (embedding_dim,)
 
         Returns:
             dict with user_id and total sample_count.
@@ -128,7 +128,7 @@ class EnrollmentStore:
         Compute the prototype (mean embedding) for an enrolled user.
 
         Returns:
-            numpy array of shape (128,).
+            numpy array of shape (embedding_dim,).
 
         Raises:
             KeyError: if user is not enrolled.
@@ -145,7 +145,7 @@ class EnrollmentStore:
         Get all raw enrolled embeddings for a user.
 
         Returns:
-            numpy array of shape (N, 128).
+            numpy array of shape (N, embedding_dim).
 
         Raises:
             KeyError: if user is not enrolled.

@@ -55,8 +55,8 @@ app = FastAPI(
     title="Biometric Few-Shot Verification API",
     description=(
         "REST API for biometric verification using Siamese and "
-        "Prototypical Networks. Supports signature, face, and "
-        "fingerprint modalities."
+        "Prototypical Networks plus FaceNet-style face adapters. "
+        "Supports signature, face, and fingerprint modalities."
     ),
     version="1.4.0",
 )
@@ -137,6 +137,17 @@ async def _read_image_bytes(file: UploadFile) -> bytes:
 def _campus_user_id(student_id: str) -> str:
     """Namespace campus enrollments inside the existing embedding store."""
     return f"campus_{student_id}"
+
+
+def _face_model_defaults() -> dict:
+    """Return default thresholds for registered face models."""
+    return {
+        model_type: {
+            "threshold": entry["threshold"],
+        }
+        for (modality, model_type), entry in MODEL_REGISTRY.items()
+        if modality == "face"
+    }
 
 
 def _make_image_preview(image_bytes: bytes) -> Optional[str]:
@@ -372,7 +383,7 @@ async def health():
 async def enroll(
     user_id: str = Form(..., description="Unique user identifier"),
     modality: str = Form(..., description="signature, face, or fingerprint"),
-    model: str = Form(..., description="siamese or prototypical"),
+    model: str = Form(..., description="Registered model type"),
     images: List[UploadFile] = File(..., description="Reference image(s)"),
 ):
     """
@@ -473,7 +484,7 @@ async def verify(
 @app.post("/compare")
 async def compare(
     modality: str = Form(..., description="signature, face, or fingerprint"),
-    model: str = Form(..., description="siamese or prototypical"),
+    model: str = Form(..., description="Registered model type"),
     image1: UploadFile = File(..., description="First image"),
     image2: UploadFile = File(..., description="Second image"),
 ):
@@ -534,6 +545,7 @@ async def campus_status():
             for (modality, model_type) in MODEL_REGISTRY.keys()
             if modality == "face"
         ],
+        "face_model_defaults": _face_model_defaults(),
         "courses": len(snapshot["courses"]),
         "exams": len(snapshot["exams"]),
         "students": len(snapshot["students"]),
