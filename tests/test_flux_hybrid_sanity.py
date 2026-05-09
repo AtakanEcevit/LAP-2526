@@ -74,17 +74,64 @@ def test_run_flux_sanity_generates_expected_trials_and_outputs(tmp_path):
     assert metrics["identities_tested"] == 4
     assert metrics["genuine"]["trials"] == 4
     assert metrics["impostor"]["trials"] == 8
-    assert all(
-        row["enrolled_identity"] != row["query_identity"]
-        for row in _read_csv(output_dir / "results.csv")
-        if row["trial_type"] == "impostor"
-    )
+    rows = _read_csv(output_dir / "results.csv")
+    selected_identities = {row["query_identity"] for row in rows if row["trial_type"] == "genuine"}
+    assert len(selected_identities) == 4
+    for identity in selected_identities:
+        genuine_rows = [
+            row for row in rows
+            if row["trial_type"] == "genuine" and row["query_identity"] == identity
+        ]
+        assert len(genuine_rows) == 1
+        assert genuine_rows[0]["enrolled_identity"] == identity
+        assert _path_parent_names(genuine_rows[0]["enrollment_images"]) == {identity}
+        assert _path_parent_name(genuine_rows[0]["query_image"]) == identity
+
+        impostor_rows = [
+            row for row in rows
+            if row["trial_type"] == "impostor" and row["query_identity"] == identity
+        ]
+        assert len(impostor_rows) == 2
+        impostor_enrollments = [row["enrolled_identity"] for row in impostor_rows]
+        assert identity not in impostor_enrollments
+        assert len(impostor_enrollments) == len(set(impostor_enrollments))
+        for row in impostor_rows:
+            assert _path_parent_names(row["enrollment_images"]) == {row["enrolled_identity"]}
+            assert _path_parent_name(row["query_image"]) == identity
     assert (output_dir / "summary.md").exists()
     assert (output_dir / "metrics.json").exists()
     assert (output_dir / "results.csv").exists()
     assert (output_dir / "failures.csv").exists()
     assert (output_dir / "threshold_sweep.csv").exists()
-    assert "hybrid model" in (output_dir / "summary.md").read_text(encoding="utf-8")
+    summary = (output_dir / "summary.md").read_text(encoding="utf-8")
+    assert "Hybrid FaceNet FLUXSynID Sanity Report" in summary
+    assert "FaceNet-style FaceVerify model" in summary
+
+
+def test_run_flux_sanity_records_selected_model_type(tmp_path):
+    dataset_dir = tmp_path / "flux"
+    output_dir = tmp_path / "out"
+    for idx in range(5):
+        _write_flux_identity(dataset_dir, f"person_{idx:03d}")
+
+    metrics = run_flux_sanity(
+        FluxSanityConfig(
+            dataset_dir=dataset_dir,
+            output_dir=output_dir,
+            model_type="facenet_proto",
+            identities=4,
+            seed=42,
+            threshold=0.47,
+            impostors_per_identity=2,
+        ),
+        _fake_embedding,
+    )
+
+    assert metrics["model_type"] == "facenet_proto"
+    assert metrics["model_label"] == "FaceNet Proto"
+    assert "FaceNet Proto FLUXSynID Sanity Report" in (
+        output_dir / "summary.md"
+    ).read_text(encoding="utf-8")
 
 
 def test_run_flux_sanity_rejects_impostor_count_equal_to_identity_count(tmp_path):
@@ -151,6 +198,16 @@ def _read_csv(path):
 
     with path.open(newline="", encoding="utf-8") as f:
         return list(csv.DictReader(f))
+
+
+def _path_parent_name(path):
+    from pathlib import Path
+
+    return Path(path).parent.name
+
+
+def _path_parent_names(paths):
+    return {_path_parent_name(path) for path in paths.split("|")}
 
 
 def _trial(trial_type, score):

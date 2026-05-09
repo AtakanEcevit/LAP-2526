@@ -1,5 +1,5 @@
 """
-Hybrid-only FLUXSynID sanity checks for FaceVerify.
+FaceNet-style FLUXSynID sanity checks for FaceVerify.
 
 This module runs a small, report-only first-layer check against FLUXSynID:
 doc + two live images become the enrollment prototype, and the remaining live
@@ -20,9 +20,14 @@ import numpy as np
 from evaluation.hybrid_calibration import normalize_embedding, runtime_similarity_score
 
 
+DEFAULT_MODEL_TYPE = "hybrid"
 DEFAULT_THRESHOLD = 0.3000000119
 DEFAULT_SWEEP_THRESHOLDS = (0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90)
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
+MODEL_LABELS = {
+    "hybrid": "Hybrid FaceNet",
+    "facenet_proto": "FaceNet Proto",
+}
 
 
 class FluxSanityError(ValueError):
@@ -48,6 +53,7 @@ class FluxIdentity:
 class FluxSanityConfig:
     dataset_dir: Path
     output_dir: Path = Path("results") / "hybrid_face" / "flux_sanity"
+    model_type: str = DEFAULT_MODEL_TYPE
     identities: Optional[int] = 20
     seed: int = 42
     threshold: float = DEFAULT_THRESHOLD
@@ -110,7 +116,7 @@ def run_flux_sanity(
     extract_embedding: Callable[[Path], np.ndarray],
     progress_callback: Optional[Callable[[int, int], None]] = None,
 ) -> dict:
-    """Run hybrid-only FLUXSynID sanity checks and write local artifacts."""
+    """Run FaceNet-style FLUXSynID sanity checks and write local artifacts."""
     discovered = discover_flux_identities(config.dataset_dir)
     selected = select_flux_identities(
         discovered,
@@ -257,6 +263,8 @@ def summarize_flux_trials(
     ]
 
     return {
+        "model_type": config.model_type,
+        "model_label": MODEL_LABELS.get(config.model_type, config.model_type),
         "dataset_path": str(config.dataset_dir),
         "threshold": round(float(config.threshold), 8),
         "seed": config.seed,
@@ -392,14 +400,16 @@ def _write_threshold_sweep_csv(path: Path, rows: Sequence[dict]) -> None:
 def render_summary_markdown(metrics: dict) -> str:
     genuine = metrics["genuine"]
     impostor = metrics["impostor"]
+    model_label = metrics.get("model_label") or metrics.get("model_type", "FaceNet-style")
     lines = [
-        "# Hybrid FLUXSynID Sanity Report",
+        f"# {model_label} FLUXSynID Sanity Report",
         "",
-        "This is a first-layer sanity check only. It tests the hybrid model and "
-        "does not modify production thresholds.",
+        "This is a first-layer sanity check only. It tests a FaceNet-style "
+        "FaceVerify model and does not modify production thresholds.",
         "",
         "## Summary",
         "",
+        f"- Model: `{metrics.get('model_type', 'unknown')}`",
         f"- Dataset: `{metrics['dataset_path']}`",
         f"- Identities tested: `{metrics['identities_tested']}`",
         f"- Threshold: `{metrics['threshold']}`",

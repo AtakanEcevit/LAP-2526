@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 """
-Run a quick hybrid-only sanity check against FLUXSynID.
+Run a quick FaceNet-style sanity check against FLUXSynID.
 
 Example:
     python test_flux_hybrid_sanity.py C:\\Users\\USER\\Downloads\\FLUXSynID\\FLUXSynID\\FLUXSynID --device cpu
+    python test_flux_hybrid_sanity.py C:\\Users\\USER\\Downloads\\FLUXSynID\\FLUXSynID\\FLUXSynID --model-type facenet_proto --device cpu
 """
 
 from __future__ import annotations
@@ -18,17 +19,21 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from evaluation.flux_hybrid_sanity import (  # noqa: E402
-    DEFAULT_THRESHOLD,
+    DEFAULT_MODEL_TYPE,
     FluxSanityConfig,
     FluxSanityError,
     run_flux_sanity,
 )
+from inference.config import MODEL_REGISTRY  # noqa: E402
 from inference.engine import VerificationEngine  # noqa: E402
 
 
-def _build_hybrid_extractor(device: str | None, validate: bool):
+FACENET_STYLE_MODELS = ("hybrid", "facenet_proto")
+
+
+def _build_extractor(model_type: str, device: str | None, validate: bool):
     engine = VerificationEngine()
-    engine.load("face", "hybrid", device=device)
+    engine.load("face", model_type, device=device)
 
     def extract(image_path: Path) -> np.ndarray:
         return engine.extract_embedding(str(image_path), validate=validate)
@@ -38,12 +43,18 @@ def _build_hybrid_extractor(device: str | None, validate: bool):
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="First-layer FLUXSynID sanity test for the FaceVerify hybrid model only."
+        description="First-layer FLUXSynID sanity test for FaceVerify FaceNet-style models."
     )
     parser.add_argument(
         "dataset_dir",
         type=Path,
         help="FLUXSynID identity folder, e.g. ...\\FLUXSynID\\FLUXSynID\\FLUXSynID.",
+    )
+    parser.add_argument(
+        "--model-type",
+        choices=FACENET_STYLE_MODELS,
+        default=DEFAULT_MODEL_TYPE,
+        help="Face model to test. Defaults to hybrid for backward compatibility.",
     )
     parser.add_argument("--device", default=None, help="Torch device override, e.g. cpu or cuda.")
     parser.add_argument(
@@ -55,8 +66,8 @@ def main() -> int:
     parser.add_argument(
         "--threshold",
         type=float,
-        default=DEFAULT_THRESHOLD,
-        help="Hybrid decision threshold to evaluate without modifying runtime config.",
+        default=None,
+        help="Decision threshold to evaluate without modifying runtime config. Defaults to registry threshold.",
     )
     parser.add_argument(
         "--impostors-per-identity",
@@ -67,7 +78,7 @@ def main() -> int:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=Path("results") / "hybrid_face" / "flux_sanity",
+        default=None,
         help="Directory for summary.md, results.csv, and failures.csv.",
     )
     parser.add_argument(
@@ -77,27 +88,32 @@ def main() -> int:
     )
     args = parser.parse_args()
     identities = _parse_identities(args.identities, parser)
+    threshold = args.threshold
+    if threshold is None:
+        threshold = _registry_threshold(args.model_type)
+    output_dir = args.output_dir or _default_output_dir(args.model_type)
 
     config = FluxSanityConfig(
         dataset_dir=args.dataset_dir,
-        output_dir=args.output_dir,
+        output_dir=output_dir,
+        model_type=args.model_type,
         identities=identities,
         seed=args.seed,
-        threshold=args.threshold,
+        threshold=threshold,
         impostors_per_identity=args.impostors_per_identity,
     )
 
     try:
         metrics = run_flux_sanity(
             config,
-            _build_hybrid_extractor(args.device, validate=not args.skip_validation),
+            _build_extractor(args.model_type, args.device, validate=not args.skip_validation),
             progress_callback=_progress,
         )
     except FluxSanityError as exc:
         print(f"FLUX sanity error: {exc}", file=sys.stderr)
         return 2
     except Exception as exc:  # noqa: BLE001 - CLI should fail with a clear message.
-        print(f"Hybrid FLUX sanity test failed: {exc}", file=sys.stderr)
+        print(f"{args.model_type} FLUX sanity test failed: {exc}", file=sys.stderr)
         return 1
 
     print_summary(metrics)
@@ -107,7 +123,8 @@ def main() -> int:
 def print_summary(metrics: dict) -> None:
     genuine = metrics["genuine"]
     impostor = metrics["impostor"]
-    print("\nHybrid FLUXSynID sanity complete.")
+    print(f"\n{metrics.get('model_label', metrics['model_type'])} FLUXSynID sanity complete.")
+    print(f"  Model: {metrics['model_type']}")
     print(f"  Dataset: {metrics['dataset_path']}")
     print(f"  Identities tested: {metrics['identities_tested']}")
     print(f"  Threshold: {metrics['threshold']}")
@@ -149,6 +166,18 @@ def _parse_identities(value: str, parser: argparse.ArgumentParser):
     if parsed < 2:
         parser.error("--identities must be at least 2")
     return parsed
+
+
+def _registry_threshold(model_type: str) -> float:
+    return float(MODEL_REGISTRY[("face", model_type)]["threshold"])
+
+
+def _default_output_dir(model_type: str) -> Path:
+    result_name = {
+        "hybrid": "hybrid_face",
+        "facenet_proto": "facenet_proto_face",
+    }[model_type]
+    return Path("results") / result_name / "flux_sanity"
 
 
 def _progress(done: int, total: int) -> None:
