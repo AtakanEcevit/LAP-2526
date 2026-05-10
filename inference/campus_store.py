@@ -32,6 +32,11 @@ STATUS_MANUAL_REVIEW = "Manual Review"
 STATUS_REJECTED = "Rejected"
 STATUS_APPROVED = "Approved by Proctor"
 STATUS_FALLBACK = "Fallback Requested"
+REVIEWABLE_FINAL_STATUSES = {
+    STATUS_MANUAL_REVIEW,
+    STATUS_FALLBACK,
+    STATUS_REJECTED,
+}
 
 DECISION_VERIFIED = "verified"
 DECISION_MANUAL_REVIEW = "manual_review"
@@ -431,6 +436,9 @@ class CampusStore:
             attempt = self._find_attempt_unlocked(attempt_id)
             if not attempt:
                 raise KeyError(f"Unknown attempt_id '{attempt_id}'.")
+            current_status = attempt.get("final_status") or attempt.get("status")
+            if current_status not in REVIEWABLE_FINAL_STATUSES:
+                raise ValueError("Attempt is not eligible for manual review.")
             review = {
                 "review_id": make_id("rev"),
                 "attempt_id": attempt_id,

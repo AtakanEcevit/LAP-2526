@@ -15,6 +15,7 @@ const state = {
     studentResultAttemptId: null,
     studentStep: 'consent',
     activeView: 'simulation',
+    activeNavTarget: 'simulation',
     simulationScenario: 'matching',
     simulationMobilePane: 'student',
     simulationSelectedStudentId: null,
@@ -32,6 +33,7 @@ const FALLBACK_DEMO_STUDENT_ID = 'NB-2026-1042';
 const FALLBACK_DEMO_EXAM_ID = 'CS204-MIDTERM-1';
 const DEFAULT_FACE_MODEL = 'facenet_contrastive_proto';
 const REVIEW_STATUSES = new Set(['Manual Review', 'Fallback Requested']);
+const REVIEW_ACTION_STATUSES = new Set(['Manual Review', 'Fallback Requested', 'Rejected']);
 const ACCESS_GRANTED_STATUSES = new Set(['Verified', 'Approved by Proctor']);
 const BLOCKED_STATUSES = new Set(['Rejected']);
 const WAITING_STATUSES = new Set(['Not Started', 'Enrollment Needed', 'Pending Verification']);
@@ -39,8 +41,8 @@ const STUDENT_STEP_ORDER = ['consent', 'enrollment', 'verification', 'result'];
 const KPI_KEYS = ['attempts', 'verified', 'review', 'blocked', 'no-enrollment'];
 const THEME_STORAGE_KEY = 'faceverifyTheme';
 const SUPPORTED_THEMES = new Set(['light', 'dark']);
+const SIMULATION_NO_ATTEMPT = '__none__';
 const PERSONAS = {
-    launch: 'Demo Operatörü',
     simulation: 'Canlı Simülasyon',
     student: 'Öğrenci: Aylin Kaya',
     proctor: 'İnceleme Masası: Proctor Lee',
@@ -101,15 +103,32 @@ function renderThemeToggle() {
 
 function bindTabs() {
     document.querySelectorAll('.tab-button').forEach(button => {
-        button.addEventListener('click', () => showView(button.dataset.view));
+        button.addEventListener('click', () => activateNavigation(button));
     });
 }
 
-function showView(viewName) {
+function activateNavigation(button) {
+    const viewName = button.dataset.view;
+    if (!viewName) return;
+    if (button.dataset.reviewFilter !== undefined) {
+        setReviewFilter(button.dataset.reviewFilter);
+    }
+    showView(viewName, {
+        navTarget: button.dataset.navTarget || defaultNavTarget(viewName),
+        adminPanel: button.dataset.adminPanel,
+    });
+}
+
+function showView(viewName, options = {}) {
     const normalizedView = normalizeViewName(viewName);
+    state.activeNavTarget = options.navTarget || defaultNavTarget(viewName, normalizedView);
     state.activeView = viewName === 'evidence' ? 'evidence' : normalizedView;
     document.querySelectorAll('.tab-button').forEach(button => {
-        button.classList.toggle('active', button.dataset.view === normalizedView);
+        const target = button.dataset.navTarget || defaultNavTarget(button.dataset.view);
+        const active = button.classList.contains('sidebar-link')
+            ? target === state.activeNavTarget
+            : button.dataset.view === normalizedView;
+        button.classList.toggle('active', active);
     });
     document.querySelectorAll('.view').forEach(view => {
         view.classList.toggle('active', view.id === `view-${normalizedView}`);
@@ -120,22 +139,24 @@ function showView(viewName) {
         syncSimulationSelection();
         renderSimulation();
     }
-    if (viewName === 'evidence' || viewName === 'lab') {
-        openOperationPanel('operation-model-evidence');
+    const adminPanel = options.adminPanel || ((viewName === 'evidence' || viewName === 'lab') ? 'operation-model-evidence' : null);
+    if (adminPanel) {
+        openOperationPanel(adminPanel);
     }
 }
 
 function bindActions() {
-    document.getElementById('launch-exam-btn').addEventListener('click', () => {
-        showView('admin');
-        setSelectValue('student-select', demoStudentId());
-        renderEnrollmentGuidance();
-    });
-    document.getElementById('guide-jump-btn').addEventListener('click', () => {
-        jumpFromGuide(valueOf('guide-jump-select'));
-    });
     document.querySelectorAll('[data-demo-jump]').forEach(button => {
         button.addEventListener('click', () => jumpFromGuide(button.dataset.demoJump));
+    });
+    document.getElementById('notifications-btn').addEventListener('click', () => {
+        toast('Notifications panel is not available in this demo build yet.', 'info');
+    });
+    document.getElementById('help-btn').addEventListener('click', () => {
+        toast('Use the scenario rail to move through policy, student gate, review, and audit views.', 'info');
+    });
+    document.getElementById('simulation-view-all-btn').addEventListener('click', () => {
+        openReviewDesk('', 'proctor');
     });
     document.getElementById('student-refresh-btn').addEventListener('click', refreshAll);
     document.getElementById('proctor-refresh-btn').addEventListener('click', refreshAll);
@@ -158,7 +179,7 @@ function bindActions() {
     document.getElementById('enroll-student-btn').addEventListener('click', enrollStudent);
     document.getElementById('verify-student-btn').addEventListener('click', verifyStudent);
     document.getElementById('simulation-verify-btn').addEventListener('click', verifySimulationStudent);
-    document.getElementById('wrong-face-demo-btn').addEventListener('click', () => showView('proctor'));
+    document.getElementById('wrong-face-demo-btn').addEventListener('click', openWrongFaceReviewPath);
     document.getElementById('save-course-btn').addEventListener('click', saveCourse);
     document.getElementById('save-exam-btn').addEventListener('click', saveExam);
     document.getElementById('exam-model').addEventListener('change', applySelectedModelDefaultThreshold);
@@ -199,7 +220,7 @@ function bindActions() {
         openSimulationFeedCard(card);
     });
     document.getElementById('student-exam').addEventListener('change', async () => {
-        clearStagedPreloadedSelfie();
+        clearStudentInputState({ enrollment: true, verification: true, simulation: true });
         resetStudentResultPanel();
         await refreshRosterOnly();
         syncAdminFields();
@@ -209,15 +230,16 @@ function bindActions() {
         renderSimulation();
     });
     document.getElementById('student-select').addEventListener('change', () => {
-        clearStagedPreloadedSelfie();
+        clearStudentInputState({ enrollment: true, verification: true, simulation: true });
         resetStudentResultPanel();
+        state.simulationSelectedAttemptId = null;
         updateContextBar();
         renderEnrollmentGuidance();
         syncSimulationSelection();
         renderSimulation();
     });
     document.getElementById('simulation-exam').addEventListener('change', async () => {
-        clearStagedPreloadedSelfie();
+        clearStudentInputState({ enrollment: true, verification: true, simulation: true });
         setSelectValue('student-exam', valueOf('simulation-exam'));
         resetStudentResultPanel();
         await refreshRosterOnly();
@@ -227,9 +249,10 @@ function bindActions() {
         renderSimulation();
     });
     document.getElementById('simulation-student').addEventListener('change', () => {
-        clearStagedPreloadedSelfie();
+        clearStudentInputState({ enrollment: true, verification: true, simulation: true });
         setSelectValue('student-select', valueOf('simulation-student'));
         resetStudentResultPanel();
+        state.simulationSelectedAttemptId = null;
         syncSimulationSelection();
         updateContextBar();
         renderEnrollmentGuidance();
@@ -300,6 +323,47 @@ async function refreshRosterOnly() {
     }
 }
 
+function clearStudentInputState({ enrollment = false, verification = false, simulation = false } = {}) {
+    if (enrollment) {
+        clearFileInput('enroll-files');
+        state.selectedEnrollmentFiles = [];
+        const previewGrid = document.getElementById('enroll-preview-grid');
+        if (previewGrid) previewGrid.innerHTML = '';
+    }
+    if (verification) clearFileInput('verify-file');
+    if (simulation) clearFileInput('simulation-verify-file');
+    clearStagedPreloadedSelfie();
+    if (enrollment && document.getElementById('enroll-files')) {
+        renderEnrollmentFileState();
+    } else {
+        updateStudentProgress();
+    }
+}
+
+function clearFileInput(id) {
+    const input = document.getElementById(id);
+    if (input) input.value = '';
+}
+
+function openReviewDesk(filter = undefined, navTarget = 'proctor') {
+    if (filter !== undefined) setReviewFilter(filter);
+    showView('proctor', { navTarget });
+}
+
+function openWrongFaceReviewPath() {
+    const row = currentRosterRow();
+    const attempt = row?.latest_attempt;
+    if (!isReviewActionAllowed(attempt)) {
+        toast('Submit a wrong-face or low-confidence selfie first, then open the Review Desk.', 'info');
+        return;
+    }
+    const finalStatus = attempt.final_status || attempt.status;
+    const filter = BLOCKED_STATUSES.has(finalStatus) ? 'Rejected' : 'needs_review';
+    const navTarget = BLOCKED_STATUSES.has(finalStatus) ? 'flagged-attempts' : 'pending-review';
+    openReviewDesk(filter, navTarget);
+    selectAttempt(attempt.attempt_id);
+}
+
 function jumpFromGuide(viewName) {
     setSelectValue('student-select', demoStudentId());
     if (viewName === 'student') {
@@ -307,13 +371,14 @@ function jumpFromGuide(viewName) {
         renderEnrollmentGuidance();
     }
     if (viewName === 'proctor') {
-        setReviewFilter('needs_review');
+        openReviewDesk('needs_review', 'pending-review');
+        return;
     }
     if (viewName === 'simulation') {
         syncSimulationSelection();
         renderSimulation();
     }
-    showView(viewName);
+    showView(viewName, { navTarget: defaultNavTarget(viewName) });
 }
 
 function setStatus(text, ok) {
@@ -417,9 +482,9 @@ function renderMetrics() {
     const roster = state.roster?.roster || [];
     const metrics = dashboardMetrics(roster);
 
-    document.getElementById('metric-students').textContent = roster.length;
-    document.getElementById('metric-verified').textContent = metrics.verified;
-    document.getElementById('metric-review').textContent = metrics.review;
+    setTextIfPresent('metric-students', roster.length);
+    setTextIfPresent('metric-verified', metrics.verified);
+    setTextIfPresent('metric-review', metrics.review);
     setTextIfPresent('sidebar-review-count', metrics.review);
     setTextIfPresent('sidebar-blocked-count', metrics.blocked);
     setTextIfPresent(
@@ -599,7 +664,7 @@ async function selectAttempt(attemptId, options = {}) {
         state.selectedAttempt = attempt;
         state.selectedReviewStudent = student;
         state.attemptHistory = history;
-        state.simulationSelectedAttemptId = attempt.attempt_id;
+        if (options.syncSimulationAttempt) syncSimulationAttemptSelection(attempt);
         renderReviewAttempt(attempt, student, history);
         renderRoster();
         renderSimulation();
@@ -633,7 +698,7 @@ function renderReviewAttempt(attempt, student, history = []) {
     setPreview('reference-preview', student.reference_preview);
     setPreview('query-preview', attempt.query_preview);
     renderAuditRail('review-audit-rail', attempt, student);
-    setReviewButtonsEnabled(true);
+    setReviewButtonsEnabled(attempt);
 }
 
 function setReviewLoading() {
@@ -679,7 +744,13 @@ function clearReviewDetails() {
     renderAuditRail('review-audit-rail', null, null);
 }
 
-function setReviewButtonsEnabled(enabled) {
+function isReviewActionAllowed(attempt) {
+    const status = attempt?.final_status || attempt?.status;
+    return REVIEW_ACTION_STATUSES.has(status);
+}
+
+function setReviewButtonsEnabled(attempt) {
+    const enabled = isReviewActionAllowed(attempt);
     document.querySelectorAll('[data-review-action]').forEach(button => {
         button.disabled = !enabled;
     });
@@ -1197,6 +1268,10 @@ async function reviewAttempt(action) {
         toast('Open an attempt before reviewing.', 'error');
         return;
     }
+    if (!isReviewActionAllowed(state.selectedAttempt)) {
+        toast('This attempt is not eligible for manual review.', 'error');
+        return;
+    }
     const attemptId = state.selectedAttempt.attempt_id;
     try {
         await api.reviewAttempt(
@@ -1238,8 +1313,12 @@ function syncSimulationSelection() {
 }
 
 function setSimulationScenario(scenario) {
-    state.simulationScenario = scenario;
     const targetStudentId = findSimulationScenarioStudent(scenario);
+    if (!targetStudentId) {
+        renderSimulation();
+        return;
+    }
+    state.simulationScenario = scenario;
     if (targetStudentId) {
         setSelectValue('student-select', targetStudentId);
         setSelectValue('simulation-student', targetStudentId);
@@ -1253,7 +1332,7 @@ function setSimulationScenario(scenario) {
     if (targetAttempt) {
         state.simulationSelectedAttemptId = targetAttempt.attempt_id;
     } else if (scenario === 'matching' || scenario === 'no_enrollment' || scenario === 'model_mismatch') {
-        state.simulationSelectedAttemptId = null;
+        state.simulationSelectedAttemptId = SIMULATION_NO_ATTEMPT;
     }
 
     renderSimulation();
@@ -1399,7 +1478,7 @@ function renderSimulationInstructorPane() {
     renderSimulationEvidence(attempt, row, exam);
 
     document.querySelectorAll('[data-simulation-review-action]').forEach(button => {
-        button.disabled = !attempt;
+        button.disabled = !isReviewActionAllowed(attempt);
     });
 }
 
@@ -1534,6 +1613,10 @@ function openSimulationFeedCard(card) {
     }
     setSelectValue('student-select', card.dataset.simulationStudent);
     setSelectValue('simulation-student', card.dataset.simulationStudent);
+    state.selectedAttempt = null;
+    state.selectedReviewStudent = null;
+    state.attemptHistory = [];
+    state.simulationSelectedAttemptId = SIMULATION_NO_ATTEMPT;
     syncSimulationSelection();
     renderSimulation();
 }
@@ -1566,7 +1649,7 @@ async function openSimulationAttempt(attemptId, studentId) {
         syncSimulationSelection();
     }
     state.simulationSelectedAttemptId = attemptId;
-    await selectAttempt(attemptId, { scroll: false });
+    await selectAttempt(attemptId, { scroll: false, syncSimulationAttempt: true });
     renderSimulation();
 }
 
@@ -1687,9 +1770,31 @@ function renderSimulationPaneSwitch() {
 
 function simulationAttempt() {
     const row = currentRosterRow();
-    if (state.selectedAttempt?.attempt_id === state.simulationSelectedAttemptId) return state.selectedAttempt;
+    if (state.simulationSelectedAttemptId === SIMULATION_NO_ATTEMPT) return null;
+    if (
+        state.selectedAttempt?.attempt_id === state.simulationSelectedAttemptId
+        && attemptMatchesSimulationContext(state.selectedAttempt)
+    ) {
+        return state.selectedAttempt;
+    }
     if (row?.latest_attempt?.attempt_id === state.simulationSelectedAttemptId) return row.latest_attempt;
-    return row?.latest_attempt || null;
+    return state.simulationSelectedAttemptId ? null : row?.latest_attempt || null;
+}
+
+function attemptMatchesSimulationContext(attempt) {
+    const row = currentRosterRow();
+    const examId = currentExamId();
+    return Boolean(
+        attempt
+        && row?.student_id === attempt.student_id
+        && (!examId || attempt.exam_id === examId)
+    );
+}
+
+function syncSimulationAttemptSelection(attempt) {
+    if (attemptMatchesSimulationContext(attempt)) {
+        state.simulationSelectedAttemptId = attempt.attempt_id;
+    }
 }
 
 function simulationStudentGuidance(context, attempt) {
@@ -1775,6 +1880,10 @@ async function reviewSimulationAttempt(action) {
         toast('Submit or select an attempt before reviewing.', 'error');
         return;
     }
+    if (!isReviewActionAllowed(attempt)) {
+        toast('This attempt is not eligible for manual review.', 'error');
+        return;
+    }
     try {
         await api.reviewAttempt(
             attempt.attempt_id,
@@ -1785,7 +1894,7 @@ async function reviewSimulationAttempt(action) {
         state.simulationSelectedAttemptId = attempt.attempt_id;
         toast('Simulation review saved.', 'success');
         await refreshAll();
-        await selectAttempt(attempt.attempt_id, { scroll: false });
+        await selectAttempt(attempt.attempt_id, { scroll: false, syncSimulationAttempt: true });
     } catch (err) {
         toast(err, 'error');
     }
@@ -2014,8 +2123,13 @@ function normalizeViewName(viewName) {
     return viewName;
 }
 
+function defaultNavTarget(viewName, normalizedView = normalizeViewName(viewName)) {
+    if (viewName === 'evidence' || viewName === 'lab') return 'audit-logs';
+    return normalizedView || viewName || 'simulation';
+}
+
 function updateScenarioRail(viewName) {
-    const activeStep = viewName === 'launch' ? 'admin' : (viewName === 'lab' ? 'evidence' : viewName);
+    const activeStep = viewName === 'lab' ? 'evidence' : viewName;
     document.querySelectorAll('.scenario-step').forEach(button => {
         button.classList.toggle('active', button.dataset.demoJump === activeStep);
     });

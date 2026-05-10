@@ -438,6 +438,113 @@ def test_enroll_verify_manual_review_and_audit(client):
 
 
 @pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
+def test_review_actions_are_restricted_to_reviewable_attempts(client):
+    enroll_resp = client.post(
+        "/campus/students/NB-2026-1042/enroll",
+        data={"model_type": "siamese"},
+        files=[
+            ("images", ("face1.png", image_bytes(1), "image/png")),
+            ("images", ("face2.png", image_bytes(2), "image/png")),
+        ],
+    )
+    assert enroll_resp.status_code == 200
+
+    verified_exam = client.post(
+        "/campus/exams",
+        data={
+            "exam_id": "CS204-VERIFIED-REVIEW-GUARD",
+            "course_id": "CS204-2026S",
+            "name": "Verified Review Guard",
+            "start_time": "2026-05-12T10:00",
+            "end_time": "2026-05-12T11:30",
+            "threshold": "0.50",
+            "model_type": "siamese",
+        },
+    )
+    assert verified_exam.status_code == 200
+    verified_resp = client.post(
+        "/campus/exams/CS204-VERIFIED-REVIEW-GUARD/verify",
+        data={"student_id": "NB-2026-1042"},
+        files={"image": ("selfie.png", image_bytes(3), "image/png")},
+    )
+    assert verified_resp.status_code == 200
+    verified_attempt = verified_resp.json()["attempt"]
+    assert verified_attempt["final_status"] == "Verified"
+
+    forbidden = client.post(
+        f"/campus/attempts/{verified_attempt['attempt_id']}/review",
+        data={"reviewer": "Proctor Lee", "action": "deny", "reason": "Should fail."},
+    )
+    assert forbidden.status_code == 400
+    assert "not eligible" in forbidden.json()["detail"]
+
+    strict_exam = client.post(
+        "/campus/exams",
+        data={
+            "exam_id": "CS204-REVIEW-GUARD",
+            "course_id": "CS204-2026S",
+            "name": "Review Guard",
+            "start_time": "2026-05-12T10:00",
+            "end_time": "2026-05-12T11:30",
+            "threshold": "0.99",
+            "model_type": "siamese",
+        },
+    )
+    assert strict_exam.status_code == 200
+    manual_resp = client.post(
+        "/campus/exams/CS204-REVIEW-GUARD/verify",
+        data={"student_id": "NB-2026-1042"},
+        files={"image": ("selfie.png", image_bytes(4), "image/png")},
+    )
+    assert manual_resp.status_code == 200
+    manual_attempt = manual_resp.json()["attempt"]
+    assert manual_attempt["final_status"] == "Manual Review"
+
+    approve_resp = client.post(
+        f"/campus/attempts/{manual_attempt['attempt_id']}/review",
+        data={
+            "reviewer": "Proctor Lee",
+            "action": "approve",
+            "reason": "Manual ID check completed.",
+        },
+    )
+    assert approve_resp.status_code == 200
+    assert approve_resp.json()["final_status"] == "Approved by Proctor"
+
+    approved_retry = client.post(
+        f"/campus/attempts/{manual_attempt['attempt_id']}/review",
+        data={"reviewer": "Proctor Lee", "action": "deny", "reason": "Should fail."},
+    )
+    assert approved_retry.status_code == 400
+    assert "not eligible" in approved_retry.json()["detail"]
+
+    fallback_resp = client.post(
+        "/campus/exams/CS204-REVIEW-GUARD/verify",
+        data={"student_id": "NB-2026-1042"},
+        files={"image": ("selfie.png", image_bytes(5), "image/png")},
+    )
+    assert fallback_resp.status_code == 200
+    fallback_attempt = fallback_resp.json()["attempt"]
+    fallback_mark = client.post(
+        f"/campus/attempts/{fallback_attempt['attempt_id']}/review",
+        data={"reviewer": "Proctor Lee", "action": "fallback", "reason": "Needs ID desk."},
+    )
+    assert fallback_mark.status_code == 200
+    assert fallback_mark.json()["final_status"] == "Fallback Requested"
+
+    fallback_approve = client.post(
+        f"/campus/attempts/{fallback_attempt['attempt_id']}/review",
+        data={
+            "reviewer": "Proctor Lee",
+            "action": "approve",
+            "reason": "Fallback ID check completed.",
+        },
+    )
+    assert fallback_approve.status_code == 200
+    assert fallback_approve.json()["final_status"] == "Approved by Proctor"
+
+
+@pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
 def test_empty_upload_is_rejected(client):
     resp = client.post(
         "/campus/students/NB-2026-1042/enroll",

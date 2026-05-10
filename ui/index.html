@@ -36,23 +36,23 @@
 
             <nav class="sidebar-nav">
                 <p>Main</p>
-                <button class="tab-button sidebar-link active" data-view="simulation"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg></span> Dashboard</button>
-                <button class="tab-button sidebar-link" data-view="student"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l8 5v8l-8 5-8-5V8l8-5z"></path><path d="M9 12l2 2 4-5"></path></svg></span> Exam Gate</button>
-                <button class="tab-button sidebar-link" data-view="proctor"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"></path><circle cx="12" cy="12" r="3"></circle></svg></span> Live Monitor</button>
-                <button class="tab-button sidebar-link" data-view="admin"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M8 9h8M8 13h8M8 17h5"></path></svg></span> Exam Sessions</button>
+                <button class="tab-button sidebar-link active" data-view="simulation" data-nav-target="simulation"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg></span> Dashboard</button>
+                <button class="tab-button sidebar-link" data-view="student" data-nav-target="student"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l8 5v8l-8 5-8-5V8l8-5z"></path><path d="M9 12l2 2 4-5"></path></svg></span> Exam Gate</button>
+                <button class="tab-button sidebar-link" data-view="proctor" data-nav-target="proctor"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"></path><circle cx="12" cy="12" r="3"></circle></svg></span> Live Monitor</button>
+                <button class="tab-button sidebar-link" data-view="admin" data-nav-target="admin" data-admin-panel="admin-policy-summary"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M8 9h8M8 13h8M8 17h5"></path></svg></span> Exam Sessions</button>
             </nav>
 
             <nav class="sidebar-nav">
                 <p>Review & Actions</p>
-                <button class="tab-button sidebar-link" data-view="proctor"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 4.3h3.4L21 17.2 19.3 20H4.7L3 17.2 10.3 4.3z"></path></svg></span> Pending Review <b id="sidebar-review-count">0</b></button>
-                <button class="tab-button sidebar-link" data-view="proctor"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 21V5"></path><path d="M5 5h12l-2 4 2 4H5"></path></svg></span> Flagged Attempts <b id="sidebar-blocked-count">0</b></button>
-                <button class="tab-button sidebar-link" data-view="evidence"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg></span> Audit Logs</button>
+                <button class="tab-button sidebar-link" data-view="proctor" data-nav-target="pending-review" data-review-filter="needs_review"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 4.3h3.4L21 17.2 19.3 20H4.7L3 17.2 10.3 4.3z"></path></svg></span> Pending Review <b id="sidebar-review-count">0</b></button>
+                <button class="tab-button sidebar-link" data-view="proctor" data-nav-target="flagged-attempts" data-review-filter="Rejected"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 21V5"></path><path d="M5 5h12l-2 4 2 4H5"></path></svg></span> Flagged Attempts <b id="sidebar-blocked-count">0</b></button>
+                <button class="tab-button sidebar-link" data-view="evidence" data-nav-target="audit-logs" data-admin-panel="operation-model-evidence"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg></span> Audit Logs</button>
             </nav>
 
             <nav class="sidebar-nav">
                 <p>Settings</p>
-                <button class="tab-button sidebar-link" data-view="admin"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"></path><path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.05.05-2 3.46-.07-.02a1.8 1.8 0 0 0-1.96.82l-.03.06h-4l-.03-.06a1.8 1.8 0 0 0-1.96-.82l-.07.02-2-3.46.05-.05A1.8 1.8 0 0 0 8.1 15l-.03-.06-2-3.46.04-.05a1.8 1.8 0 0 0 0-2.04l-.04-.05 2-3.46.07.02a1.8 1.8 0 0 0 1.96-.82l.03-.06h4l.03.06a1.8 1.8 0 0 0 1.96.82l.07-.02 2 3.46-.04.05a1.8 1.8 0 0 0 0 2.04l.04.05-2 3.46-.03.06z"></path></svg></span> Exam Settings</button>
-                <button class="tab-button sidebar-link" data-view="admin"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l7 3v5c0 4.4-2.8 8.2-7 10-4.2-1.8-7-5.6-7-10V6l7-3z"></path><path d="M9 12l2 2 4-5"></path></svg></span> Verification Rules</button>
+                <button class="tab-button sidebar-link" data-view="admin" data-nav-target="exam-settings" data-admin-panel="admin-policy-summary"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"></path><path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.05.05-2 3.46-.07-.02a1.8 1.8 0 0 0-1.96.82l-.03.06h-4l-.03-.06a1.8 1.8 0 0 0-1.96-.82l-.07.02-2-3.46.05-.05A1.8 1.8 0 0 0 8.1 15l-.03-.06-2-3.46.04-.05a1.8 1.8 0 0 0 0-2.04l-.04-.05 2-3.46.07.02a1.8 1.8 0 0 0 1.96-.82l.03-.06h4l.03.06a1.8 1.8 0 0 0 1.96.82l.07-.02 2 3.46-.04.05a1.8 1.8 0 0 0 0 2.04l.04.05-2 3.46-.03.06z"></path></svg></span> Exam Settings</button>
+                <button class="tab-button sidebar-link" data-view="admin" data-nav-target="verification-rules" data-admin-panel="admin-policy-summary"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l7 3v5c0 4.4-2.8 8.2-7 10-4.2-1.8-7-5.6-7-10V6l7-3z"></path><path d="M9 12l2 2 4-5"></path></svg></span> Verification Rules</button>
             </nav>
 
             <div class="sidebar-status">
@@ -75,17 +75,17 @@
             <div>
                 <p class="eyebrow">Atılım University Demo</p>
                 <h1>Biometric Exam Access Verification</h1>
-                <p class="muted monitor-subtitle">Atılım University Demo - SE 204 Midterm - Hybrid FaceNet - Threshold 0.300</p>
+                <p class="muted monitor-subtitle">Atılım University Demo - SE 204 Midterm - FaceNet Contrastive Proto - Threshold 0.800884</p>
             </div>
-            <button class="top-context-pill" type="button" aria-label="Active exam context">SE 204 · Midterm · Hybrid FaceNet · 0.300</button>
+            <span class="top-context-pill" aria-label="Active exam context">SE 204 · Midterm · FaceNet Contrastive Proto · 0.800884</span>
             <div class="monitor-actions">
                 <div class="theme-toggle" role="group" aria-label="Theme">
                     <button type="button" data-theme-option="light" aria-pressed="false">Light</button>
                     <button type="button" data-theme-option="dark" aria-pressed="true">Dark</button>
                 </div>
                 <span class="live-pill"><span class="status-dot"></span>Live Monitoring</span>
-                <button class="icon-button" aria-label="Notifications">◔<b>3</b></button>
-                <button class="icon-button" aria-label="Help">?</button>
+                <button class="icon-button" id="notifications-btn" aria-label="Notifications">◔<b>3</b></button>
+                <button class="icon-button" id="help-btn" aria-label="Help">?</button>
                 <div class="user-chip">
                     <strong>Dr. Selin Demir</strong>
                     <span>Instructor</span>
@@ -94,7 +94,7 @@
         </header>
 
         <section class="context-strip" aria-label="Active exam policy">
-            <strong id="context-summary">Atılım University Demo · SE 204 Midterm · Hybrid FaceNet · Threshold 0.300</strong>
+                <strong id="context-summary">Atılım University Demo · SE 204 Midterm · FaceNet Contrastive Proto · Threshold 0.800884</strong>
             <details class="context-details">
                 <summary>Details</summary>
                 <dl>
@@ -147,64 +147,6 @@
             </nav>
 
             <main>
-            <section class="view" id="view-launch">
-                <div class="course-band guide-hero">
-                    <div>
-                        <p class="eyebrow">Atılım-styled campus scenario</p>
-                        <h2>SE 204 exam identity gate</h2>
-                        <p class="muted">A focused walkthrough: set the exam policy, enroll Aylin, verify access, trigger review, and show the audit trail.</p>
-                    </div>
-                    <button class="primary-action large-action" id="launch-exam-btn">Start Demo</button>
-                </div>
-
-                <section class="panel guide-panel">
-                    <ol class="compact-script">
-                        <li><span>1</span>Confirm SE 204 exam policy</li>
-                        <li><span>2</span>Enroll Aylin's face samples</li>
-                        <li><span>3</span>Verify matching student access</li>
-                        <li><span>4</span>Trigger wrong-face review path</li>
-                        <li><span>5</span>Approve, deny, or export evidence</li>
-                    </ol>
-                    <div class="jump-row">
-                        <label>
-                            Jump to step
-                            <select id="guide-jump-select">
-                                <option value="admin">Policy and roster</option>
-                                <option value="simulation">Split-screen simulation</option>
-                                <option value="student">Exam Gate</option>
-                                <option value="proctor">Review Desk</option>
-                                <option value="evidence">Audit and evidence</option>
-                            </select>
-                        </label>
-                        <button class="secondary-action" id="guide-jump-btn">Open Step</button>
-                    </div>
-                    <details class="compact-disclosure">
-                        <summary>Demo data</summary>
-                        <div class="persona-grid">
-                            <div><span>Student</span><strong>Aylin Kaya</strong><small>AT-2026-1042</small></div>
-                            <div><span>Proctor</span><strong>Proctor Lee</strong><small>Review desk</small></div>
-                            <div><span>Admin</span><strong>Registrar Admin</strong><small>Operations</small></div>
-                            <div><span>Instructor</span><strong>Dr. Selin Demir</strong><small>SE 204 owner</small></div>
-                        </div>
-                        <div class="compact-metrics top-gap">
-                            <div class="metric-card">
-                                <span id="metric-students">0</span>
-                                <p>Roster</p>
-                            </div>
-                            <div class="metric-card">
-                                <span id="metric-verified">0</span>
-                                <p>Access Granted</p>
-                            </div>
-                            <div class="metric-card">
-                                <span id="metric-review">0</span>
-                                <p>Needs Review</p>
-                            </div>
-                        </div>
-                        <p class="notice">This showcase is consent-based 1:1 exam access verification. It does not claim surveillance, cheating detection, or legal identity proof.</p>
-                    </details>
-                </section>
-            </section>
-
             <section class="view active workspace-page" id="view-simulation">
                 <div class="section-header">
                     <div>
@@ -435,7 +377,7 @@
                                 <div class="button-row admin-action-stack">
                                     <button class="success-action" data-simulation-review-action="approve" disabled>Approve Access</button>
                                     <button class="danger-action" data-simulation-review-action="deny" disabled>Deny Access</button>
-                                    <button class="secondary-action" data-simulation-review-action="fallback" disabled>Mark for Review</button>
+                                    <button class="secondary-action" data-simulation-review-action="fallback" disabled>Request Fallback</button>
                                 </div>
                             </section>
 
@@ -445,7 +387,7 @@
                                         <h3>Live Verification Feed</h3>
                                         <span class="live-dot">Live</span>
                                     </div>
-                                    <button class="secondary-action compact-action">View All</button>
+                                    <button class="secondary-action compact-action" id="simulation-view-all-btn" type="button">View All</button>
                                 </div>
                                 <div class="student-feed-grid" id="simulation-feed-grid" aria-label="Enrolled student verification cards"></div>
                             </section>

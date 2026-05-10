@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -6,6 +7,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
+
+
+def _button_attrs_are_wired(attrs: str) -> bool:
+    return any(marker in attrs for marker in [" id=", " data-", " disabled"])
 
 
 def test_flux_controls_and_previews_are_wired_in_static_ui():
@@ -162,3 +167,62 @@ def test_simulation_dashboard_enhancement_ui_is_wired():
         "tr-TR",
     ]:
         assert turkish_label in i18n
+
+
+def test_ui_navigation_and_state_wiring_regressions_are_pinned():
+    index = (PROJECT_ROOT / "ui" / "index.html").read_text(encoding="utf-8")
+    app = (PROJECT_ROOT / "ui" / "js" / "app.js").read_text(encoding="utf-8")
+
+    assert 'data-nav-target="pending-review" data-review-filter="needs_review"' in index
+    assert 'data-nav-target="flagged-attempts" data-review-filter="Rejected"' in index
+    assert 'data-nav-target="audit-logs" data-admin-panel="operation-model-evidence"' in index
+    assert 'data-nav-target="exam-settings" data-admin-panel="admin-policy-summary"' in index
+    assert 'data-nav-target="verification-rules" data-admin-panel="admin-policy-summary"' in index
+
+    assert 'id="notifications-btn"' in index
+    assert 'id="help-btn"' in index
+    assert 'id="simulation-view-all-btn"' in index
+    for element_id in ["notifications-btn", "help-btn", "simulation-view-all-btn", "wrong-face-demo-btn"]:
+        assert f"getElementById('{element_id}')" in app
+
+    assert "Mark for Review" not in index
+    assert "Request Fallback" in index
+    assert 'id="view-launch"' not in index
+    assert "launch:" not in app
+
+    assert "function clearStudentInputState" in app
+    assert app.count("clearStudentInputState({ enrollment: true, verification: true, simulation: true });") == 4
+    assert "function isReviewActionAllowed" in app
+    assert "REVIEW_ACTION_STATUSES = new Set(['Manual Review', 'Fallback Requested', 'Rejected'])" in app
+    assert "SIMULATION_NO_ATTEMPT" in app
+    assert "state.simulationScenario = scenario;" in app
+    assert app.index("if (!targetStudentId)") < app.index("state.simulationScenario = scenario;")
+    assert '<span class="top-context-pill"' in index
+    assert '<button class="top-context-pill"' not in index
+
+    select_start = app.index("async function selectAttempt")
+    select_end = app.index("\nfunction renderReviewAttempt", select_start)
+    select_body = app[select_start:select_end]
+    assert "state.simulationSelectedAttemptId =" not in select_body
+    assert "options.syncSimulationAttempt" in select_body
+    assert "function attemptMatchesSimulationContext" in app
+    assert "function syncSimulationAttemptSelection" in app
+    assert "await selectAttempt(attemptId, { scroll: false, syncSimulationAttempt: true });" in app
+    assert "await selectAttempt(attempt.attempt_id, { scroll: false, syncSimulationAttempt: true });" in app
+
+    unwired_buttons = []
+    for match in re.finditer(r"<button\b([^>]*)>", index, flags=re.IGNORECASE):
+        attrs = match.group(1)
+        if _button_attrs_are_wired(attrs):
+            continue
+        unwired_buttons.append(attrs.strip())
+    assert _button_attrs_are_wired(' type="button" class="decorative"') is False
+    assert unwired_buttons == []
+
+
+def test_ui_sources_do_not_keep_mojibake_aliases():
+    markers = ["Ä", "Ã", "Â", "\ufffd"]
+    for relative_path in ["ui/js/i18n.js", "ui/index.html", "ui/js/app.js"]:
+        text = (PROJECT_ROOT / relative_path).read_text(encoding="utf-8")
+        found = [marker for marker in markers if marker in text]
+        assert found == [], f"{relative_path} contains mojibake markers: {found}"

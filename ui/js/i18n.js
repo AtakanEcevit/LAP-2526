@@ -78,8 +78,6 @@
         'All systems operational': 'Tüm sistemler çalışıyor',
         'Loading date': 'Tarih yükleniyor',
         'Atılım University Demo': 'Atılım Üniversitesi Demo',
-        'AtÄ±lÄ±m University Demo': 'Atılım Üniversitesi Demo',
-        'AtÄ±lÄ±m-styled campus scenario': 'Atılım tarzı kampüs senaryosu',
         'Atilim University Demo - SE 204 Midterm - Hybrid FaceNet - Threshold 0.300': 'Atılım Üniversitesi Demo - SE 204 Ara Sınav - Hybrid FaceNet - Eşik 0.300',
         'Atilim University Demo - SE 204 Midterm - FaceNet Contrastive Proto - Threshold 0.800884': 'Atılım Üniversitesi Demo - SE 204 Ara Sınav - FaceNet Contrastive Proto - Eşik 0.800884',
         'Biometric Exam Access Verification': 'Biyometrik Sınav Erişim Doğrulaması',
