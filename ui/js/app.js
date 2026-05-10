@@ -18,7 +18,8 @@ const state = {
     simulationScenario: 'matching',
     simulationMobilePane: 'student',
     simulationSelectedStudentId: null,
-    simulationSelectedAttemptId: null
+    simulationSelectedAttemptId: null,
+    theme: 'dark'
 };
 
 const ENROLLMENT_TARGET = 3;
@@ -35,6 +36,8 @@ const BLOCKED_STATUSES = new Set(['Rejected']);
 const WAITING_STATUSES = new Set(['Not Started', 'Enrollment Needed', 'Pending Verification']);
 const STUDENT_STEP_ORDER = ['consent', 'enrollment', 'verification', 'result'];
 const KPI_KEYS = ['attempts', 'verified', 'review', 'blocked', 'no-enrollment'];
+const THEME_STORAGE_KEY = 'faceverifyTheme';
+const SUPPORTED_THEMES = new Set(['light', 'dark']);
 const PERSONAS = {
     launch: 'Demo Operatörü',
     simulation: 'Canlı Simülasyon',
@@ -45,6 +48,7 @@ const PERSONAS = {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+    initTheme();
     bindTabs();
     bindActions();
     updateSidebarClock();
@@ -53,6 +57,46 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshAll();
     setStudentStep('consent');
 });
+
+function initTheme() {
+    state.theme = sanitizeTheme(document.documentElement.dataset.theme || readStoredTheme());
+    document.documentElement.dataset.theme = state.theme;
+    document.querySelectorAll('[data-theme-option]').forEach(button => {
+        button.addEventListener('click', () => setTheme(button.dataset.themeOption));
+    });
+    renderThemeToggle();
+}
+
+function readStoredTheme() {
+    try {
+        return window.localStorage.getItem(THEME_STORAGE_KEY);
+    } catch (err) {
+        return null;
+    }
+}
+
+function sanitizeTheme(theme) {
+    return SUPPORTED_THEMES.has(theme) ? theme : 'dark';
+}
+
+function setTheme(theme) {
+    state.theme = sanitizeTheme(theme);
+    document.documentElement.dataset.theme = state.theme;
+    try {
+        window.localStorage.setItem(THEME_STORAGE_KEY, state.theme);
+    } catch (err) {
+        // Theme switching should remain usable even when storage is blocked.
+    }
+    renderThemeToggle();
+}
+
+function renderThemeToggle() {
+    document.querySelectorAll('[data-theme-option]').forEach(button => {
+        const active = button.dataset.themeOption === state.theme;
+        button.classList.toggle('active', active);
+        button.setAttribute('aria-pressed', active ? 'true' : 'false');
+    });
+}
 
 function bindTabs() {
     document.querySelectorAll('.tab-button').forEach(button => {
@@ -141,10 +185,17 @@ function bindActions() {
             renderSimulationPaneSwitch();
         });
     });
-    document.getElementById('simulation-feed-table').addEventListener('click', event => {
-        const button = event.target.closest('[data-simulation-attempt]');
-        if (!button) return;
-        openSimulationAttempt(button.dataset.simulationAttempt, button.dataset.simulationStudent);
+    document.getElementById('simulation-feed-grid').addEventListener('click', event => {
+        const card = event.target.closest('[data-simulation-student-card]');
+        if (!card) return;
+        openSimulationFeedCard(card);
+    });
+    document.getElementById('simulation-feed-grid').addEventListener('keydown', event => {
+        if (event.key !== 'Enter' && event.key !== ' ') return;
+        const card = event.target.closest('[data-simulation-student-card]');
+        if (!card) return;
+        event.preventDefault();
+        openSimulationFeedCard(card);
     });
     document.getElementById('student-exam').addEventListener('change', async () => {
         clearStagedPreloadedSelfie();
@@ -460,7 +511,7 @@ function renderRoster() {
         const score = latest ? latest.score.toFixed(3) : '-';
         const actionLabel = REVIEW_STATUSES.has(row.exam_status) ? localizeText('Review') : localizeText('Open');
         const action = latest
-            ? `<button class="row-button ${REVIEW_STATUSES.has(row.exam_status) ? 'review-action' : ''}" data-attempt="${escapeHtml(latest.attempt_id)}">${actionLabel}</button>`
+            ? `<button class="row-button icon-row-action ${REVIEW_STATUSES.has(row.exam_status) ? 'review-action' : ''}" data-attempt="${escapeHtml(latest.attempt_id)}" aria-label="${escapeHtml(actionLabel)}" title="${escapeHtml(actionLabel)}">${iconSvg('chevron')}</button>`
             : `<span class="muted action-waiting">${escapeHtml(localizeText('Waiting'))}</span>`;
         const selected = latest?.attempt_id === state.selectedAttempt?.attempt_id ? ' class="selected-row"' : '';
         return `
@@ -1337,43 +1388,167 @@ function renderSimulationInstructorPane() {
     setPreview('simulation-reference-preview', row?.reference_preview || student?.reference_preview);
     setPreview('simulation-query-preview', attempt?.query_preview);
     renderAuditRail('simulation-audit-rail', attempt, row);
+    renderSimulationEvidence(attempt, row, exam);
 
     document.querySelectorAll('[data-simulation-review-action]').forEach(button => {
         button.disabled = !attempt;
     });
 }
 
+function renderSimulationEvidence(attempt, row, exam) {
+    const score = Number(attempt?.score);
+    const threshold = Number(attempt?.threshold ?? exam?.threshold);
+    const scorePercent = Number.isFinite(score) ? `${(score * 100).toFixed(1)}%` : '-';
+    const thresholdText = Number.isFinite(threshold) ? threshold.toFixed(3) : '-';
+    const source = attempt ? attemptSourceLabel(attempt.attempt_source) : 'No submission';
+    const model = modelLabel(attempt?.model_type || exam?.model_type || '-');
+    const samples = Number(row?.sample_count || 0);
+    const scenario = attempt?.scenario ? humanizeScenario(attempt.scenario) : humanizeScenario(state.simulationScenario);
+    const attemptId = attempt?.attempt_id || '-';
+
+    setTextIfPresent('simulation-evidence-score', scorePercent);
+    setTextIfPresent('simulation-evidence-score-detail', attempt ? scoreDetail(attempt) : 'Awaiting attempt');
+    setTextIfPresent('simulation-evidence-threshold', thresholdText);
+    setTextIfPresent('simulation-evidence-source', source);
+    setTextIfPresent('simulation-evidence-model', model);
+    setTextIfPresent('simulation-evidence-samples', samples ? `${samples} enrolled` : '-');
+    setTextIfPresent('simulation-evidence-scenario', scenario);
+    setTextIfPresent('simulation-evidence-attempt', attemptId === '-' ? '-' : shortAttemptId(attemptId));
+
+    const fill = document.getElementById('simulation-evidence-score-fill');
+    const marker = document.getElementById('simulation-evidence-threshold-marker');
+    if (fill) {
+        fill.style.width = `${Math.max(0, Math.min(1, Number.isFinite(score) ? score : 0)) * 100}%`;
+    }
+    if (marker) {
+        marker.style.left = `${Math.max(0, Math.min(1, Number.isFinite(threshold) ? threshold : 0)) * 100}%`;
+    }
+
+    const rail = document.getElementById('simulation-evidence-rail');
+    if (!rail) return;
+    const finalStatus = attempt?.final_status || row?.exam_status || 'Pending Verification';
+    const warnings = attempt?.warnings || [];
+    const stages = attempt
+        ? [
+            { label: 'Source', value: source, kind: 'passed' },
+            { label: 'Liveness', value: warnings.length ? 'Warnings' : 'Passed', kind: warnings.length ? 'review' : 'passed' },
+            { label: 'Match', value: scorePercent, kind: resultClass(attempt.decision) },
+            { label: 'Outcome', value: statusLabel(finalStatus), kind: statusClass(finalStatus) },
+        ]
+        : [
+            { label: 'Source', value: 'Waiting', kind: 'waiting' },
+            { label: 'Liveness', value: 'Pending', kind: 'waiting' },
+            { label: 'Match', value: '-', kind: 'waiting' },
+            { label: 'Outcome', value: statusLabel(finalStatus), kind: statusClass(finalStatus) },
+        ];
+    rail.innerHTML = stages.map(stage => `
+        <div class="simulation-evidence-step ${escapeHtml(stage.kind)}">
+            <strong>${escapeHtml(stage.label)}</strong>
+            <small>${escapeHtml(stage.value)}</small>
+        </div>
+    `).join('');
+}
+
+function shortAttemptId(attemptId) {
+    const value = String(attemptId || '');
+    if (value.length <= 12) return value;
+    return `${value.slice(0, 8)}...${value.slice(-4)}`;
+}
+
+function humanizeScenario(scenario) {
+    if (!scenario) return '-';
+    return String(scenario)
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, char => char.toUpperCase());
+}
+
 function renderSimulationFeed() {
-    const body = document.getElementById('simulation-feed-table');
-    if (!body) return;
+    const grid = document.getElementById('simulation-feed-grid');
+    if (!grid) return;
     const exam = selectedExam();
     const rows = [...(state.roster?.roster || [])]
+        .filter(row => Number(row.sample_count || 0) > 0)
         .sort((a, b) => statusPriority(a.exam_status) - statusPriority(b.exam_status)
-            || String(a.name || '').localeCompare(String(b.name || ''), 'tr-TR'))
-        .slice(0, 5);
+            || String(a.name || '').localeCompare(String(b.name || ''), 'tr-TR'));
 
     if (!rows.length) {
-        body.innerHTML = `<tr><td colspan="5" class="empty-cell">${escapeHtml(localizeText('No students in this exam roster.'))}</td></tr>`;
+        grid.innerHTML = `<div class="feed-empty-state">${escapeHtml(localizeText('No enrolled students in this exam roster.'))}</div>`;
         return;
     }
 
-    body.innerHTML = rows.map(row => {
+    grid.innerHTML = rows.map(row => {
         const attempt = row.latest_attempt;
         const score = attempt ? `${(attempt.score * 100).toFixed(1)}%` : '-';
-        const actionLabel = REVIEW_STATUSES.has(row.exam_status) || BLOCKED_STATUSES.has(row.exam_status) ? localizeText('Review') : localizeText('View');
-        const action = attempt
-            ? `<button class="row-button ${REVIEW_STATUSES.has(row.exam_status) || BLOCKED_STATUSES.has(row.exam_status) ? 'review-action' : ''}" data-simulation-attempt="${escapeHtml(attempt.attempt_id)}" data-simulation-student="${escapeHtml(row.student_id)}">${actionLabel}</button>`
-            : `<span class="muted action-waiting">${escapeHtml(localizeText('Waiting'))}</span>`;
+        const student = campusStudentById(row.student_id);
+        const submittedPhoto = simulationSubmittedPhoto(row, student);
+        const savedPhoto = row.reference_preview || student?.reference_preview;
+        const progress = attempt ? Math.max(4, Math.min(100, Number(attempt.score || 0) * 100)) : 6;
+        const sourceLabel = attempt
+            ? attemptSourceLabel(attempt.attempt_source)
+            : (submittedPhoto ? localizeText('Preloaded selfie') : localizeText('Awaiting selfie'));
+        const selectedClass = row.student_id === state.simulationSelectedStudentId ? 'selected' : '';
+        const cardLabel = `${row.name || row.student_id}, ${statusLabel(row.exam_status)}, ${attempt ? score : localizeText('no attempt yet')}`;
         return `
-            <tr class="${statusClass(row.exam_status)}">
-                <td>${studentNameCell(row)}</td>
-                <td>${escapeHtml(displayExamName(exam?.name))}</td>
-                <td><span class="badge ${statusClass(row.exam_status)}">${escapeHtml(statusLabel(row.exam_status))}</span></td>
-                <td>${score}</td>
-                <td>${action}</td>
-            </tr>
+            <article class="student-feed-card ${statusClass(row.exam_status)} ${selectedClass}"
+                role="button"
+                tabindex="0"
+                aria-label="${escapeHtml(cardLabel)}"
+                data-simulation-student-card
+                data-simulation-student="${escapeHtml(row.student_id)}"
+                ${attempt ? `data-simulation-attempt="${escapeHtml(attempt.attempt_id)}"` : ''}>
+                <div class="student-feed-top">
+                    ${avatarHtml(savedPhoto)}
+                    <div>
+                        <strong>${escapeHtml(row.name || '-')}</strong>
+                        <span>${escapeHtml(displayStudentId(row.student_id))}</span>
+                    </div>
+                    <i aria-hidden="true"></i>
+                </div>
+                <div class="student-feed-photos">
+                    ${feedImageSlot('Submitted', submittedPhoto, sourceLabel)}
+                    ${feedImageSlot('Saved', savedPhoto, `${Number(row.sample_count || 0)} ${localizeText('samples')}`)}
+                </div>
+                <div class="student-feed-score">
+                    <span class="badge ${statusClass(row.exam_status)}">${escapeHtml(statusLabel(row.exam_status))}</span>
+                    <span>${escapeHtml(score)}</span>
+                    <div class="student-feed-scorebar" aria-hidden="true"><b style="width: ${progress.toFixed(1)}%"></b></div>
+                </div>
+            </article>
         `;
     }).join('');
+}
+
+function openSimulationFeedCard(card) {
+    const attemptId = card.dataset.simulationAttempt;
+    if (attemptId) {
+        openSimulationAttempt(attemptId, card.dataset.simulationStudent);
+        return;
+    }
+    setSelectValue('student-select', card.dataset.simulationStudent);
+    setSelectValue('simulation-student', card.dataset.simulationStudent);
+    syncSimulationSelection();
+    renderSimulation();
+}
+
+function simulationSubmittedPhoto(row, student) {
+    if (row?.latest_attempt?.query_preview) return row.latest_attempt.query_preview;
+    if (row?.face_source === 'flux_synid' || student?.face_source === 'flux_synid') {
+        return api.studentFluxTestImageUrl(row.student_id);
+    }
+    return null;
+}
+
+function feedImageSlot(label, src, detail) {
+    const title = `${localizeText(label)}${detail ? `: ${detail}` : ''}`;
+    return `
+        <figure class="feed-photo ${src ? 'has-image' : 'missing'}" title="${escapeHtml(title)}">
+            <div class="feed-photo-frame">
+                <span class="feed-photo-label">${escapeHtml(label === 'Submitted' ? 'SUB' : 'SAVED')}</span>
+                ${src ? `<img src="${escapeHtml(src)}" alt="" loading="lazy" onerror="this.closest('.feed-photo').classList.add('missing'); this.remove();">` : ''}
+                <span class="feed-photo-missing">${escapeHtml(localizeText('No image'))}</span>
+            </div>
+        </figure>
+    `;
 }
 
 async function openSimulationAttempt(attemptId, studentId) {
@@ -1414,7 +1589,7 @@ function renderAuditRail(containerId, attempt, row = null) {
     const stages = auditRailStages(attempt, row);
     host.innerHTML = stages.map((stage, index) => `
         <div class="audit-stage ${stage.kind}">
-            <span class="audit-stage-icon">${escapeHtml(stage.icon)}</span>
+            <span class="audit-stage-icon" aria-hidden="true">${iconSvg(stage.icon)}</span>
             <div>
                 <time>${escapeHtml(stage.time)}</time>
                 <strong>${escapeHtml(stage.title)}</strong>
@@ -1434,13 +1609,29 @@ function auditRailStages(attempt, row) {
     const finalStatus = attempt.final_status || row?.exam_status || attempt.status || 'Pending Verification';
     const livenessDetail = warnings.length ? localizeText('Warnings present') : localizeText('Passed');
     return [
-        { icon: 'P', title: localizeText('Attempt Started'), detail: displayStudentId(attempt.student_id), time, kind: 'started' },
-        { icon: 'C', title: localizeText('Photo Captured'), detail: attemptSourceLabel(attempt.attempt_source), time, kind: 'captured' },
-        { icon: 'L', title: localizeText('Liveness Check'), detail: livenessDetail, time, kind: warnings.length ? 'review' : 'passed' },
-        { icon: 'F', title: localizeText('Face Analyzed'), detail: modelLabel(attempt.model_type), time, kind: 'analyzed' },
-        { icon: '%', title: localizeText(`Match Score: ${score}`), detail: scoreDetail(attempt), time, kind: resultClass(attempt.decision) },
+        { icon: 'play', title: localizeText('Attempt Started'), detail: displayStudentId(attempt.student_id), time, kind: 'started' },
+        { icon: 'camera', title: localizeText('Photo Captured'), detail: attemptSourceLabel(attempt.attempt_source), time, kind: 'captured' },
+        { icon: 'shield', title: localizeText('Liveness Check'), detail: livenessDetail, time, kind: warnings.length ? 'review' : 'passed' },
+        { icon: 'scan', title: localizeText('Face Analyzed'), detail: modelLabel(attempt.model_type), time, kind: 'analyzed' },
+        { icon: 'percent', title: localizeText(`Match Score: ${score}`), detail: scoreDetail(attempt), time, kind: resultClass(attempt.decision) },
         { icon: finalStatusIcon(finalStatus), title: statusLabel(finalStatus), detail: finalStatusDetail(finalStatus), time, kind: resultClass(attempt.decision) },
     ];
+}
+
+function iconSvg(name) {
+    const icons = {
+        chevron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 18l6-6-6-6"></path></svg>',
+        play: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M8 5v14l11-7-11-7z"></path></svg>',
+        camera: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 8h4l2-3h4l2 3h4v11H4V8z"></path><circle cx="12" cy="13" r="3"></circle></svg>',
+        shield: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l7 3v5c0 4.4-2.8 8.2-7 10-4.2-1.8-7-5.6-7-10V6l7-3z"></path><path d="M9 12l2 2 4-5"></path></svg>',
+        scan: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3"></path><path d="M8 12h8"></path><path d="M12 8v8"></path></svg>',
+        percent: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M19 5L5 19"></path><circle cx="7" cy="7" r="2"></circle><circle cx="17" cy="17" r="2"></circle></svg>',
+        granted: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"></circle><path d="M8 12l2.5 2.5L16 9"></path></svg>',
+        review: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8v5"></path><path d="M12 17h.01"></path><path d="M10.3 4.3h3.4L21 17.2 19.3 20H4.7L3 17.2 10.3 4.3z"></path></svg>',
+        denied: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"></circle><path d="M15 9l-6 6M9 9l6 6"></path></svg>',
+        waiting: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"></circle><path d="M12 7v5l3 2"></path></svg>',
+    };
+    return icons[name] || icons.waiting;
 }
 
 function attemptSourceLabel(source) {
@@ -1458,10 +1649,10 @@ function scoreDetail(attempt) {
 }
 
 function finalStatusIcon(status) {
-    if (ACCESS_GRANTED_STATUSES.has(status)) return 'G';
-    if (REVIEW_STATUSES.has(status)) return 'R';
-    if (BLOCKED_STATUSES.has(status)) return 'D';
-    return 'W';
+    if (ACCESS_GRANTED_STATUSES.has(status)) return 'granted';
+    if (REVIEW_STATUSES.has(status)) return 'review';
+    if (BLOCKED_STATUSES.has(status)) return 'denied';
+    return 'waiting';
 }
 
 function finalStatusDetail(status) {
@@ -1621,6 +1812,7 @@ function updateScoreBar(prefix, score, threshold, decision) {
     if (decision === 'rejected') fill.classList.add('rejected');
     fill.style.width = `${Math.max(0, Math.min(1, score)) * 100}%`;
     line.style.left = `${Math.max(0, Math.min(1, threshold)) * 100}%`;
+    line.dataset.threshold = Number.isFinite(Number(threshold)) ? Number(threshold).toFixed(3) : '';
 }
 
 function requireConsent() {
@@ -1730,6 +1922,10 @@ function updateContextBar() {
         threshold: thresholdText,
     });
     setTextIfPresent('context-summary', contextSummary);
+    const topContextPill = document.querySelector('.top-context-pill');
+    if (topContextPill) {
+        topContextPill.textContent = `${scenarioName || 'SE 204 Ara Sınav'} · ${modelLabel(exam?.model_type || '-')} · ${thresholdText}`;
+    }
     setTextIfPresent('context-university', DISPLAY_UNIVERSITY);
     setTextIfPresent('context-course', courseName || DISPLAY_COURSE);
     setTextIfPresent('context-exam', examName || DISPLAY_EXAM);
@@ -1885,6 +2081,10 @@ function selectedCourse() {
 
 function selectedStudent() {
     const studentId = document.getElementById('student-select').value;
+    return campusStudentById(studentId);
+}
+
+function campusStudentById(studentId) {
     return state.snapshot?.students?.find(student => student.student_id === studentId);
 }
 

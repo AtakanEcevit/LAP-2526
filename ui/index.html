@@ -6,7 +6,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="FaceVerify Campus sınav kimliği doğrulama demosu.">
     <title>FaceVerify Campus</title>
+    <script>
+        (() => {
+            const storageKey = 'faceverifyTheme';
+            let theme = 'dark';
+            try {
+                const stored = window.localStorage.getItem(storageKey);
+                if (stored === 'light' || stored === 'dark') theme = stored;
+            } catch (err) {
+                theme = 'dark';
+            }
+            document.documentElement.dataset.theme = theme;
+        })();
+    </script>
     <link rel="stylesheet" href="/css/style.css">
+    <link rel="stylesheet" href="/css/dark-theme.css" id="theme-dark-stylesheet">
 </head>
 
 <body>
@@ -22,23 +36,23 @@
 
             <nav class="sidebar-nav">
                 <p>Main</p>
-                <button class="tab-button sidebar-link active" data-view="simulation"><span>□</span> Dashboard</button>
-                <button class="tab-button sidebar-link" data-view="student"><span>◇</span> Exam Gate</button>
-                <button class="tab-button sidebar-link" data-view="proctor"><span>◎</span> Live Monitor</button>
-                <button class="tab-button sidebar-link" data-view="admin"><span>▣</span> Exam Sessions</button>
+                <button class="tab-button sidebar-link active" data-view="simulation"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="3" y="3" width="7" height="7" rx="1.5"></rect><rect x="14" y="3" width="7" height="7" rx="1.5"></rect><rect x="3" y="14" width="7" height="7" rx="1.5"></rect><rect x="14" y="14" width="7" height="7" rx="1.5"></rect></svg></span> Dashboard</button>
+                <button class="tab-button sidebar-link" data-view="student"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l8 5v8l-8 5-8-5V8l8-5z"></path><path d="M9 12l2 2 4-5"></path></svg></span> Exam Gate</button>
+                <button class="tab-button sidebar-link" data-view="proctor"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12s3.5-6 9-6 9 6 9 6-3.5 6-9 6-9-6-9-6z"></path><circle cx="12" cy="12" r="3"></circle></svg></span> Live Monitor</button>
+                <button class="tab-button sidebar-link" data-view="admin"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect x="4" y="4" width="16" height="16" rx="2"></rect><path d="M8 9h8M8 13h8M8 17h5"></path></svg></span> Exam Sessions</button>
             </nav>
 
             <nav class="sidebar-nav">
                 <p>Review & Actions</p>
-                <button class="tab-button sidebar-link" data-view="proctor"><span>!</span> Pending Review <b id="sidebar-review-count">0</b></button>
-                <button class="tab-button sidebar-link" data-view="proctor"><span>×</span> Flagged Attempts <b id="sidebar-blocked-count">0</b></button>
-                <button class="tab-button sidebar-link" data-view="evidence"><span>≡</span> Audit Logs</button>
+                <button class="tab-button sidebar-link" data-view="proctor"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 4.3h3.4L21 17.2 19.3 20H4.7L3 17.2 10.3 4.3z"></path></svg></span> Pending Review <b id="sidebar-review-count">0</b></button>
+                <button class="tab-button sidebar-link" data-view="proctor"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 21V5"></path><path d="M5 5h12l-2 4 2 4H5"></path></svg></span> Flagged Attempts <b id="sidebar-blocked-count">0</b></button>
+                <button class="tab-button sidebar-link" data-view="evidence"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg></span> Audit Logs</button>
             </nav>
 
             <nav class="sidebar-nav">
                 <p>Settings</p>
-                <button class="tab-button sidebar-link" data-view="admin"><span>⚙</span> Exam Settings</button>
-                <button class="tab-button sidebar-link" data-view="admin"><span>✓</span> Verification Rules</button>
+                <button class="tab-button sidebar-link" data-view="admin"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z"></path><path d="M19.4 15a1.8 1.8 0 0 0 .36 2l.05.05-2 3.46-.07-.02a1.8 1.8 0 0 0-1.96.82l-.03.06h-4l-.03-.06a1.8 1.8 0 0 0-1.96-.82l-.07.02-2-3.46.05-.05A1.8 1.8 0 0 0 8.1 15l-.03-.06-2-3.46.04-.05a1.8 1.8 0 0 0 0-2.04l-.04-.05 2-3.46.07.02a1.8 1.8 0 0 0 1.96-.82l.03-.06h4l.03.06a1.8 1.8 0 0 0 1.96.82l.07-.02 2 3.46-.04.05a1.8 1.8 0 0 0 0 2.04l.04.05-2 3.46-.03.06z"></path></svg></span> Exam Settings</button>
+                <button class="tab-button sidebar-link" data-view="admin"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 3l7 3v5c0 4.4-2.8 8.2-7 10-4.2-1.8-7-5.6-7-10V6l7-3z"></path><path d="M9 12l2 2 4-5"></path></svg></span> Verification Rules</button>
             </nav>
 
             <div class="sidebar-status">
@@ -63,7 +77,12 @@
                 <h1>Biometric Exam Access Verification</h1>
                 <p class="muted monitor-subtitle">Atılım University Demo - SE 204 Midterm - Hybrid FaceNet - Threshold 0.300</p>
             </div>
+            <button class="top-context-pill" type="button" aria-label="Active exam context">SE 204 · Midterm · Hybrid FaceNet · 0.300</button>
             <div class="monitor-actions">
+                <div class="theme-toggle" role="group" aria-label="Theme">
+                    <button type="button" data-theme-option="light" aria-pressed="false">Light</button>
+                    <button type="button" data-theme-option="dark" aria-pressed="true">Dark</button>
+                </div>
                 <span class="live-pill"><span class="status-dot"></span>Live Monitoring</span>
                 <button class="icon-button" aria-label="Notifications">◔<b>3</b></button>
                 <button class="icon-button" aria-label="Help">?</button>
@@ -321,103 +340,116 @@
 
                         <div class="dashboard-kpi-grid simulation-kpi-grid" aria-label="Instructor admin control center metrics">
                             <article class="kpi-card kpi-total">
-                                <div class="kpi-card-top"><span class="kpi-icon">A</span><span>Total Attempts</span></div>
+                                <div class="kpi-card-top"><span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v6h6"></path><path d="M12 7v5l3 2"></path></svg></span><span>Total Attempts</span></div>
                                 <strong id="simulation-kpi-attempts-count">0</strong>
                                 <small id="simulation-kpi-attempts-rate">Live</small>
                                 <div class="kpi-sparkline" id="simulation-kpi-attempts-spark"></div>
                             </article>
                             <article class="kpi-card kpi-verified">
-                                <div class="kpi-card-top"><span class="kpi-icon">V</span><span>Verified</span></div>
+                                <div class="kpi-card-top"><span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"></circle><path d="M8 12l2.5 2.5L16 9"></path></svg></span><span>Verified</span></div>
                                 <strong id="simulation-kpi-verified-count">0</strong>
                                 <small id="simulation-kpi-verified-rate">0.0%</small>
                                 <div class="kpi-sparkline" id="simulation-kpi-verified-spark"></div>
                             </article>
                             <article class="kpi-card kpi-review">
-                                <div class="kpi-card-top"><span class="kpi-icon">R</span><span>Needs Review</span></div>
+                                <div class="kpi-card-top"><span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8v5"></path><path d="M12 17h.01"></path><path d="M10.3 4.3h3.4L21 17.2 19.3 20H4.7L3 17.2 10.3 4.3z"></path></svg></span><span>Needs Review</span></div>
                                 <strong id="simulation-kpi-review-count">0</strong>
                                 <small id="simulation-kpi-review-rate">0.0%</small>
                                 <div class="kpi-sparkline" id="simulation-kpi-review-spark"></div>
                             </article>
                             <article class="kpi-card kpi-flagged">
-                                <div class="kpi-card-top"><span class="kpi-icon">F</span><span>Flagged / Denied</span></div>
+                                <div class="kpi-card-top"><span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 21V5"></path><path d="M5 5h12l-2 4 2 4H5"></path></svg></span><span>Flagged / Denied</span></div>
                                 <strong id="simulation-kpi-blocked-count">0</strong>
                                 <small id="simulation-kpi-blocked-rate">0.0%</small>
                                 <div class="kpi-sparkline" id="simulation-kpi-blocked-spark"></div>
                             </article>
                             <article class="kpi-card kpi-waiting">
-                                <div class="kpi-card-top"><span class="kpi-icon">N</span><span>No Enrollment</span></div>
+                                <div class="kpi-card-top"><span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9.5" cy="7" r="4"></circle><path d="M17 8l4 4M21 8l-4 4"></path></svg></span><span>No Enrollment</span></div>
                                 <strong id="simulation-kpi-no-enrollment-count">0</strong>
                                 <small id="simulation-kpi-no-enrollment-rate">0.0%</small>
                                 <div class="kpi-sparkline" id="simulation-kpi-no-enrollment-spark"></div>
                             </article>
                         </div>
 
-                        <section class="monitor-feed-card">
-                            <div class="monitor-card-heading">
-                                <div>
-                                    <h3>Live Verification Feed</h3>
-                                    <span class="live-dot">Live</span>
+                        <div class="verification-workbench">
+                            <section class="attempt-review-card">
+                                <div class="attempt-review-header">
+                                    <div>
+                                        <h3 id="simulation-admin-student">-</h3>
+                                        <p class="muted" id="simulation-policy-detail">-</p>
+                                    </div>
+                                    <span class="badge" id="simulation-admin-status">-</span>
                                 </div>
-                                <button class="secondary-action compact-action">View All</button>
-                            </div>
-                            <div class="table-panel embedded monitor-feed-table">
-                                <table>
-                                    <thead>
-                                        <tr>
-                                            <th>Student</th>
-                                            <th>Exam</th>
-                                            <th>Status</th>
-                                            <th>Match Score</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="simulation-feed-table"></tbody>
-                                </table>
-                            </div>
-                        </section>
 
-                        <section class="attempt-review-card">
-                            <div class="attempt-review-header">
-                                <div>
-                                    <h3 id="simulation-admin-student">-</h3>
-                                    <p class="muted" id="simulation-policy-detail">-</p>
+                                <div class="simulation-review-grid">
+                                    <div>
+                                        <p class="preview-label">Captured Photo</p>
+                                        <div class="image-preview compact-preview" id="simulation-query-preview" data-label="Exam Day">No image</div>
+                                    </div>
+                                    <div>
+                                        <p class="preview-label">Enrolled Photo</p>
+                                        <div class="image-preview compact-preview" id="simulation-reference-preview" data-label="Enrolled">No image</div>
+                                    </div>
                                 </div>
-                                <span class="badge" id="simulation-admin-status">-</span>
-                            </div>
 
-                            <div class="simulation-review-grid">
-                                <div>
-                                    <p class="preview-label">Captured Photo</p>
-                                    <div class="image-preview compact-preview" id="simulation-query-preview">No image</div>
+                                <dl class="detail-list compact-details">
+                                    <div><dt>Decision</dt><dd id="simulation-admin-decision">-</dd></div>
+                                    <div><dt>Warnings</dt><dd id="simulation-admin-warnings">-</dd></div>
+                                    <div><dt>Attempt Time</dt><dd id="simulation-admin-time">-</dd></div>
+                                </dl>
+
+                                <div class="form-grid stacked simulation-review-form">
+                                    <label>
+                                        Reviewer
+                                        <input type="text" id="simulation-reviewer-name" value="Proctor Lee">
+                                    </label>
+                                    <label>
+                                        Reason
+                                        <input type="text" id="simulation-review-reason" value="Manual ID check completed.">
+                                    </label>
                                 </div>
-                                <div>
-                                    <p class="preview-label">Enrolled Photo</p>
-                                    <div class="image-preview compact-preview" id="simulation-reference-preview">No image</div>
+
+                                <section class="simulation-evidence-panel" aria-label="Verification evidence summary">
+                                    <div class="simulation-evidence-head">
+                                        <div>
+                                            <span>Verification Evidence</span>
+                                            <strong id="simulation-evidence-score">-</strong>
+                                        </div>
+                                        <small id="simulation-evidence-score-detail">Awaiting attempt</small>
+                                    </div>
+                                    <div class="simulation-evidence-meter" aria-hidden="true">
+                                        <b id="simulation-evidence-score-fill"></b>
+                                        <i id="simulation-evidence-threshold-marker"></i>
+                                    </div>
+                                    <dl class="simulation-evidence-grid">
+                                        <div><dt>Threshold</dt><dd id="simulation-evidence-threshold">-</dd></div>
+                                        <div><dt>Source</dt><dd id="simulation-evidence-source">-</dd></div>
+                                        <div><dt>Model</dt><dd id="simulation-evidence-model">-</dd></div>
+                                        <div><dt>Samples</dt><dd id="simulation-evidence-samples">-</dd></div>
+                                        <div><dt>Scenario</dt><dd id="simulation-evidence-scenario">-</dd></div>
+                                        <div><dt>Attempt ID</dt><dd id="simulation-evidence-attempt">-</dd></div>
+                                    </dl>
+                                    <div class="simulation-evidence-rail" id="simulation-evidence-rail" aria-label="Compact attempt stages"></div>
+                                </section>
+
+                                <div class="button-row admin-action-stack">
+                                    <button class="success-action" data-simulation-review-action="approve" disabled>Approve Access</button>
+                                    <button class="danger-action" data-simulation-review-action="deny" disabled>Deny Access</button>
+                                    <button class="secondary-action" data-simulation-review-action="fallback" disabled>Mark for Review</button>
                                 </div>
-                            </div>
+                            </section>
 
-                            <dl class="detail-list compact-details">
-                                <div><dt>Decision</dt><dd id="simulation-admin-decision">-</dd></div>
-                                <div><dt>Warnings</dt><dd id="simulation-admin-warnings">-</dd></div>
-                                <div><dt>Attempt Time</dt><dd id="simulation-admin-time">-</dd></div>
-                            </dl>
-
-                            <div class="form-grid stacked simulation-review-form">
-                                <label>
-                                    Reviewer
-                                    <input type="text" id="simulation-reviewer-name" value="Proctor Lee">
-                                </label>
-                                <label>
-                                    Reason
-                                    <input type="text" id="simulation-review-reason" value="Manual ID check completed.">
-                                </label>
-                            </div>
-                            <div class="button-row admin-action-stack">
-                                <button class="success-action" data-simulation-review-action="approve" disabled>Approve Access</button>
-                                <button class="danger-action" data-simulation-review-action="deny" disabled>Deny Access</button>
-                                <button class="secondary-action" data-simulation-review-action="fallback" disabled>Mark for Review</button>
-                            </div>
-                        </section>
+                            <section class="student-verification-panel">
+                                <div class="monitor-card-heading">
+                                    <div>
+                                        <h3>Live Verification Feed</h3>
+                                        <span class="live-dot">Live</span>
+                                    </div>
+                                    <button class="secondary-action compact-action">View All</button>
+                                </div>
+                                <div class="student-feed-grid" id="simulation-feed-grid" aria-label="Enrolled student verification cards"></div>
+                            </section>
+                        </div>
                     </aside>
                 </div>
 
@@ -612,31 +644,31 @@
 
                 <section class="dashboard-kpi-grid review-kpi-grid" aria-label="Review queue metrics">
                     <article class="kpi-card kpi-total">
-                        <div class="kpi-card-top"><span class="kpi-icon">A</span><span>Total Attempts</span></div>
+                        <div class="kpi-card-top"><span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v6h6"></path><path d="M12 7v5l3 2"></path></svg></span><span>Total Attempts</span></div>
                         <strong id="review-kpi-attempts-count">0</strong>
                         <small id="review-kpi-attempts-rate">Live</small>
                         <div class="kpi-sparkline" id="review-kpi-attempts-spark"></div>
                     </article>
                     <article class="kpi-card kpi-verified">
-                        <div class="kpi-card-top"><span class="kpi-icon">V</span><span>Verified</span></div>
+                        <div class="kpi-card-top"><span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="9"></circle><path d="M8 12l2.5 2.5L16 9"></path></svg></span><span>Verified</span></div>
                         <strong id="review-kpi-verified-count">0</strong>
                         <small id="review-kpi-verified-rate">0.0%</small>
                         <div class="kpi-sparkline" id="review-kpi-verified-spark"></div>
                     </article>
                     <article class="kpi-card kpi-review">
-                        <div class="kpi-card-top"><span class="kpi-icon">R</span><span>Needs Review</span></div>
+                        <div class="kpi-card-top"><span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 8v5"></path><path d="M12 17h.01"></path><path d="M10.3 4.3h3.4L21 17.2 19.3 20H4.7L3 17.2 10.3 4.3z"></path></svg></span><span>Needs Review</span></div>
                         <strong id="review-kpi-review-count">0</strong>
                         <small id="review-kpi-review-rate">0.0%</small>
                         <div class="kpi-sparkline" id="review-kpi-review-spark"></div>
                     </article>
                     <article class="kpi-card kpi-flagged">
-                        <div class="kpi-card-top"><span class="kpi-icon">F</span><span>Flagged / Denied</span></div>
+                        <div class="kpi-card-top"><span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 21V5"></path><path d="M5 5h12l-2 4 2 4H5"></path></svg></span><span>Flagged / Denied</span></div>
                         <strong id="review-kpi-blocked-count">0</strong>
                         <small id="review-kpi-blocked-rate">0.0%</small>
                         <div class="kpi-sparkline" id="review-kpi-blocked-spark"></div>
                     </article>
                     <article class="kpi-card kpi-waiting">
-                        <div class="kpi-card-top"><span class="kpi-icon">N</span><span>No Enrollment</span></div>
+                        <div class="kpi-card-top"><span class="kpi-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2"></path><circle cx="9.5" cy="7" r="4"></circle><path d="M17 8l4 4M21 8l-4 4"></path></svg></span><span>No Enrollment</span></div>
                         <strong id="review-kpi-no-enrollment-count">0</strong>
                         <small id="review-kpi-no-enrollment-rate">0.0%</small>
                         <div class="kpi-sparkline" id="review-kpi-no-enrollment-spark"></div>
@@ -717,11 +749,11 @@
                             <div class="review-grid">
                                 <div>
                                     <p class="preview-label">Enrolled Reference</p>
-                                    <div class="image-preview" id="reference-preview">No image</div>
+                                    <div class="image-preview" id="reference-preview" data-label="Enrolled">No image</div>
                                 </div>
                                 <div>
                                     <p class="preview-label">Exam Attempt</p>
-                                    <div class="image-preview" id="query-preview">No image</div>
+                                    <div class="image-preview" id="query-preview" data-label="Exam Day">No image</div>
                                 </div>
                             </div>
                             <dl class="detail-list compact-details">

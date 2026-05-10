@@ -3316,6 +3316,74 @@ button:focus-visible,
     box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
 }
 
+.instructor-pov {
+    display: grid;
+    grid-template-rows: auto auto auto minmax(0, 1fr);
+    align-items: stretch;
+    gap: 14px;
+    min-height: 0;
+    max-height: calc(100dvh - 143px);
+    overflow: hidden;
+}
+
+.instructor-pov .pov-heading {
+    margin: 0;
+}
+
+.instructor-pov .pov-heading h3 {
+    font-size: 1rem;
+}
+
+.instructor-pov > .dashboard-kpi-grid,
+.instructor-pov .student-verification-panel,
+.instructor-pov .attempt-review-card {
+    margin-top: 0;
+}
+
+.instructor-pov > .dashboard-kpi-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 10px;
+    height: 88px;
+    min-height: 88px;
+    margin-bottom: 0;
+    overflow: hidden;
+}
+
+.instructor-pov .kpi-card {
+    min-height: 0;
+    height: 88px;
+    gap: 4px;
+    padding: 10px;
+}
+
+.instructor-pov .kpi-card-top {
+    gap: 7px;
+    font-size: 0.68rem;
+}
+
+.instructor-pov .kpi-icon {
+    width: 26px;
+    height: 26px;
+}
+
+.instructor-pov .kpi-card strong {
+    font-size: 1.22rem;
+}
+
+.instructor-pov .kpi-sparkline,
+.instructor-pov .kpi-sparkline svg {
+    height: 14px;
+    min-height: 14px;
+}
+
+.verification-workbench {
+    display: grid;
+    grid-template-columns: minmax(360px, 1fr) minmax(282px, 0.72fr);
+    gap: 14px;
+    min-height: 0;
+    overflow: hidden;
+}
+
 .student-pov::after,
 .instructor-pov::after {
     display: none;
@@ -3423,13 +3491,31 @@ button:focus-visible,
     background: #f8fbff;
 }
 
-.monitor-feed-card,
+.student-verification-panel,
 .attempt-review-card {
     margin-top: 14px;
     padding: 14px;
     border-radius: 10px;
     background: #fff;
     box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+
+.student-verification-panel {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-height: 0;
+    height: 100%;
+    padding: 12px;
+    overflow: hidden;
+}
+
+.student-verification-panel .monitor-card-heading {
+    min-height: 24px;
+    margin-bottom: 4px;
+}
+
+.student-verification-panel .monitor-card-heading h3 {
+    font-size: 1rem;
 }
 
 .monitor-card-heading,
@@ -3473,21 +3559,507 @@ button:focus-visible,
     font-size: 0.78rem;
 }
 
-.monitor-feed-table table {
-    min-width: 720px;
+.student-feed-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, 150px);
+    grid-auto-rows: 150px;
+    align-content: start;
+    justify-content: center;
+    gap: 10px;
+    min-height: 0;
+    overflow: auto;
+    padding: 2px 2px 4px;
 }
 
-.monitor-feed-table tr.rejected td {
-    background: #fff1f1;
+.student-feed-card {
+    position: relative;
+    display: grid;
+    grid-template-rows: auto auto auto;
+    gap: 5px;
+    height: 100%;
+    min-height: 0;
+    isolation: isolate;
+    padding: 7px;
+    overflow: hidden;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    border-radius: 13px;
+    color: var(--ink);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.94), rgba(245, 248, 252, 0.92));
+    box-shadow: 0 12px 26px rgba(15, 23, 42, 0.08);
+    cursor: pointer;
+    transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 
-.monitor-feed-table tr.manual-review td,
-.monitor-feed-table tr.fallback-requested td {
-    background: #fff7e8;
+.student-feed-card::before {
+    content: "";
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 4px;
+    background: var(--gray);
+    z-index: 1;
+}
+
+.student-feed-card.verified::before,
+.student-feed-card.approved-by-proctor::before {
+    background: var(--success);
+}
+
+.student-feed-card.manual-review::before,
+.student-feed-card.fallback-requested::before {
+    background: var(--review);
+}
+
+.student-feed-card.rejected::before,
+.student-feed-card.flagged::before,
+.student-feed-card.access-denied::before {
+    background: var(--danger);
+}
+
+.student-feed-card:hover,
+.student-feed-card.selected {
+    border-color: rgba(37, 99, 235, 0.28);
+    box-shadow: 0 18px 38px rgba(37, 99, 235, 0.14);
+    transform: translateY(-2px);
+}
+
+.student-feed-top {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr) 8px;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    position: relative;
+    z-index: 2;
+}
+
+.student-feed-top .student-avatar {
+    width: 22px;
+    height: 22px;
+}
+
+.student-feed-top strong,
+.student-feed-top span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.student-feed-top strong {
+    font-size: 0.62rem;
+}
+
+.student-feed-top span {
+    color: var(--muted);
+    font-family: var(--mono);
+    font-size: 0.5rem;
+    font-weight: 700;
+}
+
+.student-feed-top i {
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: var(--gray);
+    box-shadow: 0 0 12px rgba(100, 116, 139, 0.35);
+}
+
+.student-feed-card.verified .student-feed-top i,
+.student-feed-card.approved-by-proctor .student-feed-top i {
+    background: var(--success);
+    box-shadow: 0 0 14px rgba(16, 185, 129, 0.5);
+}
+
+.student-feed-card.manual-review .student-feed-top i,
+.student-feed-card.fallback-requested .student-feed-top i {
+    background: var(--review);
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.42);
+}
+
+.student-feed-card.rejected .student-feed-top i,
+.student-feed-card.flagged .student-feed-top i,
+.student-feed-card.access-denied .student-feed-top i {
+    background: var(--danger);
+    box-shadow: 0 0 14px rgba(239, 68, 68, 0.42);
+}
+
+.student-feed-photos {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+    min-height: 58px;
+    height: 62px;
+    overflow: hidden;
+    position: relative;
+    z-index: 1;
+}
+
+.feed-photo {
+    display: block;
+    min-width: 0;
+    min-height: 0;
+    margin: 0;
+}
+
+.feed-photo-frame {
+    position: relative;
+    display: grid;
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid rgba(15, 23, 42, 0.1);
+    border-radius: 10px;
+    color: var(--muted);
+    background: rgba(226, 232, 240, 0.72);
+    font-size: 0.68rem;
+    font-weight: 800;
+    text-align: center;
+}
+
+.feed-photo img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.feed-photo-label {
+    position: absolute;
+    left: 5px;
+    top: 5px;
+    z-index: 2;
+    max-width: calc(100% - 10px);
+    padding: 2px 5px;
+    overflow: hidden;
+    border-radius: 999px;
+    color: #fff;
+    background: rgba(15, 23, 42, 0.64);
+    font-size: 0.5rem;
+    font-weight: 900;
+    letter-spacing: 0.04em;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    text-transform: uppercase;
+    white-space: nowrap;
+}
+
+.feed-photo-missing {
+    display: none;
+    padding: 0 4px;
+    color: var(--muted);
+    font-size: 0.58rem;
+    font-weight: 900;
+}
+
+.feed-photo.missing .feed-photo-missing {
+    display: block;
+}
+
+.student-feed-score {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    min-width: 0;
+    min-height: 20px;
+    position: relative;
+    z-index: 2;
+}
+
+.student-feed-score .badge {
+    min-height: 18px;
+    padding: 2px 5px;
+    font-size: 0.5rem;
+}
+
+.student-feed-score > span {
+    color: var(--success);
+    font-family: var(--mono);
+    font-size: 0.58rem;
+    font-weight: 900;
+}
+
+.student-feed-scorebar {
+    flex: 0 1 34px;
+    height: 6px;
+    overflow: hidden;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.12);
+}
+
+.student-feed-scorebar b {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #38bdf8, #34d399);
+    box-shadow: 0 0 12px rgba(52, 211, 153, 0.32);
+}
+
+.feed-empty-state {
+    grid-column: 1 / -1;
+    min-height: 140px;
+    display: grid;
+    place-items: center;
+    border: 1px dashed rgba(15, 23, 42, 0.16);
+    border-radius: 14px;
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.62);
+    font-weight: 800;
 }
 
 .attempt-review-card .simulation-review-grid {
     grid-template-columns: repeat(2, minmax(150px, 1fr));
+}
+
+.instructor-pov .attempt-review-card {
+    display: grid;
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto minmax(116px, 1fr) auto;
+    align-items: start;
+    align-content: start;
+    gap: 10px;
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    padding: 16px;
+    border-color: rgba(37, 99, 235, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(37, 99, 235, 0.08), 0 18px 42px rgba(37, 99, 235, 0.1);
+    overflow: auto;
+}
+
+.instructor-pov .attempt-review-card .simulation-review-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+}
+
+.instructor-pov .attempt-review-card .preview-label {
+    display: block;
+    margin-bottom: 4px;
+    font-size: 0.56rem;
+}
+
+.instructor-pov .attempt-review-card .image-preview {
+    min-height: 112px;
+    max-height: 126px;
+}
+
+.instructor-pov .attempt-review-card .compact-details {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-top: 0;
+}
+
+.instructor-pov .attempt-review-card .compact-details div {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2px;
+    padding: 0;
+}
+
+.instructor-pov .attempt-review-card .compact-details dd {
+    overflow: hidden;
+    overflow-wrap: normal;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.instructor-pov .simulation-review-form {
+    display: none;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.instructor-pov .admin-action-stack {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.instructor-pov .admin-action-stack button {
+    min-height: 38px;
+    padding: 8px;
+    font-size: 0.66rem;
+}
+
+.simulation-evidence-panel {
+    display: grid;
+    align-self: stretch;
+    min-height: 0;
+    padding: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(37, 99, 235, 0.14);
+    border-radius: 14px;
+    background:
+        radial-gradient(circle at 14% 0%, rgba(59, 130, 246, 0.12), transparent 34%),
+        linear-gradient(180deg, rgba(248, 251, 255, 0.95), rgba(240, 245, 252, 0.76));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.66);
+}
+
+.simulation-evidence-head {
+    display: flex;
+    align-items: start;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.simulation-evidence-head div {
+    display: grid;
+    gap: 3px;
+}
+
+.simulation-evidence-head span,
+.simulation-evidence-grid dt {
+    color: var(--muted);
+    font-size: 0.62rem;
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.simulation-evidence-head strong {
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 1.28rem;
+    line-height: 1;
+}
+
+.simulation-evidence-head small {
+    max-width: 150px;
+    color: var(--muted);
+    font-size: 0.72rem;
+    font-weight: 800;
+    line-height: 1.35;
+    text-align: right;
+}
+
+.simulation-evidence-meter {
+    position: relative;
+    height: 12px;
+    margin-top: 8px;
+    overflow: visible;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.1);
+    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+
+.simulation-evidence-meter b {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: inherit;
+    background: linear-gradient(90deg, #38bdf8, #10b981);
+    box-shadow: 0 0 18px rgba(16, 185, 129, 0.24);
+    transition: width 420ms ease;
+}
+
+.simulation-evidence-meter i {
+    position: absolute;
+    top: -4px;
+    bottom: -4px;
+    left: 0;
+    width: 2px;
+    border-radius: 999px;
+    background: rgba(15, 23, 42, 0.58);
+    box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.7);
+}
+
+.simulation-evidence-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    margin: 10px 0 0;
+}
+
+.simulation-evidence-grid div {
+    display: grid;
+    gap: 4px;
+    min-width: 0;
+    padding: 6px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.7);
+    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+}
+
+.simulation-evidence-grid div:nth-child(n+4) {
+    display: none;
+}
+
+.simulation-evidence-grid dd {
+    margin: 0;
+    overflow: hidden;
+    color: var(--ink);
+    font-family: var(--mono);
+    font-size: 0.64rem;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.simulation-evidence-rail {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+    margin-top: 8px;
+}
+
+.simulation-evidence-step {
+    position: relative;
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+    padding: 7px 6px;
+    border-radius: 12px;
+    color: var(--muted);
+    background: rgba(255, 255, 255, 0.58);
+    box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.06);
+}
+
+.simulation-evidence-step::before {
+    content: "";
+    width: 9px;
+    height: 9px;
+    border-radius: 999px;
+    background: var(--gray);
+    box-shadow: 0 0 12px rgba(100, 116, 139, 0.28);
+}
+
+.simulation-evidence-step.passed::before,
+.simulation-evidence-step.verified::before,
+.simulation-evidence-step.approved-by-proctor::before {
+    background: var(--success);
+    box-shadow: 0 0 14px rgba(16, 185, 129, 0.36);
+}
+
+.simulation-evidence-step.review::before,
+.simulation-evidence-step.manual-review::before,
+.simulation-evidence-step.fallback-requested::before {
+    background: var(--review);
+    box-shadow: 0 0 14px rgba(245, 158, 11, 0.34);
+}
+
+.simulation-evidence-step.rejected::before,
+.simulation-evidence-step.flagged::before,
+.simulation-evidence-step.access-denied::before {
+    background: var(--danger);
+    box-shadow: 0 0 14px rgba(239, 68, 68, 0.34);
+}
+
+.simulation-evidence-step strong,
+.simulation-evidence-step small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.simulation-evidence-step strong {
+    color: var(--ink);
+    font-size: 0.62rem;
+}
+
+.simulation-evidence-step small {
+    font-size: 0.54rem;
+    font-weight: 800;
 }
 
 .admin-action-stack {
@@ -3741,8 +4313,32 @@ button:focus-visible,
         grid-template-columns: 1fr;
     }
 
+    .instructor-pov {
+        max-height: none;
+        overflow: visible;
+    }
+
+    .verification-workbench {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto;
+        overflow: visible;
+    }
+
+    .instructor-pov .attempt-review-card {
+        max-height: none;
+    }
+
+    .student-feed-grid {
+        grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+        max-height: 72vh;
+    }
+
     .simulation-mobile-switch {
         display: grid;
+    }
+
+    .simulation-layout {
+        grid-template-columns: 1fr;
     }
 
     .simulation-timeline ol {
@@ -3797,6 +4393,23 @@ button:focus-visible,
     }
 }
 
+@media (min-width: 1720px) {
+    .student-feed-grid {
+        grid-template-columns: repeat(auto-fill, 158px);
+        grid-auto-rows: 158px;
+        gap: 10px;
+        justify-content: center;
+    }
+
+    .student-feed-card {
+        padding: 8px;
+    }
+
+    .student-feed-photos {
+        height: 68px;
+    }
+}
+
 @media (max-width: 820px) {
     .gate-card-header {
         align-items: stretch;
@@ -3809,6 +4422,25 @@ button:focus-visible,
 
     .dashboard-kpi-grid {
         grid-template-columns: 1fr;
+    }
+
+    .student-feed-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .instructor-pov .attempt-review-card .compact-details,
+    .instructor-pov .simulation-review-form,
+    .instructor-pov .admin-action-stack {
+        grid-template-columns: 1fr;
+    }
+
+    .instructor-pov .attempt-review-card {
+        grid-template-columns: 1fr;
+        overflow: auto;
+    }
+
+    .instructor-pov .attempt-review-card .simulation-review-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
     }
 
     .verification-audit-rail {
@@ -3853,5 +4485,11 @@ button:focus-visible,
     .mini-step:hover::after,
     .mini-step:focus-visible::after {
         transform: translate(0, 0);
+    }
+}
+
+@media (max-width: 460px) {
+    .student-feed-grid {
+        grid-template-columns: 1fr;
     }
 }

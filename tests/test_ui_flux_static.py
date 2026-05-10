@@ -13,6 +13,7 @@ def test_flux_controls_and_previews_are_wired_in_static_ui():
     app = (PROJECT_ROOT / "ui" / "js" / "app.js").read_text(encoding="utf-8")
     i18n = (PROJECT_ROOT / "ui" / "js" / "i18n.js").read_text(encoding="utf-8")
     css = (PROJECT_ROOT / "ui" / "css" / "style.css").read_text(encoding="utf-8")
+    dark_css = (PROJECT_ROOT / "ui" / "css" / "dark-theme.css").read_text(encoding="utf-8")
 
     for element_id in [
         "flux-preupload-btn",
@@ -58,6 +59,7 @@ def test_simulation_dashboard_enhancement_ui_is_wired():
     app = (PROJECT_ROOT / "ui" / "js" / "app.js").read_text(encoding="utf-8")
     i18n = (PROJECT_ROOT / "ui" / "js" / "i18n.js").read_text(encoding="utf-8")
     css = (PROJECT_ROOT / "ui" / "css" / "style.css").read_text(encoding="utf-8")
+    dark_css = (PROJECT_ROOT / "ui" / "css" / "dark-theme.css").read_text(encoding="utf-8")
 
     for element_id in [
         "gate-step-title",
@@ -70,28 +72,69 @@ def test_simulation_dashboard_enhancement_ui_is_wired():
         "simulation-kpi-verified-spark",
         "review-kpi-review-count",
         "review-kpi-no-enrollment-spark",
+        "simulation-feed-grid",
+        "simulation-evidence-score",
+        "simulation-evidence-rail",
         "simulation-audit-rail",
         "review-audit-rail",
         "sidebar-clock-time",
         "sidebar-clock-date",
     ]:
         assert f'id="{element_id}"' in index
+    assert 'id="simulation-feed-table"' not in index
+    assert 'class="verification-workbench"' in index
+    assert index.index('class="attempt-review-card"') < index.index('class="student-verification-panel"')
+
+    assert 'data-theme-option="light"' in index
+    assert 'data-theme-option="dark"' in index
+    assert "faceverifyTheme" in index
+    assert index.index("faceverifyTheme") < index.index('/css/style.css')
+    assert 'id="theme-dark-stylesheet"' in index
 
     for function_name in [
         "function renderKpiDeck",
         "function renderAuditRail",
         "function renderGateHeader",
         "function updateSidebarClock",
+        "function initTheme",
+        "function setTheme",
+        "function renderThemeToggle",
     ]:
         assert function_name in app
 
+    assert "THEME_STORAGE_KEY = 'faceverifyTheme'" in app
+    assert "document.documentElement.dataset.theme" in app
+
     for selector in [
         ".dashboard-kpi-grid",
+        ".verification-workbench",
+        ".student-verification-panel",
+        ".student-feed-grid",
+        ".student-feed-card",
+        ".feed-photo-frame",
+        ".simulation-evidence-panel",
+        ".simulation-evidence-rail",
         ".gate-card-header",
         ".verification-audit-rail",
         ".sidebar-status-card",
     ]:
         assert selector in css
+
+    assert 'html[data-theme="dark"]' in dark_css
+    assert 'html[data-theme="light"] .theme-toggle' in dark_css
+    assert '--fallback: #8b5cf6' in dark_css
+    assert 'html[data-theme="light"] .simulation-layout' in dark_css
+    assert 'html[data-theme="light"] .simulation-divider' in dark_css
+    assert 'html[data-theme="light"] .kpi-card:hover' in dark_css
+    assert 'html[data-theme="light"] .camera-preview::before' in dark_css
+    assert 'html[data-theme="light"] .verification-audit-rail' in dark_css
+    assert 'html[data-theme="light"] .student-feed-card' in dark_css
+    assert 'html[data-theme="light"] .student-verification-panel' in dark_css
+    assert 'html[data-theme="light"] .simulation-evidence-panel' in dark_css
+    assert 'html[data-theme="light"] #operation-model-evidence' in dark_css
+    assert 'simulationSubmittedPhoto' in app
+    assert 'feedImageSlot' in app
+    assert 'function renderSimulationEvidence' in app
 
     for localization_symbol in [
         "function statusLabel",
