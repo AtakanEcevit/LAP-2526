@@ -230,7 +230,53 @@
                 <h2>Öğrenci Ekranı <span class="bx-muted">(Canlı)</span></h2>
                 <span class="bx-pill bx-pill-live bx-ms-auto"><span class="bx-pill-dot"></span> CANLI</span>
             </div>
-            <p class="bx-card-sub">Doğrulama tamamlandı</p>
+            <p class="bx-card-sub">Simülasyonu tetikle veya canlı denemeyi izle</p>
+
+            <div class="bx-sim-toolbar" id="bx-sim-toolbar">
+                <div class="bx-sim-row">
+                    <span class="bx-sim-label">Senaryo</span>
+                    <div class="bx-sim-chips" role="tablist">
+                        <button class="bx-sim-chip is-active" data-scenario="matching" type="button" role="tab" aria-selected="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                            Eşleşen
+                        </button>
+                        <button class="bx-sim-chip" data-scenario="needs_review" type="button" role="tab" aria-selected="false">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+                            İnceleme
+                        </button>
+                        <button class="bx-sim-chip" data-scenario="no_enrollment" type="button" role="tab" aria-selected="false">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M19 8v6M16 11h6"/></svg>
+                            Kayıt yok
+                        </button>
+                    </div>
+                </div>
+                <div class="bx-sim-row">
+                    <label class="bx-sim-label" for="bx-sim-student">Öğrenci</label>
+                    <select id="bx-sim-student" class="bx-sim-select">
+                        <option value="">Yükleniyor…</option>
+                    </select>
+                    <label class="bx-sim-consent">
+                        <input type="checkbox" id="bx-sim-consent">
+                        <span>Rıza onayım var</span>
+                    </label>
+                </div>
+                <div class="bx-sim-row bx-sim-actions">
+                    <button class="bx-btn bx-btn-success" id="bx-sim-submit-preloaded" type="button" disabled>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+                        Hazır selfie ile doğrula
+                    </button>
+                    <label class="bx-sim-file" for="bx-sim-file">
+                        <input type="file" id="bx-sim-file" accept="image/*" hidden>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m17 8-5-5-5 5"/><path d="M12 3v12"/></svg>
+                        <span id="bx-sim-file-label">Selfie yükle…</span>
+                    </label>
+                    <button class="bx-btn bx-btn-outline" id="bx-sim-submit-upload" type="button" disabled>
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+                        Yükle ve doğrula
+                    </button>
+                    <span class="bx-sim-hint" id="bx-sim-hint">Sınav yükleniyor…</span>
+                </div>
+            </div>
 
             <div class="bx-student-body">
                 <!-- hero image with mesh -->

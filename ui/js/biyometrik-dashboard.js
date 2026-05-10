@@ -889,6 +889,7 @@
 
             renderTopbar(snap, state.examId);
             renderExamPicker(snap, state.examId);
+            renderSimulationToolbar(snap, state.examId);
             const exam = findExam(snap, state.examId);
             renderKpis(computeKpis(snap, state.examId, exam));
             renderKpiSparklines(snap, state.examId);
@@ -1291,6 +1292,213 @@
             // Silently keep the decorative overlay if image loading failed
             console.warn('diff map failed', e);
         }
+    }
+
+    // ── Simulation trigger (Feature 12) ──────────────────────────────────
+    const simState = {
+        scenario: 'matching',
+        studentId: null,
+        consent: false,
+        stagedFile: null,
+        busy: false,
+        userPickedStudent: false,  // true if user manually changed the <select>
+    };
+
+    function pickScenarioTargetStudent(scenario, snapshot, examId) {
+        if (!snapshot) return { studentId: null, error: 'snapshot eksik' };
+        const exam = findExam(snapshot, examId);
+        const roster = exam ? rosterForExam(snapshot, exam) : (snapshot.students || []);
+        if (roster.length === 0) return { studentId: null, error: 'Listede öğrenci yok' };
+
+        const findEnrolled = () => {
+            // Prefer Aylin Kaya if present
+            const aylin = roster.find(s => /aylin/i.test(s.name || '') && Number(s.sample_count || 0) > 0);
+            if (aylin) return aylin;
+            return roster.find(s => Number(s.sample_count || 0) > 0) || null;
+        };
+
+        if (scenario === 'matching' || scenario === 'needs_review') {
+            const target = findEnrolled();
+            if (!target) return { studentId: null, error: 'Kayıtlı öğrenci yok; önce kayıt yapın.' };
+            return { studentId: target.student_id, label: target.name };
+        }
+        if (scenario === 'no_enrollment') {
+            const target = roster.find(s => Number(s.sample_count || 0) === 0);
+            if (!target) return { studentId: null, error: 'Tüm öğrenciler kayıtlı; demoyu sıfırlayın.' };
+            return { studentId: target.student_id, label: target.name };
+        }
+        return { studentId: null, error: 'Bilinmeyen senaryo' };
+    }
+
+    function renderSimulationToolbar(snapshot, examId) {
+        const select = $('bx-sim-student');
+        const fileLabelEl = $('bx-sim-file-label');
+        const fileLabelHost = document.querySelector('.bx-sim-file');
+        const consentBox = $('bx-sim-consent');
+        const submitPreloaded = $('bx-sim-submit-preloaded');
+        const submitUpload = $('bx-sim-submit-upload');
+        const hint = $('bx-sim-hint');
+        const chips = document.querySelectorAll('.bx-sim-chip[data-scenario]');
+        if (!select || !submitPreloaded) return;
+
+        // Sync chip active state
+        chips.forEach(b => {
+            const active = b.dataset.scenario === simState.scenario;
+            b.classList.toggle('is-active', active);
+            b.setAttribute('aria-selected', active ? 'true' : 'false');
+        });
+
+        // Populate student dropdown from roster
+        const exam = findExam(snapshot, examId);
+        const roster = exam ? rosterForExam(snapshot, exam) : (snapshot?.students || []);
+        const sorted = roster.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
+
+        // Auto-select scenario target if user hasn't manually picked one yet
+        if (!simState.userPickedStudent || !sorted.find(s => s.student_id === simState.studentId)) {
+            const target = pickScenarioTargetStudent(simState.scenario, snapshot, examId);
+            if (target.studentId) simState.studentId = target.studentId;
+        }
+
+        // Repopulate options if they changed
+        const currentOptions = [...select.options].map(o => o.value).join('|');
+        const wantOptions = sorted.map(s => s.student_id).join('|');
+        if (currentOptions !== wantOptions) {
+            select.innerHTML = '';
+            if (sorted.length === 0) {
+                const opt = document.createElement('option');
+                opt.value = '';
+                opt.textContent = 'Öğrenci yok';
+                select.appendChild(opt);
+            } else {
+                for (const s of sorted) {
+                    const opt = document.createElement('option');
+                    opt.value = s.student_id;
+                    const sampleHint = Number(s.sample_count || 0) > 0 ? '' : ' · Kayıt yok';
+                    opt.textContent = `${s.name} (${s.student_id})${sampleHint}`;
+                    select.appendChild(opt);
+                }
+            }
+        }
+        if (simState.studentId && select.value !== simState.studentId) {
+            select.value = simState.studentId;
+        }
+
+        // Sync consent + file label
+        if (consentBox && consentBox.checked !== simState.consent) consentBox.checked = simState.consent;
+        if (fileLabelEl) {
+            fileLabelEl.textContent = simState.stagedFile
+                ? `Yüklü: ${simState.stagedFile.name}`
+                : 'Selfie yükle…';
+        }
+        if (fileLabelHost) {
+            fileLabelHost.classList.toggle('has-file', !!simState.stagedFile);
+        }
+
+        // Hint text
+        let hintText = '';
+        let hintClass = '';
+        if (!exam) {
+            hintText = 'Sınav yükleniyor…';
+            hintClass = '';
+        } else if (simState.stagedFile) {
+            hintText = `Yüklenen dosya ile doğrulanacak (${simState.scenario === 'needs_review' ? 'impostor' : 'matching'})`;
+            hintClass = '';
+        } else if (simState.scenario === 'matching') {
+            hintText = 'Hazır eşleşen FLUXSynID selfie';
+        } else if (simState.scenario === 'needs_review') {
+            hintText = 'Hazır impostor selfie (manuel inceleme oluşturur)';
+            hintClass = 'is-warn';
+        } else if (simState.scenario === 'no_enrollment') {
+            hintText = 'Önce öğrenci kaydı gerekli';
+            hintClass = 'is-warn';
+        }
+        if (hint) {
+            hint.textContent = hintText;
+            hint.classList.remove('is-warn', 'is-error');
+            if (hintClass) hint.classList.add(hintClass);
+        }
+
+        // Enable/disable buttons
+        const hasContext = !!exam && !!simState.studentId;
+        const canPreloaded = hasContext && simState.consent && simState.scenario !== 'no_enrollment' && !simState.busy;
+        const canUpload = hasContext && simState.consent && !!simState.stagedFile && !simState.busy;
+        submitPreloaded.disabled = !canPreloaded;
+        submitUpload.disabled = !canUpload;
+    }
+
+    async function submitSimulation(kind) {
+        if (simState.busy) return;
+        if (!simState.consent) { toast('Önce rıza onayı gerekli.', 'error'); return; }
+        if (!simState.studentId || !state.examId) {
+            toast('Sınav ve öğrenci seçin.', 'error');
+            return;
+        }
+        simState.busy = true;
+        renderSimulationToolbar(state.snapshot, state.examId);
+        try {
+            let result;
+            if (kind === 'upload') {
+                if (!simState.stagedFile) { toast('Önce bir selfie dosyası seçin.', 'error'); return; }
+                result = await api.verifyStudent(state.examId, simState.studentId, simState.stagedFile);
+            } else {
+                const backendScenario = simState.scenario === 'needs_review' ? 'impostor' : 'matching';
+                result = await api.verifyPreloadedStudent(
+                    state.examId, simState.studentId, backendScenario, true
+                );
+            }
+            const newId = result?.attempt?.attempt_id;
+            const decisionTr = (window.decisionLabel || ((d) => d))(result?.attempt?.decision || '');
+            toast(`Deneme oluşturuldu: ${decisionTr}`, 'success');
+
+            // Auto-select the new attempt + switch to "Tümü" so any decision is visible
+            state.activeFilter = 'all';
+            document.querySelectorAll('#bx-queue-tabs .bx-tab').forEach(b =>
+                b.classList.toggle('is-active', b.dataset.filter === 'all'));
+            state.page = 1;
+            if (newId) state.selectedAttemptId = newId;
+            await refresh();
+
+            // Scroll the queue card into view so the new row is visible
+            document.querySelector('.bx-right-col .bx-card')
+                ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        } catch (err) {
+            reportError('Simülasyon başarısız', err);
+        } finally {
+            simState.busy = false;
+            renderSimulationToolbar(state.snapshot, state.examId);
+        }
+    }
+
+    function bindSimulationToolbar() {
+        document.querySelectorAll('.bx-sim-chip[data-scenario]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                simState.scenario = btn.dataset.scenario;
+                simState.userPickedStudent = false;
+                // Re-pick target student for new scenario
+                const target = pickScenarioTargetStudent(simState.scenario, state.snapshot, state.examId);
+                if (target.studentId) {
+                    simState.studentId = target.studentId;
+                } else if (target.error) {
+                    toast(target.error, 'error');
+                }
+                renderSimulationToolbar(state.snapshot, state.examId);
+            });
+        });
+        $('bx-sim-student')?.addEventListener('change', (e) => {
+            simState.studentId = e.target.value || null;
+            simState.userPickedStudent = true;
+            renderSimulationToolbar(state.snapshot, state.examId);
+        });
+        $('bx-sim-consent')?.addEventListener('change', (e) => {
+            simState.consent = !!e.target.checked;
+            renderSimulationToolbar(state.snapshot, state.examId);
+        });
+        $('bx-sim-file')?.addEventListener('change', (e) => {
+            simState.stagedFile = (e.target.files && e.target.files[0]) || null;
+            renderSimulationToolbar(state.snapshot, state.examId);
+        });
+        $('bx-sim-submit-preloaded')?.addEventListener('click', () => submitSimulation('preloaded'));
+        $('bx-sim-submit-upload')?.addEventListener('click', () => submitSimulation('upload'));
     }
 
     // ── Polish round: helpers (close, view-log, help, sidebar, chips, steps, axes, hero) ──
@@ -2005,6 +2213,7 @@
         bindQueueSearch();
         bindSoundToggle();
         bindReverify();
+        bindSimulationToolbar();
         bindCloseDetail();
         bindAuditLink();
         bindHelpLink();
