@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Biyometrik Sınav Erişim Doğrulaması — FaceVerify Campus</title>
+    <link rel="stylesheet" href="https://fonts.bunny.net/css?family=inter:400,500,600,700|space-grotesk:500,600,700|jetbrains-mono:400,600&display=swap">
+    <link rel="stylesheet" href="css/biyometrik-dashboard.css">
+</head>
+<body class="biyometrik-page">
+<div class="bx-aurora" aria-hidden="true"></div>
+
+<!-- ========== SIDEBAR ========== -->
+<aside class="bx-sidebar">
+    <div class="bx-brand">
+        <div class="bx-brand-mark">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/><path d="m9 12 2 2 4-4"/></svg>
+        </div>
+        <div class="bx-brand-text">
+            <strong>FaceVerify Campus</strong>
+            <span>Secure Exam Platform</span>
+        </div>
+    </div>
+
+    <nav class="bx-nav">
+        <p class="bx-nav-label">MONITORING</p>
+        <a href="#" class="bx-nav-link is-active">
+            <span class="bx-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg></span>
+            Kontrol Paneli
+        </a>
+        <a href="#" class="bx-nav-link">
+            <span class="bx-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 7v6c0 4.5 3.2 8.4 8 9 4.8-.6 8-4.5 8-9V7l-8-4z"/></svg></span>
+            Sınav Kapısı
+        </a>
+        <a href="#" class="bx-nav-link">
+            <span class="bx-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg></span>
+            Canlı İzleme
+        </a>
+        <a href="#" class="bx-nav-link">
+            <span class="bx-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 9h8M8 13h8M8 17h5"/></svg></span>
+            Sınav Oturumları
+        </a>
+    </nav>
+
+    <nav class="bx-nav">
+        <p class="bx-nav-label">İNCELEME &amp; EYLEMLER</p>
+        <a href="#" class="bx-nav-link">
+            <span class="bx-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span>
+            İnceleme Gerekenler
+            <span class="bx-nav-badge bx-badge-orange">18</span>
+        </a>
+        <a href="#" class="bx-nav-link">
+            <span class="bx-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5"/><path d="M4 5h13l-2.5 4.5L17 14H4"/></svg></span>
+            İşaretlenen Denemeler
+            <span class="bx-nav-badge bx-badge-red">7</span>
+        </a>
+        <a href="#" class="bx-nav-link">
+            <span class="bx-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg></span>
+            Denetim Kayıtları
+        </a>
+    </nav>
+
+    <nav class="bx-nav">
+        <p class="bx-nav-label">AYARLAR</p>
+        <a href="#" class="bx-nav-link">
+            <span class="bx-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg></span>
+            Sınav Ayarları
+        </a>
+        <a href="#" class="bx-nav-link">
+            <span class="bx-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3 4 6v6c0 5 3.5 9.4 8 10 4.5-.6 8-5 8-10V6l-8-3z"/><path d="m9 12 2 2 4-5"/></svg></span>
+            Doğrulama Kuralları
+        </a>
+        <a href="#" class="bx-nav-link">
+            <span class="bx-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+            Kullanıcılar &amp; Rolleri
+        </a>
+        <a href="#" class="bx-nav-link">
+            <span class="bx-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M9 6h6M9 18h6M6 9v6M18 9v6"/></svg></span>
+            Entegrasyonlar
+        </a>
+    </nav>
+
+    <div class="bx-sidebar-bottom">
+        <div class="bx-system-status">
+            <div class="bx-status-row">
+                <span class="bx-status-dot"></span>
+                <div class="bx-status-text">
+                    <strong>Sistem Durumu</strong>
+                    <span>Tüm sistemler normal</span>
+                </div>
+            </div>
+            <svg class="bx-status-ecg" viewBox="0 0 160 28" preserveAspectRatio="none" aria-hidden="true">
+                <polyline fill="none" stroke="#10B981" stroke-width="1.4" points="0,16 14,16 20,16 24,8 28,24 32,16 50,16 64,16 70,16 74,6 78,22 82,16 100,16 114,16 120,16 124,10 128,22 132,16 160,16"/>
+            </svg>
+        </div>
+
+        <div class="bx-clock">
+            <strong id="bx-clock-time">10:24 AM</strong>
+            <span id="bx-clock-date">20 Mayıs 2025, Salı</span>
+        </div>
+    </div>
+</aside>
+
+<!-- ========== MAIN ========== -->
+<main class="bx-main">
+
+    <!-- topbar -->
+    <header class="bx-topbar">
+        <div class="bx-topbar-title">
+            <div class="bx-title-row">
+                <h1>Biyometrik Sınav Erişim Doğrulaması</h1>
+                <span class="bx-pill bx-pill-live"><span class="bx-pill-dot"></span> Canlı izleme</span>
+            </div>
+            <p class="bx-topbar-sub">
+                Atılım University Demo
+                <span class="bx-sep">•</span> SE 204 Midterm
+                <span class="bx-sep">•</span> Hybrid FaceNet
+                <span class="bx-sep">•</span> Eşik: 0.300
+            </p>
+        </div>
+        <div class="bx-topbar-actions">
+            <button class="bx-icon-btn bx-bell" aria-label="Bildirimler">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+                <span class="bx-bell-badge">3</span>
+            </button>
+            <button class="bx-icon-btn" aria-label="Yardım">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 1 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+            </button>
+            <div class="bx-user">
+                <div class="bx-user-text">
+                    <strong>Dr. Selin Demir</strong>
+                    <span>Öğretim Görevlisi</span>
+                </div>
+                <div class="bx-user-avatar" aria-hidden="true">
+                    <img src="img/selin_demir.jpg" alt="">
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- KPI strip -->
+    <section class="bx-kpis">
+        <div class="bx-kpi bx-kpi-type-gray">
+            <div class="bx-kpi-icon bx-kpi-icon-gray">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div class="bx-kpi-body">
+                <span class="bx-kpi-label">Toplam Deneme</span>
+                <strong class="bx-kpi-value">157</strong>
+                <span class="bx-kpi-sub bx-kpi-sub-blue">Canlı</span>
+            </div>
+        </div>
+        <div class="bx-kpi bx-kpi-type-green">
+            <div class="bx-kpi-icon bx-kpi-icon-green">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+            </div>
+            <div class="bx-kpi-body">
+                <span class="bx-kpi-label">Doğrulanan</span>
+                <strong class="bx-kpi-value">132</strong>
+                <span class="bx-kpi-sub bx-kpi-sub-green">%84.1</span>
+            </div>
+        </div>
+        <div class="bx-kpi bx-kpi-type-orange">
+            <div class="bx-kpi-icon bx-kpi-icon-orange">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4"/><path d="M12 16h.01"/></svg>
+            </div>
+            <div class="bx-kpi-body">
+                <span class="bx-kpi-label">İnceleme Gerekli</span>
+                <strong class="bx-kpi-value">18</strong>
+                <span class="bx-kpi-sub bx-kpi-sub-orange">%11.5</span>
+            </div>
+        </div>
+        <div class="bx-kpi bx-kpi-type-red">
+            <div class="bx-kpi-icon bx-kpi-icon-red">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m9 9 6 6M15 9l-6 6"/></svg>
+            </div>
+            <div class="bx-kpi-body">
+                <span class="bx-kpi-label">İşaretli / Reddedildi</span>
+                <strong class="bx-kpi-value">7</strong>
+                <span class="bx-kpi-sub bx-kpi-sub-red">%4.4</span>
+            </div>
+        </div>
+        <div class="bx-kpi bx-kpi-type-purple">
+            <div class="bx-kpi-icon bx-kpi-icon-purple">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+            </div>
+            <div class="bx-kpi-body">
+                <span class="bx-kpi-label">Kayıt Yok</span>
+                <strong class="bx-kpi-value">4</strong>
+                <span class="bx-kpi-sub bx-kpi-sub-purple">%2.5</span>
+            </div>
+        </div>
+        <div class="bx-kpi-meta">
+            <span class="bx-kpi-meta-label">Son güncelleme</span>
+            <strong class="bx-kpi-meta-time" id="bx-last-update">10:24:18 AM</strong>
+            <button class="bx-btn-outline">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
+                Raporu indir
+            </button>
+        </div>
+    </section>
+
+    <!-- two-column content -->
+    <section class="bx-grid">
+
+        <!-- LEFT: Student Screen -->
+        <div class="bx-card bx-card-student">
+            <div class="bx-card-head">
+                <span class="bx-step-chip">1</span>
+                <h2>Öğrenci Ekranı <span class="bx-muted">(Canlı)</span></h2>
+                <span class="bx-pill bx-pill-live bx-ms-auto"><span class="bx-pill-dot"></span> CANLI</span>
+            </div>
+            <p class="bx-card-sub">Doğrulama tamamlandı</p>
+
+            <div class="bx-student-body">
+                <!-- hero image with mesh -->
+                <div class="bx-hero">
+                    <img src="img/aylin_kaya_live.jpg" alt="Öğrenci canlı görüntü">
+
+                    <!-- corner brackets -->
+                    <span class="bx-bracket bx-bracket-tl"></span>
+                    <span class="bx-bracket bx-bracket-tr"></span>
+                    <span class="bx-bracket bx-bracket-bl"></span>
+                    <span class="bx-bracket bx-bracket-br"></span>
+
+                    <!-- face mesh overlay (re-tuned for 4:5 portrait, face center at ~50% / 38%) -->
+                    <svg class="bx-mesh" viewBox="0 0 100 128" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+                        <g fill="#10B981" stroke="#10B981" stroke-width="0.18" opacity="0.95">
+                            <!-- hairline / forehead -->
+                            <circle cx="36" cy="22" r="0.55"/><circle cx="44" cy="20" r="0.55"/><circle cx="52" cy="20" r="0.55"/><circle cx="60" cy="20" r="0.55"/><circle cx="67" cy="22" r="0.55"/>
+                            <!-- face outline left -->
+                            <circle cx="29" cy="30" r="0.55"/><circle cx="26" cy="38" r="0.55"/><circle cx="25" cy="46" r="0.55"/><circle cx="26" cy="54" r="0.55"/><circle cx="28" cy="62" r="0.55"/><circle cx="31" cy="70" r="0.55"/><circle cx="36" cy="76" r="0.55"/><circle cx="42" cy="80" r="0.55"/>
+                            <!-- face outline right -->
+                            <circle cx="73" cy="30" r="0.55"/><circle cx="76" cy="38" r="0.55"/><circle cx="77" cy="46" r="0.55"/><circle cx="76" cy="54" r="0.55"/><circle cx="74" cy="62" r="0.55"/><circle cx="71" cy="70" r="0.55"/><circle cx="66" cy="76" r="0.55"/><circle cx="60" cy="80" r="0.55"/>
+                            <!-- chin -->
+                            <circle cx="48" cy="83" r="0.55"/><circle cx="51" cy="84" r="0.7"/><circle cx="54" cy="83" r="0.55"/>
+                            <!-- eyebrows -->
+                            <circle cx="34" cy="36" r="0.55"/><circle cx="38" cy="34" r="0.55"/><circle cx="42" cy="33" r="0.55"/><circle cx="46" cy="34" r="0.55"/>
+                            <circle cx="55" cy="34" r="0.55"/><circle cx="59" cy="33" r="0.55"/><circle cx="63" cy="34" r="0.55"/><circle cx="67" cy="36" r="0.55"/>
+                            <!-- left eye -->
+                            <circle cx="36" cy="42" r="0.55"/><circle cx="40" cy="40.5" r="0.55"/><circle cx="44" cy="40.5" r="0.55"/><circle cx="46" cy="42" r="0.55"/><circle cx="44" cy="44" r="0.55"/><circle cx="40" cy="44" r="0.55"/>
+                            <circle cx="41" cy="42" r="0.95"/>
+                            <!-- right eye -->
+                            <circle cx="55" cy="42" r="0.55"/><circle cx="57" cy="40.5" r="0.55"/><circle cx="61" cy="40.5" r="0.55"/><circle cx="65" cy="42" r="0.55"/><circle cx="61" cy="44" r="0.55"/><circle cx="57" cy="44" r="0.55"/>
+                            <circle cx="60" cy="42" r="0.95"/>
+                            <!-- nose bridge & tip -->
+                            <circle cx="50" cy="46" r="0.55"/><circle cx="50" cy="50" r="0.55"/><circle cx="50" cy="54" r="0.55"/><circle cx="50" cy="58" r="0.55"/>
+                            <circle cx="47" cy="60" r="0.55"/><circle cx="50" cy="62" r="0.7"/><circle cx="53" cy="60" r="0.55"/>
+                            <!-- mouth -->
+                            <circle cx="42" cy="69" r="0.55"/><circle cx="46" cy="68" r="0.55"/><circle cx="50" cy="68.5" r="0.55"/><circle cx="54" cy="68" r="0.55"/><circle cx="58" cy="69" r="0.55"/>
+                            <circle cx="46" cy="71" r="0.55"/><circle cx="50" cy="72" r="0.55"/><circle cx="54" cy="71" r="0.55"/>
+                            <!-- cheekbone hints -->
+                            <circle cx="34" cy="50" r="0.5"/><circle cx="36" cy="58" r="0.5"/><circle cx="66" cy="50" r="0.5"/><circle cx="64" cy="58" r="0.5"/>
+                        </g>
+                        <g stroke="#10B981" stroke-width="0.18" opacity="0.55" fill="none">
+                            <line x1="41" y1="42" x2="60" y2="42"/>
+                            <line x1="41" y1="42" x2="50" y2="58"/>
+                            <line x1="60" y1="42" x2="50" y2="58"/>
+                            <line x1="50" y1="62" x2="50" y2="68.5"/>
+                            <line x1="42" y1="69" x2="58" y2="69"/>
+                            <line x1="34" y1="36" x2="41" y2="42"/>
+                            <line x1="67" y1="36" x2="60" y2="42"/>
+                            <line x1="44" y1="84" x2="56" y2="84"/>
+                            <line x1="36" y1="76" x2="66" y2="76"/>
+                            <line x1="25" y1="46" x2="77" y2="46"/>
+                            <line x1="42" y1="69" x2="46" y2="71"/>
+                            <line x1="58" y1="69" x2="54" y2="71"/>
+                        </g>
+                    </svg>
+
+                    <div class="bx-scan-line" aria-hidden="true"></div>
+                    <span class="bx-canli-tag"><span class="bx-pill-dot"></span> CANLI</span>
+
+                    <div class="bx-verified-cap">
+                        <div class="bx-check-circle">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                        </div>
+                        <div>
+                            <strong>Yüz doğrulandı</strong>
+                            <span>Lütfen sabit durun…</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- steps + gauge -->
+                <aside class="bx-steps-rail">
+                    <h3 class="bx-steps-title">Doğrulama Adımları</h3>
+                    <ol class="bx-steps">
+                        <li class="bx-step done">
+                            <span class="bx-step-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+                            Rıza
+                        </li>
+                        <li class="bx-step done">
+                            <span class="bx-step-mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
+                            Kayıt Kontrolü
+                        </li>
+                        <li class="bx-step active">
+                            <span class="bx-step-mark">3</span>
+                            Yüz Doğrulama
+                        </li>
+                        <li class="bx-step">
+                            <span class="bx-step-mark">4</span>
+                            Sonuç
+                        </li>
+                    </ol>
+
+                    <div class="bx-gauge">
+                        <svg viewBox="0 0 120 120" aria-hidden="true">
+                            <defs>
+                                <linearGradient id="bxGaugeGrad" x1="0" y1="0" x2="1" y2="1">
+                                    <stop offset="0%" stop-color="#34D399"/>
+                                    <stop offset="100%" stop-color="#10B981"/>
+                                </linearGradient>
+                            </defs>
+                            <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(15,23,42,0.06)" stroke-width="10"/>
+                            <circle cx="60" cy="60" r="46" fill="none" stroke="rgba(15,23,42,0.03)" stroke-width="1"/>
+                            <circle cx="60" cy="60" r="52" fill="none" stroke="url(#bxGaugeGrad)" stroke-width="10"
+                                    stroke-linecap="round"
+                                    stroke-dasharray="326.7"
+                                    stroke-dashoffset="26.1"
+                                    transform="rotate(-90 60 60)"/>
+                        </svg>
+                        <div class="bx-gauge-text">
+                            <strong>92%</strong>
+                            <span>Eşleşme Skoru</span>
+                        </div>
+                    </div>
+                    <p class="bx-gauge-label">YÜKSEK EŞLEŞME</p>
+                </aside>
+            </div>
+
+            <!-- status chips row -->
+            <div class="bx-status-chips">
+                <div class="bx-status-chip">
+                    <span class="bx-chip-ico bx-chip-ico-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7 16 12l7 5V7z"/><rect x="1" y="5" width="15" height="14" rx="2"/></svg></span>
+                    <div><span class="bx-chip-label">Kamera</span><strong>İyi</strong></div>
+                </div>
+                <div class="bx-status-chip">
+                    <span class="bx-chip-ico bx-chip-ico-yellow"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg></span>
+                    <div><span class="bx-chip-label">Aydınlatma</span><strong>İyi</strong></div>
+                </div>
+                <div class="bx-status-chip">
+                    <span class="bx-chip-ico bx-chip-ico-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/><path d="M9 12h.01M12 12h.01M15 12h.01"/></svg></span>
+                    <div><span class="bx-chip-label">Canlılık</span><strong>Yüksek</strong></div>
+                </div>
+                <div class="bx-status-chip">
+                    <span class="bx-chip-ico bx-chip-ico-green"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2 4 5v6c0 5 3.5 9.5 8 11 4.5-1.5 8-6 8-11V5l-8-3z"/><path d="m9 12 2 2 4-4"/></svg></span>
+                    <div><span class="bx-chip-label">Spoof Tespiti</span><strong>Düşük Risk</strong></div>
+                </div>
+            </div>
+
+            <details class="bx-info">
+                <summary>
+                    <span class="bx-info-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg></span>
+                    Neden yüzümüzü doğruluyoruz?
+                    <svg class="bx-info-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                </summary>
+                <p>Kimliğinizi doğrulamak ve sınav güvenliğini sağlamak için gelişmiş yapay zeka kullanıyoruz.</p>
+            </details>
+
+            <!-- activity chart -->
+            <div class="bx-activity">
+                <div class="bx-activity-head">
+                    <h3>Canlı Aktivite Özeti</h3>
+                    <a href="#" class="bx-activity-link">Tüm Günlüğü Gör</a>
+                </div>
+                <div class="bx-activity-body">
+                    <svg class="bx-chart" viewBox="0 0 520 160" preserveAspectRatio="none" aria-hidden="true">
+                        <defs>
+                            <linearGradient id="bxFillGreen" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#10B981" stop-opacity="0.22"/>
+                                <stop offset="100%" stop-color="#10B981" stop-opacity="0"/>
+                            </linearGradient>
+                            <linearGradient id="bxFillOrange" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#F59E0B" stop-opacity="0.18"/>
+                                <stop offset="100%" stop-color="#F59E0B" stop-opacity="0"/>
+                            </linearGradient>
+                            <linearGradient id="bxFillRed" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="#EF4444" stop-opacity="0.14"/>
+                                <stop offset="100%" stop-color="#EF4444" stop-opacity="0"/>
+                            </linearGradient>
+                        </defs>
+                        <!-- grid lines -->
+                        <g stroke="rgba(15,23,42,0.05)" stroke-width="1">
+                            <line x1="0" y1="20" x2="520" y2="20" stroke-dasharray="3 4"/>
+                            <line x1="0" y1="60" x2="520" y2="60" stroke-dasharray="3 4"/>
+                            <line x1="0" y1="100" x2="520" y2="100" stroke-dasharray="3 4"/>
+                            <line x1="0" y1="140" x2="520" y2="140"/>
+                        </g>
+                        <!-- vertical tick lines -->
+                        <g stroke="rgba(15,23,42,0.04)" stroke-width="1">
+                            <line x1="104" y1="0" x2="104" y2="140"/>
+                            <line x1="208" y1="0" x2="208" y2="140"/>
+                            <line x1="312" y1="0" x2="312" y2="140"/>
+                            <line x1="416" y1="0" x2="416" y2="140"/>
+                        </g>
+                        <!-- green area fill -->
+                        <path d="M0,80 C30,85 50,92 60,90 C80,86 100,78 120,75 C145,71 160,72 180,68 C205,63 225,80 240,82 C265,85 285,62 300,60 C325,57 345,56 360,55 C385,53 405,42 420,40 C445,37 465,27 480,25 L520,30 L520,160 L0,160 Z"
+                              fill="url(#bxFillGreen)"/>
+                        <!-- orange area fill -->
+                        <path d="M0,128 C25,126 45,122 60,124 C85,127 100,132 120,130 C145,127 160,120 180,118 C205,115 225,122 240,124 C265,127 285,118 300,116 C325,113 345,117 360,118 C385,116 405,110 420,108 C445,105 465,116 480,118 L520,116 L520,160 L0,160 Z"
+                              fill="url(#bxFillOrange)"/>
+                        <!-- red area fill -->
+                        <path d="M0,148 C25,147 45,145 60,146 C85,147 100,143 120,144 C145,145 160,147 180,148 C205,149 225,143 240,142 C265,141 285,143 300,144 C325,143 345,141 360,140 C385,139 405,138 420,138 C445,137 465,141 480,142 L520,138 L520,160 L0,160 Z"
+                              fill="url(#bxFillRed)"/>
+                        <!-- verified line green -->
+                        <path d="M0,80 C30,85 50,92 60,90 C80,86 100,78 120,75 C145,71 160,72 180,68 C205,63 225,80 240,82 C265,85 285,62 300,60 C325,57 345,56 360,55 C385,53 405,42 420,40 C445,37 465,27 480,25 L520,30"
+                              fill="none" stroke="#10B981" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round"/>
+                        <!-- review line orange -->
+                        <path d="M0,128 C25,126 45,122 60,124 C85,127 100,132 120,130 C145,127 160,120 180,118 C205,115 225,122 240,124 C265,127 285,118 300,116 C325,113 345,117 360,118 C385,116 405,110 420,108 C445,105 465,116 480,118 L520,116"
+                              fill="none" stroke="#F59E0B" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+                        <!-- flagged line red -->
+                        <path d="M0,148 C25,147 45,145 60,146 C85,147 100,143 120,144 C145,145 160,147 180,148 C205,149 225,143 240,142 C265,141 285,143 300,144 C325,143 345,141 360,140 C385,139 405,138 420,138 C445,137 465,141 480,142 L520,138"
+                              fill="none" stroke="#EF4444" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>
+                        <!-- dot markers at latest values -->
+                        <circle cx="520" cy="30" r="4" fill="#10B981"/>
+                        <circle cx="520" cy="30" r="7" fill="#10B981" opacity="0.2"/>
+                        <circle cx="520" cy="116" r="3" fill="#F59E0B"/>
+                        <circle cx="520" cy="138" r="2.5" fill="#EF4444"/>
+                    </svg>
+                    <div class="bx-chart-yaxis">
+                        <span>30</span><span>20</span><span>10</span><span>0</span>
+                    </div>
+                    <div class="bx-chart-xaxis">
+                        <span>09:40</span><span>09:50</span><span>10:00</span><span>10:10</span><span>10:20</span><span>10:24</span>
+                    </div>
+                    <ul class="bx-chart-legend">
+                        <li><span class="bx-dot bx-dot-green"></span>Doğrulanan (son 10 dk)<b>23</b></li>
+                        <li><span class="bx-dot bx-dot-orange"></span>İnceleme Gerekli (son 10 dk)<b>3</b></li>
+                        <li><span class="bx-dot bx-dot-red"></span>İşaretlenen (son 10 dk)<b>1</b></li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- RIGHT column: queue + details -->
+        <div class="bx-right-col">
+
+            <!-- VERIFICATION QUEUE -->
+            <div class="bx-card">
+                <div class="bx-card-head">
+                    <span class="bx-step-chip">2</span>
+                    <div class="bx-head-titles">
+                        <h2>Doğrulama Kuyruğu</h2>
+                        <p class="bx-card-sub">İnceleme gerektiren gerçek zamanlı denemeler</p>
+                    </div>
+                    <div class="bx-sort">
+                        <span>Öncelik:</span>
+                        <button>Yüksek
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bx-tabs">
+                    <button class="bx-tab">Tümü <b>(157)</b></button>
+                    <button class="bx-tab is-active">İnceleme <b>(18)</b></button>
+                    <button class="bx-tab">İşaretli <b>(7)</b></button>
+                    <button class="bx-tab">Kayıt Yok <b>(4)</b></button>
+                </div>
+
+                <table class="bx-queue">
+                    <thead>
+                        <tr>
+                            <th>Öğrenci</th>
+                            <th>Sınav</th>
+                            <th>Eşleşme Skoru</th>
+                            <th>Öncelik</th>
+                            <th>Zaman</th>
+                            <th>İşlem</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr class="is-selected">
+                            <td>
+                                <div class="bx-queue-user">
+                                    <img src="img/aylin_kaya_live.jpg" alt="">
+                                    <div><strong>Aylin Kaya</strong><span>AT-2026-1042</span></div>
+                                </div>
+                            </td>
+                            <td class="bx-q-muted">Ara Sınav</td>
+                            <td><span class="bx-score bx-score-green">92%</span></td>
+                            <td><span class="bx-tag bx-tag-orange">İnceleme</span></td>
+                            <td class="bx-q-muted bx-q-mono">10:24 AM</td>
+                            <td>
+                                <button class="bx-btn-ghost-orange">İncele</button>
+                                <button class="bx-icon-btn-sm" aria-label="Daha fazla">
+                                    <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
+                                </button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="bx-queue-user">
+                                    <img src="img/elif_bayar.jpg" alt="">
+                                    <div><strong>Elif Bayar</strong><span>AT-2026-1053</span></div>
+                                </div>
+                            </td>
+                            <td class="bx-q-muted">Ara Sınav</td>
+                            <td><span class="bx-score bx-score-orange">72%</span></td>
+                            <td><span class="bx-tag bx-tag-orange">İnceleme</span></td>
+                            <td class="bx-q-muted bx-q-mono">10:23 AM</td>
+                            <td>
+                                <button class="bx-btn-ghost-orange">İncele</button>
+                                <button class="bx-icon-btn-sm" aria-label="Daha fazla"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="bx-queue-user">
+                                    <img src="img/sofia_martinez.jpg" alt="">
+                                    <div><strong>Sofia Martinez</strong><span>AT-2026-1061</span></div>
+                                </div>
+                            </td>
+                            <td class="bx-q-muted">Ara Sınav</td>
+                            <td><span class="bx-score bx-score-orange">65%</span></td>
+                            <td><span class="bx-tag bx-tag-orange">İnceleme</span></td>
+                            <td class="bx-q-muted bx-q-mono">10:22 AM</td>
+                            <td>
+                                <button class="bx-btn-ghost-orange">İncele</button>
+                                <button class="bx-icon-btn-sm" aria-label="Daha fazla"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="bx-queue-user">
+                                    <img src="img/nora_walker.jpg" alt="">
+                                    <div><strong>Nora Walker</strong><span>AT-2026-1045</span></div>
+                                </div>
+                            </td>
+                            <td class="bx-q-muted">Ara Sınav</td>
+                            <td><span class="bx-score bx-score-red">41%</span></td>
+                            <td><span class="bx-tag bx-tag-red">İşaretli</span></td>
+                            <td class="bx-q-muted bx-q-mono">10:21 AM</td>
+                            <td>
+                                <button class="bx-btn-ghost-orange">İncele</button>
+                                <button class="bx-icon-btn-sm" aria-label="Daha fazla"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <div class="bx-queue-user">
+                                    <img src="img/isabella_rossi.jpg" alt="">
+                                    <div><strong>Isabella Rossi</strong><span>AT-2026-1066</span></div>
+                                </div>
+                            </td>
+                            <td class="bx-q-muted">Ara Sınav</td>
+                            <td><span class="bx-score bx-score-red">38%</span></td>
+                            <td><span class="bx-tag bx-tag-red">İşaretli</span></td>
+                            <td class="bx-q-muted bx-q-mono">10:20 AM</td>
+                            <td>
+                                <button class="bx-btn-ghost-orange">İncele</button>
+                                <button class="bx-icon-btn-sm" aria-label="Daha fazla"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <div class="bx-queue-foot">
+                    <span class="bx-q-muted">18 kayıttan 1 - 5 arası gösteriliyor</span>
+                    <nav class="bx-pager">
+                        <button class="is-active">1</button>
+                        <button>2</button>
+                        <button>3</button>
+                        <button>4</button>
+                        <span>…</span>
+                        <button class="bx-pager-arrow" aria-label="Sonraki">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+                        </button>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- SELECTED ATTEMPT DETAIL -->
+            <div class="bx-card">
+                <div class="bx-card-head">
+                    <span class="bx-step-chip">3</span>
+                    <h2>Seçili Deneme Detayları</h2>
+                    <span class="bx-attempt-id">Deneme ID: ATT-2026-78451</span>
+                    <button class="bx-icon-btn-sm bx-close" aria-label="Kapat">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                    </button>
+                </div>
+
+                <div class="bx-detail-stats">
+                    <div class="bx-detail-user">
+                        <img src="img/aylin_kaya_live.jpg" alt="">
+                        <div class="bx-detail-user-text">
+                            <strong>Aylin Kaya</strong>
+                            <span class="bx-q-mono">AT-2026-1042</span>
+                            <span class="bx-q-muted">Ara Sınav</span>
+                        </div>
+                    </div>
+                    <div class="bx-detail-stat-group">
+                        <div class="bx-detail-stat">
+                            <span class="bx-stat-label">Eşleşme Skoru</span>
+                            <strong class="bx-stat-value bx-text-green">92%</strong>
+                            <span class="bx-q-muted">Yüksek Eşleşme</span>
+                        </div>
+                        <div class="bx-detail-stat">
+                            <span class="bx-stat-label">Eşik</span>
+                            <strong class="bx-stat-value">0.300</strong>
+                        </div>
+                        <div class="bx-detail-stat">
+                            <span class="bx-stat-label">Deneme Zamanı</span>
+                            <strong class="bx-stat-value bx-mono">10:24:18 AM</strong>
+                            <span class="bx-q-muted">20 May 2025</span>
+                        </div>
+                        <div class="bx-detail-stat bx-detail-stat-wide">
+                            <span class="bx-stat-label">Güven Seviyesi</span>
+                            <div class="bx-confidence">
+                                <div class="bx-confidence-bar"><span style="width:88%"></span></div>
+                                <span class="bx-text-green">Yüksek</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bx-detail-body">
+                    <div class="bx-evidence-grid">
+                        <figure class="bx-evidence">
+                            <figcaption>Canlı (Yakalanan)</figcaption>
+                            <div class="bx-evidence-img"><img src="img/aylin_kaya_live.jpg" alt=""></div>
+                        </figure>
+                        <div class="bx-swap" aria-hidden="true">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10h14l-3-3"/><path d="M17 14H3l3 3"/></svg>
+                        </div>
+                        <figure class="bx-evidence">
+                            <figcaption>Kayıtlı Fotoğraf</figcaption>
+                            <div class="bx-evidence-img"><img src="img/aylin_kaya_enrolled.jpg" alt=""></div>
+                        </figure>
+                        <figure class="bx-evidence">
+                            <figcaption>Fark Haritası</figcaption>
+                            <div class="bx-evidence-img bx-heatmap">
+                                <img src="img/aylin_kaya_live.jpg" alt="">
+                                <svg class="bx-heat-overlay" viewBox="0 0 200 220" aria-hidden="true">
+                                    <defs>
+                                        <radialGradient id="bxHeatA" cx="50%" cy="35%" r="40%"><stop offset="0%" stop-color="#EF4444" stop-opacity=".75"/><stop offset="60%" stop-color="#F59E0B" stop-opacity=".35"/><stop offset="100%" stop-color="#10B981" stop-opacity="0"/></radialGradient>
+                                        <radialGradient id="bxHeatB" cx="35%" cy="55%" r="20%"><stop offset="0%" stop-color="#EF4444" stop-opacity=".55"/><stop offset="100%" stop-color="#F59E0B" stop-opacity="0"/></radialGradient>
+                                        <radialGradient id="bxHeatC" cx="65%" cy="55%" r="20%"><stop offset="0%" stop-color="#EF4444" stop-opacity=".55"/><stop offset="100%" stop-color="#F59E0B" stop-opacity="0"/></radialGradient>
+                                        <radialGradient id="bxHeatD" cx="50%" cy="78%" r="22%"><stop offset="0%" stop-color="#10B981" stop-opacity=".5"/><stop offset="100%" stop-color="#10B981" stop-opacity="0"/></radialGradient>
+                                    </defs>
+                                    <rect width="200" height="220" fill="url(#bxHeatA)"/>
+                                    <rect width="200" height="220" fill="url(#bxHeatB)"/>
+                                    <rect width="200" height="220" fill="url(#bxHeatC)"/>
+                                    <rect width="200" height="220" fill="url(#bxHeatD)"/>
+                                </svg>
+                            </div>
+                        </figure>
+                        <figure class="bx-evidence">
+                            <figcaption>Özellik Eşleşmesi</figcaption>
+                            <div class="bx-evidence-img bx-feature">
+                                <img src="img/aylin_kaya_enrolled.jpg" alt="">
+                                <svg class="bx-feature-overlay" viewBox="0 0 200 220" aria-hidden="true">
+                                    <g fill="#10B981">
+                                        <circle cx="70" cy="60" r="1.4"/><circle cx="80" cy="55" r="1.4"/><circle cx="90" cy="52" r="1.4"/><circle cx="100" cy="50" r="1.4"/><circle cx="110" cy="52" r="1.4"/><circle cx="120" cy="55" r="1.4"/><circle cx="130" cy="60" r="1.4"/>
+                                        <circle cx="65" cy="78" r="1.4"/><circle cx="75" cy="78" r="1.4"/><circle cx="85" cy="80" r="1.4"/><circle cx="115" cy="80" r="1.4"/><circle cx="125" cy="78" r="1.4"/><circle cx="135" cy="78" r="1.4"/>
+                                        <circle cx="78" cy="92" r="1.8"/><circle cx="122" cy="92" r="1.8"/>
+                                        <circle cx="100" cy="100" r="1.4"/><circle cx="100" cy="115" r="1.4"/><circle cx="100" cy="130" r="1.4"/>
+                                        <circle cx="92" cy="140" r="1.4"/><circle cx="108" cy="140" r="1.4"/>
+                                        <circle cx="80" cy="158" r="1.4"/><circle cx="92" cy="160" r="1.4"/><circle cx="100" cy="162" r="1.4"/><circle cx="108" cy="160" r="1.4"/><circle cx="120" cy="158" r="1.4"/>
+                                        <circle cx="62" cy="100" r="1.4"/><circle cx="62" cy="120" r="1.4"/><circle cx="62" cy="138" r="1.4"/>
+                                        <circle cx="138" cy="100" r="1.4"/><circle cx="138" cy="120" r="1.4"/><circle cx="138" cy="138" r="1.4"/>
+                                        <circle cx="80" cy="178" r="1.4"/><circle cx="100" cy="184" r="1.4"/><circle cx="120" cy="178" r="1.4"/>
+                                    </g>
+                                    <g stroke="#10B981" stroke-width="0.5" fill="none" opacity="0.5">
+                                        <line x1="78" y1="92" x2="122" y2="92"/>
+                                        <line x1="100" y1="100" x2="100" y2="130"/>
+                                        <line x1="80" y1="158" x2="120" y2="158"/>
+                                        <line x1="62" y1="100" x2="138" y2="100"/>
+                                    </g>
+                                </svg>
+                            </div>
+                        </figure>
+                    </div>
+
+                    <aside class="bx-ai-rail">
+                        <div class="bx-ai-rail-col">
+                            <h3>Yapay Zeka Analizi</h3>
+                            <ul class="bx-ai-list">
+                                <li>Aydınlatma farkı tespit edildi</li>
+                                <li>Yüz ifadesi değişkenliği</li>
+                                <li>Minör poz açısı farkı</li>
+                                <li>Spoof riski düşük</li>
+                            </ul>
+                        </div>
+                        <div class="bx-ai-rail-col">
+                            <h3>Teknik Detaylar</h3>
+                            <dl class="bx-ai-meta">
+                                <div><dt>Model</dt><dd class="bx-not-mono">Hybrid FaceNet</dd></div>
+                                <div><dt>IP Adresi</dt><dd>203.0.113.45</dd></div>
+                                <div><dt>Cihaz</dt><dd class="bx-not-mono">Chrome on Windows</dd></div>
+                            </dl>
+                        </div>
+                    </aside>
+                </div>
+
+                <div class="bx-detail-actions">
+                    <button class="bx-btn bx-btn-outline">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
+                        Daha Sonra
+                    </button>
+                    <button class="bx-btn bx-btn-danger">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                        Erişimi Reddet
+                    </button>
+                    <button class="bx-btn bx-btn-success">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+                        Erişimi Onayla
+                    </button>
+                    <button class="bx-btn bx-btn-link bx-ms-auto">
+                        Sonrakine Geç
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
+                    </button>
+                </div>
+
+                <div class="bx-shortcuts">
+                    <span>Kısayollar:</span>
+                    <span><kbd>A</kbd> Onayla</span>
+                    <span><kbd>D</kbd> Reddet</span>
+                    <span><kbd>N</kbd> Sonraki</span>
+                    <span><kbd>M</kbd> Daha Sonra</span>
+                    <button class="bx-icon-btn-sm bx-ms-auto" aria-label="Yardım">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 1 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
+                    </button>
+                </div>
+            </div>
+
+        </div>
+    </section>
+
+</main>
+
+<script src="js/biyometrik-dashboard.js"></script>
+</body>
+</html>
