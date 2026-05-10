@@ -25,8 +25,11 @@ DEFAULT_THRESHOLD = 0.3000000119
 DEFAULT_SWEEP_THRESHOLDS = (0.30, 0.40, 0.50, 0.60, 0.70, 0.80, 0.90)
 IMAGE_EXTENSIONS = {".jpg", ".jpeg", ".png", ".webp"}
 MODEL_LABELS = {
+    "siamese": "Siamese",
+    "prototypical": "Prototypical",
     "hybrid": "Hybrid FaceNet",
     "facenet_proto": "FaceNet Proto",
+    "facenet_contrastive_proto": "FaceNet Contrastive Proto",
 }
 
 
@@ -142,7 +145,10 @@ def run_flux_sanity(
         seed=config.seed,
     )
     metrics = summarize_flux_trials(config, selected, trials)
-    metrics["threshold_sweep"] = threshold_sweep(trials, config.sweep_thresholds)
+    metrics["threshold_sweep"] = threshold_sweep(
+        trials,
+        merge_thresholds(config.sweep_thresholds, (config.threshold,)),
+    )
     artifacts = write_flux_sanity_artifacts(config.output_dir, metrics, trials)
     metrics["artifacts"] = artifacts
     return metrics
@@ -318,6 +324,19 @@ def threshold_sweep(trials: Sequence[dict], thresholds: Sequence[float]) -> List
     return rows
 
 
+def merge_thresholds(
+    base_thresholds: Sequence[float],
+    extra_thresholds: Sequence[float],
+) -> Tuple[float, ...]:
+    """Return a sorted, de-duplicated threshold tuple rounded for stable CSV output."""
+    values = {
+        round(float(threshold), 8)
+        for threshold in [*base_thresholds, *extra_thresholds]
+        if threshold is not None
+    }
+    return tuple(sorted(values))
+
+
 def _score_stats(scores: Sequence[float]) -> dict:
     if not scores:
         return {"min": None, "mean": None, "max": None}
@@ -404,8 +423,8 @@ def render_summary_markdown(metrics: dict) -> str:
     lines = [
         f"# {model_label} FLUXSynID Sanity Report",
         "",
-        "This is a first-layer sanity check only. It tests a FaceNet-style "
-        "FaceVerify model and does not modify production thresholds.",
+        "This is a first-layer sanity check only. It tests a FaceVerify face "
+        "model and does not modify production thresholds.",
         "",
         "## Summary",
         "",

@@ -105,7 +105,7 @@ def test_run_flux_sanity_generates_expected_trials_and_outputs(tmp_path):
     assert (output_dir / "threshold_sweep.csv").exists()
     summary = (output_dir / "summary.md").read_text(encoding="utf-8")
     assert "Hybrid FaceNet FLUXSynID Sanity Report" in summary
-    assert "FaceNet-style FaceVerify model" in summary
+    assert "FaceVerify face model" in summary
 
 
 def test_run_flux_sanity_records_selected_model_type(tmp_path):
