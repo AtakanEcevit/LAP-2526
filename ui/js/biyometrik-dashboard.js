@@ -43,11 +43,14 @@
         // diff-detection for live-update flash + sound
         firstRenderDone: false,
         lastRendered: {},          // keyed by element id → last rendered text
-        lastQueueIds: new Set(),   // attempt_ids visible in last queue render
+        lastQueueIds: new Map(),   // Map<attempt_id, status> visible in last queue render
         lastReviewIds: null,       // null on boot; Set on subsequent polls
         // queue UX (Feature 6)
         sortMode: 'priority',
         searchTerm: '',
+        // Focus refactor — single source of truth for "who am I looking at"
+        focusedStudentId: null,
+        focusCleared: false,       // true while user explicitly closed (×); suppresses autoSelect
     };
 
     const LS_SORT_KEY = 'bx-sort-mode';
@@ -110,6 +113,88 @@
 
     function safeText(el, value) {
         if (el && el.textContent !== String(value)) el.textContent = String(value);
+    }
+
+    // ── Focus refactor: central setters ──────────────────────────────────
+    // Returns true if `el` is the currently-focused element (so polling
+    // refresh skips writes that would clobber an in-flight user interaction).
+    function isUserEditing(el) {
+        return !!el && document.activeElement === el;
+    }
+
+    // Single entry point for changing "who the user is looking at".
+    // Derives missing field, keeps simState.studentId in lockstep,
+    // and re-renders queue + detail + simulation toolbar atomically.
+    function setFocus({ studentId = null, attemptId = null, source = 'user' } = {}) {
+        // Derive the missing field from the snapshot
+        if (attemptId && !studentId) {
+            const att = findAttempt(state.snapshot, attemptId);
+            studentId = att?.student_id || null;
+        }
+        if (studentId && !attemptId && state.snapshot && state.examId) {
+            // Most-recent attempt of this student in current exam (attempts are
+            // returned timestamp-desc; first match is freshest)
+            const att = (state.snapshot.attempts || []).find(
+                a => a.exam_id === state.examId && a.student_id === studentId
+            );
+            attemptId = att?.attempt_id || null;
+        }
+
+        state.focusedStudentId = studentId;
+        state.selectedAttemptId = attemptId;
+        if (typeof simState !== 'undefined') {
+            simState.studentId = studentId;
+            simState.userPickedStudent = (source === 'user-toolbar');
+        }
+        state.focusCleared = (studentId === null && attemptId === null && source === 'user-close');
+
+        if (state.snapshot && state.examId) {
+            renderQueue(state.snapshot, state.examId);
+            renderSelected(state.snapshot, state.examId);
+            if (typeof renderSimulationToolbar === 'function') {
+                renderSimulationToolbar(state.snapshot, state.examId);
+            }
+        }
+    }
+
+    function setFilter(filter) {
+        state.activeFilter = filter;
+        state.page = 1;
+        document.querySelectorAll('#bx-queue-tabs .bx-tab').forEach(b =>
+            b.classList.toggle('is-active', b.dataset.filter === filter));
+        if (state.snapshot && state.examId) {
+            autoSelectIfNeeded(state.snapshot, state.examId);
+            renderQueue(state.snapshot, state.examId);
+            renderSelected(state.snapshot, state.examId);
+        }
+    }
+
+    function setExam(examId, { locked = true } = {}) {
+        state.examId = examId;
+        state.examIdLocked = locked;
+        try { persistExamSelection(locked ? examId : 'auto'); } catch (e) {}
+        // Reset everything that depends on exam
+        state.selectedAttemptId = null;
+        state.focusedStudentId = null;
+        state.focusCleared = false;
+        state.activeFilter = 'review';
+        state.searchTerm = '';
+        state.page = 1;
+        state.lastQueueIds = new Map();
+        if (typeof simState !== 'undefined') {
+            simState.studentId = null;
+            simState.userPickedStudent = false;
+            simState.stagedFile = null;
+            simState.consent = false;
+        }
+        // Sync DOM controls so the user sees a clean reset
+        const searchInput = $('bx-queue-search');
+        if (searchInput) searchInput.value = '';
+        const fileInput = $('bx-sim-file');
+        if (fileInput) fileInput.value = '';
+        document.querySelectorAll('#bx-queue-tabs .bx-tab').forEach(b =>
+            b.classList.toggle('is-active', b.dataset.filter === 'review'));
+        refresh();
     }
 
     // ── skeleton loader (Feature 1) ──────────────────────────────────────
@@ -460,15 +545,20 @@
         const exam = findExam(snapshot, examId);
         const examLabel = exam ? (exam.name || 'Sınav') : 'Sınav';
 
-        const previousIds = state.lastQueueIds;
-        const nextIds = new Set(pageRows.map(r => r.attempt_id));
+        // Map<attempt_id, status> — flash only when an attempt_id is genuinely
+        // new (was not visible in the previous render). Status changes alone
+        // (e.g. manual_review → approved) don't trigger a re-flash.
+        const previousIds = state.lastQueueIds instanceof Map
+            ? state.lastQueueIds
+            : new Map();
+        const nextIds = new Map(pageRows.map(r => [r.attempt_id, r.final_status || r.status || '']));
 
         tbody.innerHTML = '';
         for (const a of pageRows) {
             const tr = document.createElement('tr');
             tr.dataset.attemptId = a.attempt_id;
             if (a.attempt_id === state.selectedAttemptId) tr.classList.add('is-selected');
-            // Flash if this row is new this render (after first paint)
+            // Flash only if this attempt_id wasn't in the previous render (genuinely new)
             if (state.firstRenderDone && !previousIds.has(a.attempt_id)) {
                 tr.classList.add('bx-flash');
             }
@@ -544,16 +634,45 @@
 
     // ── selected attempt detail ──────────────────────────────────────────
     function autoSelectIfNeeded(snapshot, examId) {
+        // User explicitly closed the detail panel — respect their intent until
+        // the next deliberate action (queue click, chip click, etc.)
+        if (state.focusCleared) return;
+
+        // If the current selection is still valid in this view, keep it
         if (state.selectedAttemptId) {
             const existing = findAttempt(snapshot, state.selectedAttemptId);
-            if (existing && passesFilter(existing, snapshot, state.activeFilter) && matchesSearch(existing)) return;
+            if (existing && passesFilter(existing, snapshot, state.activeFilter) && matchesSearch(existing)) {
+                state.focusedStudentId = existing.student_id;
+                return;
+            }
         }
+        // Try to preserve focusedStudentId by finding their most-recent
+        // attempt that passes the current view filters
+        if (state.focusedStudentId) {
+            const att = (snapshot.attempts || []).find(
+                a => a.exam_id === examId
+                  && a.student_id === state.focusedStudentId
+                  && passesFilter(a, snapshot, state.activeFilter)
+                  && matchesSearch(a)
+            );
+            if (att) {
+                state.selectedAttemptId = att.attempt_id;
+                return;
+            }
+        }
+        // Fall back: first attempt in the current queue view
         const queue = sortQueue(
             attemptsForExam(snapshot, examId)
                 .filter(a => passesFilter(a, snapshot, state.activeFilter))
                 .filter(matchesSearch)
         );
-        state.selectedAttemptId = queue.length ? queue[0].attempt_id : null;
+        if (queue.length) {
+            state.selectedAttemptId = queue[0].attempt_id;
+            state.focusedStudentId = queue[0].student_id;
+        } else {
+            state.selectedAttemptId = null;
+            state.focusedStudentId = null;
+        }
     }
 
     function renderSelected(snapshot, examId) {
@@ -889,10 +1008,14 @@
 
             renderTopbar(snap, state.examId);
             renderExamPicker(snap, state.examId);
-            renderSimulationToolbar(snap, state.examId);
             const exam = findExam(snap, state.examId);
             renderKpis(computeKpis(snap, state.examId, exam));
             renderKpiSparklines(snap, state.examId);
+
+            // Resolve focus BEFORE rendering surfaces that depend on it.
+            // autoSelectIfNeeded sets both selectedAttemptId AND focusedStudentId.
+            autoSelectIfNeeded(snap, state.examId);
+
             // Exam-context chips at the bottom of the student card (updated per snapshot)
             {
                 const sel = state.selectedAttemptId ? findAttempt(snap, state.selectedAttemptId) : null;
@@ -900,8 +1023,8 @@
                 renderContextChips(snap, exam, selStudent);
             }
 
-            // If selected attempt no longer in current view, auto-select first.
-            autoSelectIfNeeded(snap, state.examId);
+            // Simulation toolbar now sees the resolved focusedStudentId
+            renderSimulationToolbar(snap, state.examId);
 
             renderQueue(snap, state.examId);
             renderChart(snap, state.examId);
@@ -960,9 +1083,7 @@
                         .filter(a => isOpenForReview(a) && a.attempt_id !== previousId)
                 );
                 if (queue.length) {
-                    state.selectedAttemptId = queue[0].attempt_id;
-                    renderQueue(state.snapshot, state.examId);
-                    renderSelected(state.snapshot, state.examId);
+                    setFocus({ attemptId: queue[0].attempt_id, source: 'review-advance' });
                 }
             }
         } catch (err) {
@@ -981,9 +1102,7 @@
         if (queue.length === 0) return;
         const idx = queue.findIndex(a => a.attempt_id === state.selectedAttemptId);
         const next = queue[(idx + 1) % queue.length];
-        state.selectedAttemptId = next.attempt_id;
-        renderQueue(state.snapshot, state.examId);
-        renderSelected(state.snapshot, state.examId);
+        setFocus({ attemptId: next.attempt_id, source: 'user-next' });
     }
 
     function bindActions() {
@@ -1104,7 +1223,9 @@
             .reduce((a, b) => (a > b ? a : b), '');
         if (newest) setAuditLastRead(newest);
         updateAuditBadge();
-        // Refresh contents on open in case state is stale
+        // Force a fresh fetch on open — bypass the 10s throttle so the drawer
+        // always shows the latest audit entries, not whatever was cached.
+        auditState.lastFetchAt = 0;
         loadAudit();
     }
     function closeAuditDrawer() {
@@ -1353,8 +1474,11 @@
         const roster = exam ? rosterForExam(snapshot, exam) : (snapshot?.students || []);
         const sorted = roster.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'tr'));
 
-        // Auto-select scenario target if user hasn't manually picked one yet
-        if (!simState.userPickedStudent || !sorted.find(s => s.student_id === simState.studentId)) {
+        // Follow state.focusedStudentId as the single source of truth.
+        // If no focus is set yet, fall back to the scenario default.
+        if (state.focusedStudentId && sorted.find(s => s.student_id === state.focusedStudentId)) {
+            simState.studentId = state.focusedStudentId;
+        } else if (!simState.studentId || !sorted.find(s => s.student_id === simState.studentId)) {
             const target = pickScenarioTargetStudent(simState.scenario, snapshot, examId);
             if (target.studentId) simState.studentId = target.studentId;
         }
@@ -1379,12 +1503,16 @@
                 }
             }
         }
-        if (simState.studentId && select.value !== simState.studentId) {
+        // Don't clobber the dropdown if the user has it open / focused
+        if (simState.studentId && select.value !== simState.studentId && !isUserEditing(select)) {
             select.value = simState.studentId;
         }
 
-        // Sync consent + file label
-        if (consentBox && consentBox.checked !== simState.consent) consentBox.checked = simState.consent;
+        // Sync consent + file label (skip checkbox write if user has focus on it
+        // — they might be mid-toggle and the change handler hasn't fired yet)
+        if (consentBox && !isUserEditing(consentBox) && consentBox.checked !== simState.consent) {
+            consentBox.checked = simState.consent;
+        }
         if (fileLabelEl) {
             fileLabelEl.textContent = simState.stagedFile
                 ? `Yüklü: ${simState.stagedFile.name}`
@@ -1450,13 +1578,12 @@
             const decisionTr = (window.decisionLabel || ((d) => d))(result?.attempt?.decision || '');
             toast(`Deneme oluşturuldu: ${decisionTr}`, 'success');
 
-            // Auto-select the new attempt + switch to "Tümü" so any decision is visible
-            state.activeFilter = 'all';
-            document.querySelectorAll('#bx-queue-tabs .bx-tab').forEach(b =>
-                b.classList.toggle('is-active', b.dataset.filter === 'all'));
-            state.page = 1;
-            if (newId) state.selectedAttemptId = newId;
+            // Switch to "Tümü" so any decision is visible, then auto-focus on the
+            // new attempt. refresh() fetches the latest snapshot before setFocus
+            // can locate the attempt. setFilter handles the tab visual atomically.
+            setFilter('all');
             await refresh();
+            if (newId) setFocus({ attemptId: newId, source: 'sim-submit' });
 
             // Scroll the queue card into view so the new row is visible
             document.querySelector('.bx-right-col .bx-card')
@@ -1473,21 +1600,19 @@
         document.querySelectorAll('.bx-sim-chip[data-scenario]').forEach(btn => {
             btn.addEventListener('click', () => {
                 simState.scenario = btn.dataset.scenario;
-                simState.userPickedStudent = false;
-                // Re-pick target student for new scenario
+                // Re-pick target student for new scenario, then sync focus
                 const target = pickScenarioTargetStudent(simState.scenario, state.snapshot, state.examId);
                 if (target.studentId) {
-                    simState.studentId = target.studentId;
-                } else if (target.error) {
-                    toast(target.error, 'error');
+                    setFocus({ studentId: target.studentId, source: 'user-toolbar' });
+                } else {
+                    if (target.error) toast(target.error, 'error');
+                    // Re-render to update hint/buttons for the new scenario even if student unchanged
+                    renderSimulationToolbar(state.snapshot, state.examId);
                 }
-                renderSimulationToolbar(state.snapshot, state.examId);
             });
         });
         $('bx-sim-student')?.addEventListener('change', (e) => {
-            simState.studentId = e.target.value || null;
-            simState.userPickedStudent = true;
-            renderSimulationToolbar(state.snapshot, state.examId);
+            setFocus({ studentId: e.target.value || null, source: 'user-toolbar' });
         });
         $('bx-sim-consent')?.addEventListener('change', (e) => {
             simState.consent = !!e.target.checked;
@@ -1521,11 +1646,7 @@
     function bindCloseDetail() {
         $('bx-detail-close')?.addEventListener('click', (e) => {
             e.preventDefault();
-            state.selectedAttemptId = null;
-            if (state.snapshot && state.examId) {
-                renderQueue(state.snapshot, state.examId);
-                renderSelected(state.snapshot, state.examId);
-            }
+            setFocus({ studentId: null, attemptId: null, source: 'user-close' });
         });
     }
 
@@ -1562,19 +1683,7 @@
             setTimeout(() => setActiveNav('bx-nav-kontrol-paneli'), 1100);
         };
 
-        const setQueueFilter = (filter) => {
-            state.activeFilter = filter;
-            state.page = 1;
-            // Toggle the active tab visually
-            document.querySelectorAll('#bx-queue-tabs .bx-tab').forEach(btn => {
-                btn.classList.toggle('is-active', btn.dataset.filter === filter);
-            });
-            if (state.snapshot && state.examId) {
-                autoSelectIfNeeded(state.snapshot, state.examId);
-                renderQueue(state.snapshot, state.examId);
-                renderSelected(state.snapshot, state.examId);
-            }
-        };
+        const setQueueFilter = (filter) => setFilter(filter);
 
         const bindLink = (id, handler) => {
             const el = $(id);
@@ -2062,22 +2171,17 @@
             e.stopPropagation();
             menu.hidden ? open() : close();
         });
-        menu.addEventListener('click', async (e) => {
+        menu.addEventListener('click', (e) => {
             const li = e.target.closest('li[data-exam]');
             if (!li) return;
             const value = li.dataset.exam;
-            if (value === 'auto') {
-                state.examIdLocked = false;
-                state.examId = null;
-            } else {
-                state.examId = value;
-                state.examIdLocked = true;
-            }
-            persistExamSelection(value);
-            state.selectedAttemptId = null;
-            state.lastQueueIds = new Set();
             close();
-            await refresh();
+            if (value === 'auto') {
+                // Auto-mode: pickActiveExam runs during refresh
+                setExam(null, { locked: false });
+            } else {
+                setExam(value, { locked: true });
+            }
         });
         document.addEventListener('click', (e) => {
             if (menu.hidden) return;
@@ -2104,9 +2208,11 @@
                 await api.resetDemo();
                 // Reset client-side state so the next refresh picks the seeded exam fresh
                 state.selectedAttemptId = null;
+                state.focusedStudentId = null;
+                state.focusCleared = false;
                 state.examId = null;
                 state.examIdLocked = false;
-                state.lastQueueIds = new Set();
+                state.lastQueueIds = new Map();
                 state.lastReviewIds = null;
                 state.lastRendered = {};
                 state.firstRenderDone = false;
@@ -2130,14 +2236,7 @@
             if (!btn) return;
             const f = btn.dataset.filter;
             if (!f) return;
-            state.activeFilter = f;
-            state.page = 1;
-            tabs.querySelectorAll('.bx-tab').forEach(t => t.classList.toggle('is-active', t === btn));
-            if (state.snapshot && state.examId) {
-                autoSelectIfNeeded(state.snapshot, state.examId);
-                renderQueue(state.snapshot, state.examId);
-                renderSelected(state.snapshot, state.examId);
-            }
+            setFilter(f);
         });
     }
 
@@ -2147,11 +2246,7 @@
         tbody.addEventListener('click', (e) => {
             const tr = e.target.closest('tr');
             if (!tr || !tr.dataset.attemptId) return;
-            state.selectedAttemptId = tr.dataset.attemptId;
-            if (state.snapshot && state.examId) {
-                renderQueue(state.snapshot, state.examId);
-                renderSelected(state.snapshot, state.examId);
-            }
+            setFocus({ attemptId: tr.dataset.attemptId, source: 'user-queue' });
         });
     }
 
