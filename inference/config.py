@@ -55,6 +55,14 @@ MODEL_REGISTRY = {
         "checkpoint": _abs("results/facenet_proto_face/checkpoints/best.pth"),
         "threshold": 0.47,
     },
+    ("face", "facenet_contrastive_proto"): {
+        "config": _abs("configs/facenet_contrastive_proto_face.yaml"),
+        "checkpoint": _abs(
+            "results/facenet_contrastive_proto_face/checkpoints/best.pth"
+        ),
+        "threshold": 0.800884,
+        "threshold_key": "far_threshold",
+    },
 
     # ── Fingerprint ──────────────────────────────────────────────────────
     ("fingerprint", "siamese"): {
@@ -73,7 +81,13 @@ MODEL_REGISTRY = {
 # ── Valid Values ─────────────────────────────────────────────────────────
 
 VALID_MODALITIES = {"signature", "face", "fingerprint"}
-VALID_MODEL_TYPES = {"siamese", "prototypical", "hybrid", "facenet_proto"}
+VALID_MODEL_TYPES = {
+    "siamese",
+    "prototypical",
+    "hybrid",
+    "facenet_proto",
+    "facenet_contrastive_proto",
+}
 
 
 # ── Image Sizes (H, W) per Modality ─────────────────────────────────────

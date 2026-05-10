@@ -23,7 +23,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image
 
-from inference.campus_store import DEFAULT_FACE_MODEL, CampusStore
+from inference.campus_store import DEFAULT_FACE_MODEL, DEFAULT_FACE_THRESHOLD, CampusStore
 from inference.engine import VerificationEngine
 from inference.enrollment_store import EnrollmentStore
 from inference.flux_preupload import (
@@ -664,8 +664,8 @@ async def campus_create_exam(
     name: str = Form(...),
     start_time: str = Form(...),
     end_time: str = Form(...),
-    threshold: float = Form(0.65),
-    model_type: str = Form("siamese"),
+    threshold: float = Form(DEFAULT_FACE_THRESHOLD),
+    model_type: str = Form(DEFAULT_FACE_MODEL),
 ):
     try:
         return _campus_store.create_exam(
@@ -749,7 +749,7 @@ async def campus_exam_roster(exam_id: str):
 @app.post("/campus/students/{student_id}/enroll")
 async def campus_enroll_student(
     student_id: str,
-    model_type: str = Form("siamese"),
+    model_type: str = Form(DEFAULT_FACE_MODEL),
     images: List[UploadFile] = File(...),
 ):
     student = _campus_store.get_student(student_id)

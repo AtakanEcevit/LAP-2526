@@ -18,7 +18,11 @@ from inference.preprocessing import preprocess_image
 from utils import get_device
 
 
-FACENET_STYLE_MODEL_TYPES = {"hybrid", "facenet_proto"}
+FACENET_STYLE_MODEL_TYPES = {
+    "hybrid",
+    "facenet_proto",
+    "facenet_contrastive_proto",
+}
 
 
 def _float_value(value) -> float:
@@ -27,10 +31,17 @@ def _float_value(value) -> float:
     return float(value)
 
 
-def _checkpoint_threshold(checkpoint: dict, explicit, default: float) -> float:
+def _checkpoint_threshold(
+    checkpoint: dict,
+    explicit,
+    default: float,
+    threshold_key: str = None,
+) -> float:
     if explicit is not None:
         return _float_value(explicit)
-    for key in ("val_threshold", "threshold"):
+    for key in (threshold_key, "val_threshold", "threshold"):
+        if not key:
+            continue
         if key in checkpoint and checkpoint[key] is not None:
             return _float_value(checkpoint[key])
     return _float_value(default)
@@ -70,7 +81,7 @@ class VerificationEngine:
 
         Args:
             modality:   "signature", "face", or "fingerprint"
-            model_type: "siamese", "prototypical", "hybrid", or "facenet_proto"
+            model_type: one of the registered model types
             device:     torch device (auto-detected if None)
             threshold:  override the default decision threshold
         """
@@ -141,6 +152,7 @@ class VerificationEngine:
                 checkpoint,
                 threshold,
                 entry["threshold"],
+                entry.get("threshold_key"),
             )
         else:
             self.model.load_state_dict(checkpoint["model_state_dict"])

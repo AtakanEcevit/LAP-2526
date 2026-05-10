@@ -45,10 +45,18 @@ def test_flux_controls_and_previews_are_wired_in_static_ui():
     assert "Hazır Selfieyi Yükle" in i18n
     assert "FaceVerifyI18n" in i18n
     assert '<option value="facenet_proto">FaceNet Proto</option>' in index
+    assert (
+        '<option value="facenet_contrastive_proto" selected>'
+        'FaceNet Contrastive Proto</option>'
+    ) in index
+    assert '<option value="hybrid" selected>Hybrid FaceNet</option>' not in index
     assert "facenet_proto: 'FaceNet Proto'" in app
+    assert "facenet_contrastive_proto: 'FaceNet Contrastive Proto'" in app
     assert "function applySelectedModelDefaultThreshold" in app
+    assert "function formatThresholdInput" in app
     assert "facenet_proto: { threshold: 0.47 }" in app
-    assert "Hybrid FaceNet ve FaceNet Proto" in i18n
+    assert "facenet_contrastive_proto: { threshold: 0.800884 }" in app
+    assert "Hybrid FaceNet, FaceNet Proto ve FaceNet Contrastive Proto" in i18n
     assert "Use Preloaded Selfie" not in index
     assert "studentNameCell(row)" in app
     assert ".student-avatar" in css
