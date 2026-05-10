@@ -593,6 +593,8 @@
             renderGauge(null);
             renderAiList(null, exam);
             renderTechMeta(null, exam);
+            renderSteps(null, null);
+            renderHeroCaption(null, null);
             hideReverifyBadge();
             return;
         }
@@ -629,6 +631,8 @@
         renderGauge(attempt);
         renderAiList(attempt, exam);
         renderTechMeta(attempt, exam);
+        renderSteps(attempt, student);
+        renderHeroCaption(attempt, student);
         // Kick off diff-map computation asynchronously (no await; UI doesn't block)
         renderDiffMap(attempt, student);
         // Apply cached re-verify badge if user already ran it for this attempt
@@ -814,6 +818,7 @@
             ...counts.flatMap(c => [c.verified, c.review, c.flagged])
         );
         const yMax = Math.ceil(maxVal / 5) * 5;
+        renderChartAxes(yMax);
 
         const W = 520, H = 140;
         const xStep = W / (buckets - 1);
@@ -887,6 +892,12 @@
             const exam = findExam(snap, state.examId);
             renderKpis(computeKpis(snap, state.examId, exam));
             renderKpiSparklines(snap, state.examId);
+            // Exam-context chips at the bottom of the student card (updated per snapshot)
+            {
+                const sel = state.selectedAttemptId ? findAttempt(snap, state.selectedAttemptId) : null;
+                const selStudent = sel ? findStudent(snap, sel.student_id) : null;
+                renderContextChips(snap, exam, selStudent);
+            }
 
             // If selected attempt no longer in current view, auto-select first.
             autoSelectIfNeeded(snap, state.examId);
@@ -1280,6 +1291,272 @@
             // Silently keep the decorative overlay if image loading failed
             console.warn('diff map failed', e);
         }
+    }
+
+    // ── Polish round: helpers (close, view-log, help, sidebar, chips, steps, axes, hero) ──
+    const HELP_URL = 'https://github.com/AtakanEcevit/LAP-2526#readme';
+
+    const MODEL_LABELS = {
+        facenet_contrastive_proto: 'FaceNet Proto',
+        facenet_hybrid: 'Hybrid FaceNet',
+        facenet_proto: 'FaceNet Proto',
+        facenet: 'FaceNet',
+    };
+
+    function humanizeModel(raw) {
+        if (!raw) return '—';
+        const lower = String(raw).toLowerCase();
+        return MODEL_LABELS[lower] || raw;
+    }
+
+    // Section 1: detail close
+    function bindCloseDetail() {
+        $('bx-detail-close')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            state.selectedAttemptId = null;
+            if (state.snapshot && state.examId) {
+                renderQueue(state.snapshot, state.examId);
+                renderSelected(state.snapshot, state.examId);
+            }
+        });
+    }
+
+    // Section 1: "Tüm Günlüğü Gör" → open audit drawer
+    function bindAuditLink() {
+        $('bx-view-full-log')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            openAuditDrawer();
+        });
+    }
+
+    // Section 2: help button → README in new tab
+    function bindHelpLink() {
+        $('bx-help-btn')?.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.open(HELP_URL, '_blank', 'noopener,noreferrer');
+        });
+    }
+
+    // Section 3: sidebar nav cross-wiring
+    function bindSidebarNav() {
+        const scrollTo = (selector) => {
+            const el = document.querySelector(selector);
+            if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        };
+
+        const setActiveNav = (id) => {
+            document.querySelectorAll('.bx-sidebar .bx-nav-link').forEach(a => {
+                a.classList.toggle('is-active', a.id === id);
+            });
+        };
+        const revertActiveSoon = () => {
+            // For toast-only handlers, revert the highlighted link back to Kontrol Paneli after a brief delay
+            setTimeout(() => setActiveNav('bx-nav-kontrol-paneli'), 1100);
+        };
+
+        const setQueueFilter = (filter) => {
+            state.activeFilter = filter;
+            state.page = 1;
+            // Toggle the active tab visually
+            document.querySelectorAll('#bx-queue-tabs .bx-tab').forEach(btn => {
+                btn.classList.toggle('is-active', btn.dataset.filter === filter);
+            });
+            if (state.snapshot && state.examId) {
+                autoSelectIfNeeded(state.snapshot, state.examId);
+                renderQueue(state.snapshot, state.examId);
+                renderSelected(state.snapshot, state.examId);
+            }
+        };
+
+        const bindLink = (id, handler) => {
+            const el = $(id);
+            if (!el) return;
+            el.addEventListener('click', (e) => {
+                e.preventDefault();
+                handler();
+            });
+        };
+
+        bindLink('bx-nav-kontrol-paneli', () => window.scrollTo({ top: 0, behavior: 'smooth' }));
+        bindLink('bx-nav-sinav-kapisi', () => {
+            toast('Sınav kapısı ana uygulamadan yönetiliyor.');
+            revertActiveSoon();
+        });
+        bindLink('bx-nav-canli-izleme', () => scrollTo('.bx-card-student'));
+        bindLink('bx-nav-sinav-oturumlari', () => scrollTo('.bx-right-col .bx-card'));
+        bindLink('bx-nav-inceleme', () => {
+            setQueueFilter('review');
+            scrollTo('.bx-right-col .bx-card');
+        });
+        bindLink('bx-nav-isaretlenen', () => {
+            setQueueFilter('flagged');
+            scrollTo('.bx-right-col .bx-card');
+        });
+        bindLink('bx-nav-denetim-kayitlari', () => {
+            openAuditDrawer();
+            revertActiveSoon();
+        });
+
+        // Settings group — toast and revert
+        ['bx-nav-sinav-ayarlari', 'bx-nav-dogrulama-kurallari', 'bx-nav-kullanicilar', 'bx-nav-entegrasyonlar'].forEach(id => {
+            bindLink(id, () => {
+                toast('Yakında — bu özellik için ayar paneli geliyor.');
+                revertActiveSoon();
+            });
+        });
+    }
+
+    // Section 4: exam-context chips
+    function renderContextChips(snapshot, exam, student) {
+        // Model
+        const modelEl = $('bx-chip-model-value');
+        safeText(modelEl, exam ? humanizeModel(exam.model_type) : '—');
+
+        // Eşik
+        const thresholdEl = $('bx-chip-threshold-value');
+        safeText(thresholdEl, (exam && Number.isFinite(exam.threshold))
+            ? Number(exam.threshold).toFixed(3)
+            : '—');
+
+        // Pencere
+        const windowEl = $('bx-chip-window-value');
+        if (exam && exam.start_time && exam.end_time) {
+            const fmt = window.formatTime || ((iso) => {
+                const d = new Date(iso);
+                if (Number.isNaN(d.getTime())) return '—';
+                return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+            });
+            safeText(windowEl, `${fmt(exam.start_time)} – ${fmt(exam.end_time)}`);
+        } else {
+            safeText(windowEl, '—');
+        }
+
+        // Kayıt — selected student's sample count, or exam-roster aggregate
+        const enrollmentEl = $('bx-chip-enrollment-value');
+        if (student) {
+            const count = Number(student.sample_count || 0);
+            safeText(enrollmentEl, count > 0 ? `${count} örnek` : 'Kayıt yok');
+        } else if (exam) {
+            const roster = rosterForExam(snapshot, exam);
+            const enrolled = roster.filter(s => Number(s.sample_count || 0) > 0).length;
+            safeText(enrollmentEl, `${enrolled} / ${roster.length}`);
+        } else {
+            safeText(enrollmentEl, '—');
+        }
+    }
+
+    // Section 5: steps rail reflects attempt state
+    const CHECK_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+    const X_SVG = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>';
+
+    function setStepState(li, state, label) {
+        if (!li) return;
+        li.classList.remove('done', 'active', 'bx-step-bad');
+        if (state === 'done') li.classList.add('done');
+        else if (state === 'done-bad') li.classList.add('done', 'bx-step-bad');
+        else if (state === 'active') li.classList.add('active');
+        // mark content
+        const mark = li.querySelector('.bx-step-mark');
+        if (mark) {
+            if (state === 'done') mark.innerHTML = CHECK_SVG;
+            else if (state === 'done-bad') mark.innerHTML = X_SVG;
+            else mark.textContent = label;
+        }
+    }
+
+    function renderSteps(attempt, student) {
+        const consent = $('bx-step-consent');
+        const enrollment = $('bx-step-enrollment');
+        const verify = $('bx-step-verify');
+        const result = $('bx-step-result');
+
+        // No attempt: show enrollment-readiness only
+        if (!attempt) {
+            setStepState(consent, student ? 'done' : 'active', '1');
+            const hasEnroll = student && Number(student.sample_count || 0) > 0;
+            setStepState(enrollment, hasEnroll ? 'done' : (student ? 'active' : 'pending'), '2');
+            setStepState(verify, 'pending', '3');
+            setStepState(result, 'pending', '4');
+            return;
+        }
+
+        // Attempt exists → consent + enrollment implicitly done
+        setStepState(consent, 'done', '1');
+        const hasEnroll = student && Number(student.sample_count || 0) > 0;
+        setStepState(enrollment, hasEnroll ? 'done' : 'done', '2');  // attempt presumes enrollment
+
+        // Verify step: done when the attempt has a decision (it always does after recording)
+        setStepState(verify, 'done', '3');
+
+        // Result step: depends on final_status
+        const fs = attempt.final_status || attempt.status;
+        if (fs === 'Approved by Proctor' || attempt.decision === 'verified') {
+            setStepState(result, 'done', '4');
+        } else if (fs === 'Rejected' || attempt.decision === 'rejected') {
+            setStepState(result, 'done-bad', '4');
+        } else {
+            // Manual Review / Fallback Requested → still active
+            setStepState(result, 'active', '4');
+        }
+    }
+
+    // Section 6: dynamic chart axis labels
+    function renderChartAxes(yMax) {
+        // Y-axis: 4 ticks top-to-bottom: yMax, 2/3·yMax, 1/3·yMax, 0
+        safeText($('bx-chart-y-3'), String(yMax));
+        safeText($('bx-chart-y-2'), String(Math.round(yMax * 2 / 3)));
+        safeText($('bx-chart-y-1'), String(Math.round(yMax / 3)));
+        safeText($('bx-chart-y-0'), '0');
+
+        // X-axis: 6 ticks across the last 60 min in 10-min steps + "now"
+        const now = new Date();
+        const buckets = 6;
+        const bucketMs = 10 * 60 * 1000;
+        const start = now.getTime() - (buckets - 1) * bucketMs;
+        const fmt = (t) => {
+            const d = new Date(t);
+            return `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+        };
+        for (let i = 0; i < buckets; i++) {
+            const el = $(`bx-chart-x-${i}`);
+            safeText(el, fmt(start + i * bucketMs));
+        }
+    }
+
+    // Section 7: hero caption reflects selected attempt
+    const HERO_VARIANTS = {
+        verified:       { title: 'Yüz doğrulandı',         iconClass: '',                       icon: CHECK_SVG },
+        manual_review:  { title: 'Manuel inceleme gerekli', iconClass: 'bx-check-circle-warn',  icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4"/><path d="M12 17h.01"/></svg>' },
+        rejected:       { title: 'Eşleşme reddedildi',     iconClass: 'bx-check-circle-bad',   icon: X_SVG },
+        none:           { title: 'Deneme bekleniyor',      iconClass: 'bx-check-circle-muted', icon: '<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="6" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="18" cy="12" r="1.6"/></svg>' },
+    };
+
+    function renderHeroCaption(attempt, student) {
+        const icon = $('bx-hero-cap-icon');
+        const svgHost = $('bx-hero-cap-svg');
+        const titleEl = $('bx-hero-cap-title');
+        const subEl = $('bx-hero-cap-sub');
+        if (!icon || !titleEl || !subEl) return;
+
+        let kind;
+        if (!attempt) kind = 'none';
+        else {
+            const d = effectiveDecision(attempt);
+            if (d === DEC_VERIFIED) kind = 'verified';
+            else if (d === DEC_REJECTED) kind = 'rejected';
+            else kind = 'manual_review';
+        }
+        const variant = HERO_VARIANTS[kind];
+
+        // Update icon container classes
+        icon.classList.remove('bx-check-circle-warn', 'bx-check-circle-bad', 'bx-check-circle-muted');
+        if (variant.iconClass) icon.classList.add(variant.iconClass);
+
+        // Replace SVG content while preserving the id="bx-hero-cap-svg" anchor for future renders
+        icon.innerHTML = variant.icon.replace('<svg', '<svg id="bx-hero-cap-svg"');
+
+        safeText(titleEl, variant.title);
+        safeText(subEl, (attempt && (attempt.student_name || (student && student.name))) || '—');
     }
 
     // ── Sound notification (Feature 9) ───────────────────────────────────
@@ -1728,6 +2005,10 @@
         bindQueueSearch();
         bindSoundToggle();
         bindReverify();
+        bindCloseDetail();
+        bindAuditLink();
+        bindHelpLink();
+        bindSidebarNav();
         bindShortcuts();
         bindVisibility();
 

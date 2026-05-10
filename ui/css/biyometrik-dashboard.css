@@ -950,6 +950,18 @@ ul, ol { margin: 0; padding: 0; list-style: none; }
         inset 0 1px 0 rgba(255, 255, 255, 0.4);
 }
 .bx-check-circle svg { width: 14px; height: 14px; display: block; }
+.bx-check-circle.bx-check-circle-warn {
+    background: linear-gradient(135deg, #FBBF24, #F59E0B);
+    box-shadow: 0 4px 12px rgba(245, 158, 11, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.bx-check-circle.bx-check-circle-bad {
+    background: linear-gradient(135deg, #F87171, #EF4444);
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.4);
+}
+.bx-check-circle.bx-check-circle-muted {
+    background: linear-gradient(135deg, #94A3B8, #64748B);
+    box-shadow: 0 4px 12px rgba(100, 116, 139, 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
 .bx-verified-cap strong {
     display: block;
     font-size: 13px;
