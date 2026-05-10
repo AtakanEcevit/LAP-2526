@@ -201,6 +201,93 @@ def test_flux_preupload_enrolls_students_idempotently(client, tmp_path):
 
 
 @pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
+def test_campus_reset_clears_flux_enrollments_attempts_and_test_kit(
+    client,
+    tmp_path,
+):
+    flux_dir = tmp_path / "reset_flux"
+    for idx in range(3):
+        _write_flux_identity(flux_dir, f"flux_reset_{idx:03d}", age="20-29")
+
+    preupload = client.post(
+        "/campus/flux/preupload",
+        data={
+            "dataset_dir": str(flux_dir),
+            "count": "2",
+            "seed": "11",
+            "model_type": "facenet_contrastive_proto",
+        },
+    )
+    assert preupload.status_code == 200
+    preupload_data = preupload.json()
+    assert preupload_data["imported_count"] == 2
+    assert preupload_data["export"]["image_count"] == 2
+    student_id = preupload_data["imported"][0]["student_id"]
+    exported_path = Path(preupload_data["export"]["manifest"][0]["exported_path"])
+    assert exported_path.is_file()
+
+    review_exam = client.post(
+        "/campus/exams",
+        data={
+            "exam_id": "CS204-RESET-REVIEW",
+            "course_id": "CS204-2026S",
+            "name": "Reset Review",
+            "start_time": "2026-05-12T10:00",
+            "end_time": "2026-05-12T11:30",
+            "threshold": "0.95",
+            "model_type": "facenet_contrastive_proto",
+        },
+    )
+    assert review_exam.status_code == 200
+    verify = client.post(
+        "/campus/exams/CS204-RESET-REVIEW/verify-preloaded",
+        data={"student_id": student_id, "scenario": "matching", "confirmed": "true"},
+    )
+    assert verify.status_code == 200
+    attempt = verify.json()["attempt"]
+    assert attempt["final_status"] == "Manual Review"
+
+    review = client.post(
+        f"/campus/attempts/{attempt['attempt_id']}/review",
+        data={
+            "reviewer": "Proctor Lee",
+            "action": "approve",
+            "reason": "Reset fixture review.",
+        },
+    )
+    assert review.status_code == 200
+    assert review.json()["final_status"] == "Approved by Proctor"
+
+    before_reset = client.get("/campus").json()
+    assert before_reset["attempts"]
+    assert before_reset["review_actions"]
+    assert any(student.get("face_source") == "flux_synid" for student in before_reset["students"])
+
+    reset = client.post("/campus/reset")
+    assert reset.status_code == 200
+    reset_data = reset.json()
+    assert reset_data["flux_preupload"] is None
+    assert reset_data["attempts"] == []
+    assert reset_data["review_actions"] == []
+    assert [row["event_type"] for row in reset_data["audit_log"]] == ["demo_reset"]
+    assert all(student["enrollment_status"] == "not_enrolled" for student in reset_data["students"])
+    assert all(student["sample_count"] == 0 for student in reset_data["students"])
+    assert all(student.get("reference_preview") is None for student in reset_data["students"])
+    assert all(not student.get("face_source") for student in reset_data["students"])
+
+    users = client.get("/users").json()
+    assert [user for user in users if user["user_id"].startswith("campus_")] == []
+    test_set = client.get("/campus/flux/test-set")
+    assert test_set.status_code == 200
+    assert test_set.json()["image_count"] == 0
+    assert test_set.json()["available"] is False
+    assert test_set.json()["manifest"] == []
+    assert not exported_path.exists()
+    assert client.get("/campus/flux/test-set.zip").status_code == 404
+    assert client.get(f"/campus/students/{student_id}/flux/test-image").status_code == 409
+
+
+@pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
 def test_failed_flux_rerun_preserves_existing_enrollment(client, tmp_path):
     good_flux = tmp_path / "good"
     bad_flux = tmp_path / "bad"

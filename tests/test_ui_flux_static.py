@@ -191,7 +191,7 @@ def test_ui_navigation_and_state_wiring_regressions_are_pinned():
     assert "launch:" not in app
 
     assert "function clearStudentInputState" in app
-    assert app.count("clearStudentInputState({ enrollment: true, verification: true, simulation: true });") == 4
+    assert app.count("clearStudentInputState({ enrollment: true, verification: true, simulation: true });") == 5
     assert "function isReviewActionAllowed" in app
     assert "REVIEW_ACTION_STATUSES = new Set(['Manual Review', 'Fallback Requested', 'Rejected'])" in app
     assert "SIMULATION_NO_ATTEMPT" in app
@@ -209,6 +209,32 @@ def test_ui_navigation_and_state_wiring_regressions_are_pinned():
     assert "function syncSimulationAttemptSelection" in app
     assert "await selectAttempt(attemptId, { scroll: false, syncSimulationAttempt: true });" in app
     assert "await selectAttempt(attempt.attempt_id, { scroll: false, syncSimulationAttempt: true });" in app
+
+    reset_start = app.index("async function resetDemo")
+    reset_end = app.index("\nfunction resetDemoPresentationState", reset_start)
+    reset_body = app[reset_start:reset_end]
+    assert "await api.resetDemo();" in reset_body
+    assert "resetDemoPresentationState();" in reset_body
+    assert reset_body.index("resetDemoPresentationState();") < reset_body.index("await refreshAll();")
+    assert "toast('Demo reset.', 'success');" in reset_body
+    assert "flux_preupload" not in reset_body
+    assert "imported_count" not in reset_body
+
+    presentation_start = app.index("function resetDemoPresentationState")
+    presentation_end = app.index("\nfunction resetStudentResultPanel", presentation_start)
+    presentation_body = app[presentation_start:presentation_end]
+    for marker in [
+        "state.simulationScenario = 'matching';",
+        "state.simulationSelectedAttemptId = null;",
+        "state.simulationSelectedStudentId = null;",
+        "setCheckedIfPresent('consent-check', false);",
+        "setCheckedIfPresent('simulation-consent-check', false);",
+        "setInputValueIfPresent('proctor-filter-status', '');",
+        "setInputValueIfPresent('proctor-sort', 'priority');",
+        "setTextIfPresent('flux-result', '');",
+        "setStudentStep('consent');",
+    ]:
+        assert marker in presentation_body
 
     unwired_buttons = []
     for match in re.finditer(r"<button\b([^>]*)>", index, flags=re.IGNORECASE):

@@ -38,6 +38,7 @@ from inference.flux_preupload import (
 from inference.flux_test_export import (
     DEFAULT_FLUX_TEST_EXPORT_DIR,
     build_test_set_zip_bytes,
+    clear_flux_test_set,
     export_flux_test_set,
     is_path_within,
     load_manifest,
@@ -570,19 +571,8 @@ async def campus_reset():
     ids_to_delete.update(student["student_id"] for student in snapshot["students"])
     for student_id in ids_to_delete:
         _store.delete_user(_campus_user_id(student_id))
-    flux_result = None
-    if _flux_status_payload()["available"]:
-        try:
-            flux_result = _preupload_flux_students(
-                dataset_dir=None,
-                count=DEFAULT_FLUX_COUNT,
-                seed=DEFAULT_FLUX_SEED,
-                model_type=DEFAULT_FACE_MODEL,
-            )
-            snapshot = _campus_store.snapshot()
-        except Exception as exc:
-            flux_result = {"error": str(exc)}
-    snapshot["flux_preupload"] = flux_result
+    clear_flux_test_set(DEFAULT_FLUX_TEST_EXPORT_DIR)
+    snapshot["flux_preupload"] = None
     return snapshot
 
 

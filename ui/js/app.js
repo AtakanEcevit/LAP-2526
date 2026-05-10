@@ -345,6 +345,16 @@ function clearFileInput(id) {
     if (input) input.value = '';
 }
 
+function setInputValueIfPresent(id, value) {
+    const input = document.getElementById(id);
+    if (input) input.value = value;
+}
+
+function setCheckedIfPresent(id, checked) {
+    const input = document.getElementById(id);
+    if (input) input.checked = checked;
+}
+
 function openReviewDesk(filter = undefined, navTarget = 'proctor') {
     if (filter !== undefined) setReviewFilter(filter);
     showView('proctor', { navTarget });
@@ -1230,22 +1240,35 @@ async function exportFluxTestSet() {
 async function resetDemo() {
     if (!window.confirm(t('confirm.resetDemo'))) return;
     try {
-        const result = await api.resetDemo();
-        clearStagedPreloadedSelfie();
-        resetReviewPanel();
-        resetStudentResultPanel();
-        const flux = result.flux_preupload;
-        if (flux?.imported_count) {
-            toast(`Demo reset with ${flux.imported_count} FLUXSynID faces.`, 'success');
-        } else if (flux?.error) {
-            toast(`Demo reset. FLUXSynID preupload skipped: ${flux.error}`, 'error');
-        } else {
-            toast('Demo reset.', 'success');
-        }
+        await api.resetDemo();
+        resetDemoPresentationState();
+        toast('Demo reset.', 'success');
         await refreshAll();
     } catch (err) {
         toast(err, 'error');
     }
+}
+
+function resetDemoPresentationState() {
+    clearStudentInputState({ enrollment: true, verification: true, simulation: true });
+    resetReviewPanel();
+    resetStudentResultPanel();
+    state.selectedAttempt = null;
+    state.selectedReviewStudent = null;
+    state.attemptHistory = [];
+    state.simulationScenario = 'matching';
+    state.simulationSelectedAttemptId = null;
+    state.simulationSelectedStudentId = null;
+    setCheckedIfPresent('consent-check', false);
+    setCheckedIfPresent('simulation-consent-check', false);
+    setInputValueIfPresent('proctor-filter-status', '');
+    setInputValueIfPresent('proctor-filter-decision', '');
+    setInputValueIfPresent('proctor-filter-name', '');
+    setInputValueIfPresent('proctor-filter-id', '');
+    setInputValueIfPresent('proctor-sort', 'priority');
+    setTextIfPresent('flux-result', '');
+    setStudentStep('consent');
+    renderSimulation();
 }
 
 function resetStudentResultPanel() {

@@ -63,6 +63,22 @@ def load_manifest(output_dir: str | Path = DEFAULT_FLUX_TEST_EXPORT_DIR) -> dict
     return data
 
 
+def clear_flux_test_set(output_dir: str | Path = DEFAULT_FLUX_TEST_EXPORT_DIR) -> dict:
+    """Remove generated FLUXSynID test-kit artifacts and return an empty manifest."""
+    output_path = Path(output_dir)
+    resolved = output_path.expanduser().resolve(strict=False)
+    if (
+        resolved.name != DEFAULT_FLUX_TEST_EXPORT_DIR.name
+        or resolved.parent.name != DEFAULT_FLUX_TEST_EXPORT_ROOT.name
+    ):
+        raise ValueError(f"Refusing to clear unexpected FLUX test-kit path: {output_path}")
+    if output_path.is_dir():
+        shutil.rmtree(output_path)
+    elif output_path.exists():
+        output_path.unlink()
+    return load_manifest(output_path)
+
+
 def export_flux_test_set(
     students: List[dict],
     output_dir: str | Path = DEFAULT_FLUX_TEST_EXPORT_DIR,
