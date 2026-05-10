@@ -88,6 +88,9 @@ if os.path.isdir(_UI_DIR):
         app.mount("/js", StaticFiles(directory=_JS_DIR), name="js")
     if os.path.isdir(_ASSETS_DIR):
         app.mount("/assets", StaticFiles(directory=_ASSETS_DIR), name="assets")
+    _IMG_DIR = os.path.join(_UI_DIR, "img")
+    if os.path.isdir(_IMG_DIR):
+        app.mount("/img", StaticFiles(directory=_IMG_DIR), name="img")
 
 # Shared enrollment store
 _store = EnrollmentStore()
@@ -1048,3 +1051,12 @@ async def root():
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return JSONResponse({"message": "API is running. Visit /docs for Swagger UI."})
+
+
+@app.get("/biyometrik-dashboard.html", include_in_schema=False)
+async def biyometrik_dashboard():
+    """Serve the standalone Biyometrik live monitoring dashboard."""
+    page_path = os.path.join(_UI_DIR, "biyometrik-dashboard.html")
+    if os.path.exists(page_path):
+        return FileResponse(page_path)
+    return JSONResponse({"detail": "Dashboard not found"}, status_code=404)

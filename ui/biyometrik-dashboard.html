@@ -47,12 +47,12 @@
         <a href="#" class="bx-nav-link">
             <span class="bx-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span>
             İnceleme Gerekenler
-            <span class="bx-nav-badge bx-badge-orange">18</span>
+            <span class="bx-nav-badge bx-badge-orange" id="bx-nav-badge-review">18</span>
         </a>
         <a href="#" class="bx-nav-link">
             <span class="bx-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V5"/><path d="M4 5h13l-2.5 4.5L17 14H4"/></svg></span>
             İşaretlenen Denemeler
-            <span class="bx-nav-badge bx-badge-red">7</span>
+            <span class="bx-nav-badge bx-badge-red" id="bx-nav-badge-flagged">7</span>
         </a>
         <a href="#" class="bx-nav-link">
             <span class="bx-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M9 13h6M9 17h4"/></svg></span>
@@ -77,6 +77,10 @@
         <a href="#" class="bx-nav-link">
             <span class="bx-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="6" r="3"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="18" r="3"/><path d="M9 6h6M9 18h6M6 9v6M18 9v6"/></svg></span>
             Entegrasyonlar
+        </a>
+        <a href="#" class="bx-nav-link bx-nav-link-danger" id="bx-reset-demo">
+            <span class="bx-nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"/><path d="M3 4v5h5"/></svg></span>
+            Demoyu Sıfırla
         </a>
     </nav>
 
@@ -110,8 +114,15 @@
             <div class="bx-title-row">
                 <h1>Biyometrik Sınav Erişim Doğrulaması</h1>
                 <span class="bx-pill bx-pill-live"><span class="bx-pill-dot"></span> Canlı izleme</span>
+                <div class="bx-exam-picker-wrap">
+                    <button class="bx-exam-picker" id="bx-exam-picker" aria-haspopup="listbox" aria-expanded="false">
+                        <span id="bx-exam-picker-label">Otomatik</span>
+                        <svg class="bx-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                    </button>
+                    <ul class="bx-exam-menu" id="bx-exam-menu" role="listbox" hidden></ul>
+                </div>
             </div>
-            <p class="bx-topbar-sub">
+            <p class="bx-topbar-sub" id="bx-topbar-subtitle">
                 Atılım University Demo
                 <span class="bx-sep">•</span> SE 204 Midterm
                 <span class="bx-sep">•</span> Hybrid FaceNet
@@ -119,9 +130,13 @@
             </p>
         </div>
         <div class="bx-topbar-actions">
+            <button class="bx-icon-btn" id="bx-sound-toggle" aria-pressed="false" aria-label="Ses bildirimi">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="bx-sound-icon-off"><path d="M11 5 6 9H2v6h4l5 4z"/><line x1="22" y1="9" x2="16" y2="15"/><line x1="16" y1="9" x2="22" y2="15"/></svg>
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" id="bx-sound-icon-on" hidden><path d="M11 5 6 9H2v6h4l5 4z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M19 5a9 9 0 0 1 0 14"/></svg>
+            </button>
             <button class="bx-icon-btn bx-bell" aria-label="Bildirimler">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-                <span class="bx-bell-badge">3</span>
+                <span class="bx-bell-badge" id="bx-bell-count">3</span>
             </button>
             <button class="bx-icon-btn" aria-label="Yardım">
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.1 9a3 3 0 1 1 5.8 1c0 2-3 3-3 3"/><path d="M12 17h.01"/></svg>
@@ -146,9 +161,10 @@
             </div>
             <div class="bx-kpi-body">
                 <span class="bx-kpi-label">Toplam Deneme</span>
-                <strong class="bx-kpi-value">157</strong>
+                <strong class="bx-kpi-value" id="bx-kpi-total">157</strong>
                 <span class="bx-kpi-sub bx-kpi-sub-blue">Canlı</span>
             </div>
+            <svg class="bx-kpi-spark bx-kpi-spark-gray" id="bx-spark-total" viewBox="0 0 60 18" preserveAspectRatio="none" aria-hidden="true"><path d="" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
         </div>
         <div class="bx-kpi bx-kpi-type-green">
             <div class="bx-kpi-icon bx-kpi-icon-green">
@@ -156,9 +172,10 @@
             </div>
             <div class="bx-kpi-body">
                 <span class="bx-kpi-label">Doğrulanan</span>
-                <strong class="bx-kpi-value">132</strong>
-                <span class="bx-kpi-sub bx-kpi-sub-green">%84.1</span>
+                <strong class="bx-kpi-value" id="bx-kpi-verified">132</strong>
+                <span class="bx-kpi-sub bx-kpi-sub-green" id="bx-kpi-verified-pct">%84.1</span>
             </div>
+            <svg class="bx-kpi-spark bx-kpi-spark-green" id="bx-spark-verified" viewBox="0 0 60 18" preserveAspectRatio="none" aria-hidden="true"><path d="" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
         </div>
         <div class="bx-kpi bx-kpi-type-orange">
             <div class="bx-kpi-icon bx-kpi-icon-orange">
@@ -166,9 +183,10 @@
             </div>
             <div class="bx-kpi-body">
                 <span class="bx-kpi-label">İnceleme Gerekli</span>
-                <strong class="bx-kpi-value">18</strong>
-                <span class="bx-kpi-sub bx-kpi-sub-orange">%11.5</span>
+                <strong class="bx-kpi-value" id="bx-kpi-review">18</strong>
+                <span class="bx-kpi-sub bx-kpi-sub-orange" id="bx-kpi-review-pct">%11.5</span>
             </div>
+            <svg class="bx-kpi-spark bx-kpi-spark-orange" id="bx-spark-review" viewBox="0 0 60 18" preserveAspectRatio="none" aria-hidden="true"><path d="" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
         </div>
         <div class="bx-kpi bx-kpi-type-red">
             <div class="bx-kpi-icon bx-kpi-icon-red">
@@ -176,9 +194,10 @@
             </div>
             <div class="bx-kpi-body">
                 <span class="bx-kpi-label">İşaretli / Reddedildi</span>
-                <strong class="bx-kpi-value">7</strong>
-                <span class="bx-kpi-sub bx-kpi-sub-red">%4.4</span>
+                <strong class="bx-kpi-value" id="bx-kpi-flagged">7</strong>
+                <span class="bx-kpi-sub bx-kpi-sub-red" id="bx-kpi-flagged-pct">%4.4</span>
             </div>
+            <svg class="bx-kpi-spark bx-kpi-spark-red" id="bx-spark-flagged" viewBox="0 0 60 18" preserveAspectRatio="none" aria-hidden="true"><path d="" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
         </div>
         <div class="bx-kpi bx-kpi-type-purple">
             <div class="bx-kpi-icon bx-kpi-icon-purple">
@@ -186,16 +205,17 @@
             </div>
             <div class="bx-kpi-body">
                 <span class="bx-kpi-label">Kayıt Yok</span>
-                <strong class="bx-kpi-value">4</strong>
-                <span class="bx-kpi-sub bx-kpi-sub-purple">%2.5</span>
+                <strong class="bx-kpi-value" id="bx-kpi-noreg">4</strong>
+                <span class="bx-kpi-sub bx-kpi-sub-purple" id="bx-kpi-noreg-pct">%2.5</span>
             </div>
+            <svg class="bx-kpi-spark bx-kpi-spark-purple" id="bx-spark-noreg" viewBox="0 0 60 18" preserveAspectRatio="none" aria-hidden="true"><path d="" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
         </div>
         <div class="bx-kpi-meta">
             <span class="bx-kpi-meta-label">Son güncelleme</span>
             <strong class="bx-kpi-meta-time" id="bx-last-update">10:24:18 AM</strong>
-            <button class="bx-btn-outline">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/><path d="M12 15V3"/></svg>
-                Raporu indir
+            <button class="bx-btn-outline" id="bx-btn-refresh">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5"/></svg>
+                Yenile
             </button>
         </div>
     </section>
@@ -215,7 +235,7 @@
             <div class="bx-student-body">
                 <!-- hero image with mesh -->
                 <div class="bx-hero">
-                    <img src="img/aylin_kaya_live.jpg" alt="Öğrenci canlı görüntü">
+                    <img src="img/aylin_kaya_live.jpg" alt="Öğrenci canlı görüntü" id="bx-hero-img">
 
                     <!-- corner brackets -->
                     <span class="bx-bracket bx-bracket-tl"></span>
@@ -318,14 +338,15 @@
                                     stroke-linecap="round"
                                     stroke-dasharray="326.7"
                                     stroke-dashoffset="26.1"
-                                    transform="rotate(-90 60 60)"/>
+                                    transform="rotate(-90 60 60)"
+                                    id="bx-gauge-ring"/>
                         </svg>
                         <div class="bx-gauge-text">
-                            <strong>92%</strong>
+                            <strong id="bx-gauge-value">92%</strong>
                             <span>Eşleşme Skoru</span>
                         </div>
                     </div>
-                    <p class="bx-gauge-label">YÜKSEK EŞLEŞME</p>
+                    <p class="bx-gauge-label" id="bx-gauge-label">YÜKSEK EŞLEŞME</p>
                 </aside>
             </div>
 
@@ -365,7 +386,7 @@
                     <a href="#" class="bx-activity-link">Tüm Günlüğü Gör</a>
                 </div>
                 <div class="bx-activity-body">
-                    <svg class="bx-chart" viewBox="0 0 520 160" preserveAspectRatio="none" aria-hidden="true">
+                    <svg class="bx-chart" id="bx-chart" viewBox="0 0 520 160" preserveAspectRatio="none" aria-hidden="true">
                         <defs>
                             <linearGradient id="bxFillGreen" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="0%" stop-color="#10B981" stop-opacity="0.22"/>
@@ -425,9 +446,9 @@
                         <span>09:40</span><span>09:50</span><span>10:00</span><span>10:10</span><span>10:20</span><span>10:24</span>
                     </div>
                     <ul class="bx-chart-legend">
-                        <li><span class="bx-dot bx-dot-green"></span>Doğrulanan (son 10 dk)<b>23</b></li>
-                        <li><span class="bx-dot bx-dot-orange"></span>İnceleme Gerekli (son 10 dk)<b>3</b></li>
-                        <li><span class="bx-dot bx-dot-red"></span>İşaretlenen (son 10 dk)<b>1</b></li>
+                        <li><span class="bx-dot bx-dot-green"></span>Doğrulanan (son 10 dk)<b id="bx-chart-legend-verified">23</b></li>
+                        <li><span class="bx-dot bx-dot-orange"></span>İnceleme Gerekli (son 10 dk)<b id="bx-chart-legend-review">3</b></li>
+                        <li><span class="bx-dot bx-dot-red"></span>İşaretlenen (son 10 dk)<b id="bx-chart-legend-flagged">1</b></li>
                     </ul>
                 </div>
             </div>
@@ -445,18 +466,32 @@
                         <p class="bx-card-sub">İnceleme gerektiren gerçek zamanlı denemeler</p>
                     </div>
                     <div class="bx-sort">
-                        <span>Öncelik:</span>
-                        <button>Yüksek
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
-                        </button>
+                        <span>Sırala:</span>
+                        <div class="bx-sort-wrap">
+                            <button id="bx-sort-toggle" aria-haspopup="listbox" aria-expanded="false">
+                                <span id="bx-sort-label">Öncelik</span>
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m6 9 6 6 6-6"/></svg>
+                            </button>
+                            <ul class="bx-sort-menu" id="bx-sort-menu" role="listbox" hidden>
+                                <li role="option" data-sort="priority" class="is-selected">Öncelik</li>
+                                <li role="option" data-sort="newest">En yeni</li>
+                                <li role="option" data-sort="oldest">En eski</li>
+                                <li role="option" data-sort="score-asc">Skor (düşük→yüksek)</li>
+                                <li role="option" data-sort="score-desc">Skor (yüksek→düşük)</li>
+                            </ul>
+                        </div>
                     </div>
                 </div>
 
-                <div class="bx-tabs">
-                    <button class="bx-tab">Tümü <b>(157)</b></button>
-                    <button class="bx-tab is-active">İnceleme <b>(18)</b></button>
-                    <button class="bx-tab">İşaretli <b>(7)</b></button>
-                    <button class="bx-tab">Kayıt Yok <b>(4)</b></button>
+                <div class="bx-queue-search-row">
+                    <svg class="bx-queue-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                    <input type="search" id="bx-queue-search" placeholder="Ara: ad veya öğrenci ID..." autocomplete="off">
+                </div>
+                <div class="bx-tabs" id="bx-queue-tabs">
+                    <button class="bx-tab" data-filter="all">Tümü <b data-count="all">(157)</b></button>
+                    <button class="bx-tab is-active" data-filter="review">İnceleme <b data-count="review">(18)</b></button>
+                    <button class="bx-tab" data-filter="flagged">İşaretli <b data-count="flagged">(7)</b></button>
+                    <button class="bx-tab" data-filter="no_enrollment">Kayıt Yok <b data-count="no_enrollment">(4)</b></button>
                 </div>
 
                 <table class="bx-queue">
@@ -470,7 +505,7 @@
                             <th>İşlem</th>
                         </tr>
                     </thead>
-                    <tbody>
+                    <tbody id="bx-queue-tbody">
                         <tr class="is-selected">
                             <td>
                                 <div class="bx-queue-user">
@@ -484,89 +519,15 @@
                             <td class="bx-q-muted bx-q-mono">10:24 AM</td>
                             <td>
                                 <button class="bx-btn-ghost-orange">İncele</button>
-                                <button class="bx-icon-btn-sm" aria-label="Daha fazla">
-                                    <svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg>
-                                </button>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <div class="bx-queue-user">
-                                    <img src="img/elif_bayar.jpg" alt="">
-                                    <div><strong>Elif Bayar</strong><span>AT-2026-1053</span></div>
-                                </div>
-                            </td>
-                            <td class="bx-q-muted">Ara Sınav</td>
-                            <td><span class="bx-score bx-score-orange">72%</span></td>
-                            <td><span class="bx-tag bx-tag-orange">İnceleme</span></td>
-                            <td class="bx-q-muted bx-q-mono">10:23 AM</td>
-                            <td>
-                                <button class="bx-btn-ghost-orange">İncele</button>
-                                <button class="bx-icon-btn-sm" aria-label="Daha fazla"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <div class="bx-queue-user">
-                                    <img src="img/sofia_martinez.jpg" alt="">
-                                    <div><strong>Sofia Martinez</strong><span>AT-2026-1061</span></div>
-                                </div>
-                            </td>
-                            <td class="bx-q-muted">Ara Sınav</td>
-                            <td><span class="bx-score bx-score-orange">65%</span></td>
-                            <td><span class="bx-tag bx-tag-orange">İnceleme</span></td>
-                            <td class="bx-q-muted bx-q-mono">10:22 AM</td>
-                            <td>
-                                <button class="bx-btn-ghost-orange">İncele</button>
-                                <button class="bx-icon-btn-sm" aria-label="Daha fazla"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <div class="bx-queue-user">
-                                    <img src="img/nora_walker.jpg" alt="">
-                                    <div><strong>Nora Walker</strong><span>AT-2026-1045</span></div>
-                                </div>
-                            </td>
-                            <td class="bx-q-muted">Ara Sınav</td>
-                            <td><span class="bx-score bx-score-red">41%</span></td>
-                            <td><span class="bx-tag bx-tag-red">İşaretli</span></td>
-                            <td class="bx-q-muted bx-q-mono">10:21 AM</td>
-                            <td>
-                                <button class="bx-btn-ghost-orange">İncele</button>
-                                <button class="bx-icon-btn-sm" aria-label="Daha fazla"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <div class="bx-queue-user">
-                                    <img src="img/isabella_rossi.jpg" alt="">
-                                    <div><strong>Isabella Rossi</strong><span>AT-2026-1066</span></div>
-                                </div>
-                            </td>
-                            <td class="bx-q-muted">Ara Sınav</td>
-                            <td><span class="bx-score bx-score-red">38%</span></td>
-                            <td><span class="bx-tag bx-tag-red">İşaretli</span></td>
-                            <td class="bx-q-muted bx-q-mono">10:20 AM</td>
-                            <td>
-                                <button class="bx-btn-ghost-orange">İncele</button>
-                                <button class="bx-icon-btn-sm" aria-label="Daha fazla"><svg viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/></svg></button>
                             </td>
                         </tr>
                     </tbody>
                 </table>
 
                 <div class="bx-queue-foot">
-                    <span class="bx-q-muted">18 kayıttan 1 - 5 arası gösteriliyor</span>
-                    <nav class="bx-pager">
-                        <button class="is-active">1</button>
-                        <button>2</button>
-                        <button>3</button>
-                        <button>4</button>
-                        <span>…</span>
-                        <button class="bx-pager-arrow" aria-label="Sonraki">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
-                        </button>
+                    <span class="bx-q-muted" id="bx-queue-foot-info">18 kayıttan 1 - 5 arası gösteriliyor</span>
+                    <nav class="bx-pager" id="bx-queue-pager">
+                        <button class="is-active" data-page="1">1</button>
                     </nav>
                 </div>
             </div>
@@ -576,7 +537,7 @@
                 <div class="bx-card-head">
                     <span class="bx-step-chip">3</span>
                     <h2>Seçili Deneme Detayları</h2>
-                    <span class="bx-attempt-id">Deneme ID: ATT-2026-78451</span>
+                    <span class="bx-attempt-id">Deneme ID: <span id="bx-detail-attempt-id">ATT-2026-78451</span></span>
                     <button class="bx-icon-btn-sm bx-close" aria-label="Kapat">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
                     </button>
@@ -584,33 +545,33 @@
 
                 <div class="bx-detail-stats">
                     <div class="bx-detail-user">
-                        <img src="img/aylin_kaya_live.jpg" alt="">
+                        <img src="img/aylin_kaya_live.jpg" alt="" id="bx-detail-avatar">
                         <div class="bx-detail-user-text">
-                            <strong>Aylin Kaya</strong>
-                            <span class="bx-q-mono">AT-2026-1042</span>
-                            <span class="bx-q-muted">Ara Sınav</span>
+                            <strong id="bx-detail-name">Aylin Kaya</strong>
+                            <span class="bx-q-mono" id="bx-detail-id">AT-2026-1042</span>
+                            <span class="bx-q-muted" id="bx-detail-exam">Ara Sınav</span>
                         </div>
                     </div>
                     <div class="bx-detail-stat-group">
                         <div class="bx-detail-stat">
                             <span class="bx-stat-label">Eşleşme Skoru</span>
-                            <strong class="bx-stat-value bx-text-green">92%</strong>
-                            <span class="bx-q-muted">Yüksek Eşleşme</span>
+                            <strong class="bx-stat-value bx-text-green" id="bx-detail-score">92%</strong>
+                            <span class="bx-q-muted" id="bx-detail-score-label">Yüksek Eşleşme</span>
                         </div>
                         <div class="bx-detail-stat">
                             <span class="bx-stat-label">Eşik</span>
-                            <strong class="bx-stat-value">0.300</strong>
+                            <strong class="bx-stat-value" id="bx-detail-threshold">0.300</strong>
                         </div>
                         <div class="bx-detail-stat">
                             <span class="bx-stat-label">Deneme Zamanı</span>
-                            <strong class="bx-stat-value bx-mono">10:24:18 AM</strong>
-                            <span class="bx-q-muted">20 May 2025</span>
+                            <strong class="bx-stat-value bx-mono" id="bx-detail-time">10:24:18 AM</strong>
+                            <span class="bx-q-muted" id="bx-detail-date">20 May 2025</span>
                         </div>
                         <div class="bx-detail-stat bx-detail-stat-wide">
                             <span class="bx-stat-label">Güven Seviyesi</span>
                             <div class="bx-confidence">
-                                <div class="bx-confidence-bar"><span style="width:88%"></span></div>
-                                <span class="bx-text-green">Yüksek</span>
+                                <div class="bx-confidence-bar"><span id="bx-detail-confidence-bar" style="width:88%"></span></div>
+                                <span class="bx-text-green" id="bx-detail-confidence-label">Yüksek</span>
                             </div>
                         </div>
                     </div>
@@ -620,19 +581,19 @@
                     <div class="bx-evidence-grid">
                         <figure class="bx-evidence">
                             <figcaption>Canlı (Yakalanan)</figcaption>
-                            <div class="bx-evidence-img"><img src="img/aylin_kaya_live.jpg" alt=""></div>
+                            <div class="bx-evidence-img"><img src="img/aylin_kaya_live.jpg" alt="" id="bx-evidence-live"></div>
                         </figure>
                         <div class="bx-swap" aria-hidden="true">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 10h14l-3-3"/><path d="M17 14H3l3 3"/></svg>
                         </div>
                         <figure class="bx-evidence">
                             <figcaption>Kayıtlı Fotoğraf</figcaption>
-                            <div class="bx-evidence-img"><img src="img/aylin_kaya_enrolled.jpg" alt=""></div>
+                            <div class="bx-evidence-img"><img src="img/aylin_kaya_enrolled.jpg" alt="" id="bx-evidence-enrolled"></div>
                         </figure>
                         <figure class="bx-evidence">
                             <figcaption>Fark Haritası</figcaption>
                             <div class="bx-evidence-img bx-heatmap">
-                                <img src="img/aylin_kaya_live.jpg" alt="">
+                                <img src="img/aylin_kaya_live.jpg" alt="" id="bx-evidence-diff">
                                 <svg class="bx-heat-overlay" viewBox="0 0 200 220" aria-hidden="true">
                                     <defs>
                                         <radialGradient id="bxHeatA" cx="50%" cy="35%" r="40%"><stop offset="0%" stop-color="#EF4444" stop-opacity=".75"/><stop offset="60%" stop-color="#F59E0B" stop-opacity=".35"/><stop offset="100%" stop-color="#10B981" stop-opacity="0"/></radialGradient>
@@ -648,9 +609,15 @@
                             </div>
                         </figure>
                         <figure class="bx-evidence">
-                            <figcaption>Özellik Eşleşmesi</figcaption>
+                            <figcaption>
+                                <span>Özellik Eşleşmesi</span>
+                                <button class="bx-reverify-btn" id="bx-reverify-btn" title="Bağımsız modelle yeniden doğrula">
+                                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-3-6.7"/><path d="M21 3v5h-5"/></svg>
+                                </button>
+                            </figcaption>
                             <div class="bx-evidence-img bx-feature">
-                                <img src="img/aylin_kaya_enrolled.jpg" alt="">
+                                <img src="img/aylin_kaya_enrolled.jpg" alt="" id="bx-evidence-feature">
+                                <div class="bx-reverify-badge" id="bx-reverify-badge" hidden></div>
                                 <svg class="bx-feature-overlay" viewBox="0 0 200 220" aria-hidden="true">
                                     <g fill="#10B981">
                                         <circle cx="70" cy="60" r="1.4"/><circle cx="80" cy="55" r="1.4"/><circle cx="90" cy="52" r="1.4"/><circle cx="100" cy="50" r="1.4"/><circle cx="110" cy="52" r="1.4"/><circle cx="120" cy="55" r="1.4"/><circle cx="130" cy="60" r="1.4"/>
@@ -677,7 +644,7 @@
                     <aside class="bx-ai-rail">
                         <div class="bx-ai-rail-col">
                             <h3>Yapay Zeka Analizi</h3>
-                            <ul class="bx-ai-list">
+                            <ul class="bx-ai-list" id="bx-ai-list">
                                 <li>Aydınlatma farkı tespit edildi</li>
                                 <li>Yüz ifadesi değişkenliği</li>
                                 <li>Minör poz açısı farkı</li>
@@ -687,28 +654,28 @@
                         <div class="bx-ai-rail-col">
                             <h3>Teknik Detaylar</h3>
                             <dl class="bx-ai-meta">
-                                <div><dt>Model</dt><dd class="bx-not-mono">Hybrid FaceNet</dd></div>
-                                <div><dt>IP Adresi</dt><dd>203.0.113.45</dd></div>
-                                <div><dt>Cihaz</dt><dd class="bx-not-mono">Chrome on Windows</dd></div>
+                                <div><dt>Model</dt><dd class="bx-not-mono" id="bx-ai-meta-model">Hybrid FaceNet</dd></div>
+                                <div><dt>Karar</dt><dd class="bx-not-mono" id="bx-ai-meta-decision">Manuel İnceleme</dd></div>
+                                <div><dt>Kaynak</dt><dd class="bx-not-mono" id="bx-ai-meta-source">Yüklenen selfie</dd></div>
                             </dl>
                         </div>
                     </aside>
                 </div>
 
                 <div class="bx-detail-actions">
-                    <button class="bx-btn bx-btn-outline">
+                    <button class="bx-btn bx-btn-outline" id="bx-btn-defer">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>
                         Daha Sonra
                     </button>
-                    <button class="bx-btn bx-btn-danger">
+                    <button class="bx-btn bx-btn-danger" id="bx-btn-deny">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
                         Erişimi Reddet
                     </button>
-                    <button class="bx-btn bx-btn-success">
+                    <button class="bx-btn bx-btn-success" id="bx-btn-approve">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
                         Erişimi Onayla
                     </button>
-                    <button class="bx-btn bx-btn-link bx-ms-auto">
+                    <button class="bx-btn bx-btn-link bx-ms-auto" id="bx-btn-next">
                         Sonrakine Geç
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14M13 5l7 7-7 7"/></svg>
                     </button>
@@ -731,6 +698,19 @@
 
 </main>
 
+<aside class="bx-audit-drawer" id="bx-audit-drawer" aria-hidden="true">
+    <header class="bx-audit-head">
+        <h2>Denetim Kayıtları</h2>
+        <button class="bx-icon-btn-sm" id="bx-audit-close" aria-label="Kapat">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </button>
+    </header>
+    <ul class="bx-audit-list" id="bx-audit-list" aria-live="polite"></ul>
+</aside>
+<div class="bx-audit-backdrop" id="bx-audit-backdrop" aria-hidden="true"></div>
+<div id="bx-toast" role="status" aria-live="polite" aria-hidden="true"></div>
+<script src="js/api.js"></script>
+<script src="js/i18n.js"></script>
 <script src="js/biyometrik-dashboard.js"></script>
 </body>
 </html>
