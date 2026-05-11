@@ -36,7 +36,28 @@
     --shadow: 0 18px 45px rgba(24, 32, 51, 0.08);
     --shadow-soft: 0 12px 28px rgba(24, 32, 51, 0.06);
     --shadow-lift: 0 20px 50px rgba(24, 32, 51, 0.12);
+    --elev-1: 0 1px 3px rgba(24, 32, 51, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+    --elev-2: 0 8px 24px rgba(24, 32, 51, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.5);
+    --elev-3: 0 20px 50px rgba(24, 32, 51, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.55);
+    --radius-sm: 6px;
     --radius: 8px;
+    --radius-lg: 14px;
+    --space-1: 4px;
+    --space-2: 8px;
+    --space-3: 12px;
+    --space-4: 16px;
+    --space-5: 20px;
+    --space-6: 24px;
+    --space-8: 32px;
+    --space-10: 40px;
+    --font-xs: 0.75rem;
+    --font-sm: 0.85rem;
+    --font-md: 1rem;
+    --font-lg: 1.25rem;
+    --font-xl: 1.5rem;
+    --font-2xl: 2rem;
+    --focus-ring: 0 0 0 3px rgba(0, 48, 135, 0.35);
+    --input-bg: #fbfcff;
     --font: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
 }
@@ -65,6 +86,55 @@ select {
 
 button {
     border: 0;
+}
+
+:focus:not(:focus-visible) {
+    outline: none;
+}
+
+:focus-visible {
+    outline: none;
+    box-shadow: var(--focus-ring);
+    border-radius: var(--radius-sm);
+}
+
+.is-loading {
+    position: relative;
+    opacity: 0.65;
+    pointer-events: none;
+    transition: opacity 160ms ease;
+}
+
+.is-loading::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    border-radius: inherit;
+    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.18) 50%, transparent 100%);
+    background-size: 200% 100%;
+    animation: shellPulse 1400ms ease-in-out infinite;
+    pointer-events: none;
+}
+
+@keyframes shellPulse {
+    0% { background-position: 200% 0; }
+    100% { background-position: -200% 0; }
+}
+
+.field-error {
+    margin-top: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+    color: var(--danger);
+    background: var(--surface-danger);
+    border-left: 3px solid var(--danger);
+    border-radius: var(--radius-sm);
+    font-size: var(--font-xs);
+    font-weight: 600;
+    line-height: 1.4;
+}
+
+.field-error:empty {
+    display: none;
 }
 
 .app-shell {
@@ -452,12 +522,12 @@ h3 {
 
 .simulation-mobile-switch button {
     min-height: 38px;
-    padding: 8px 10px;
-    border-radius: 6px;
+    padding: var(--space-2) var(--space-3);
+    border-radius: var(--radius-sm);
     color: var(--brand-dark);
     border: 1px solid var(--line);
     background: var(--surface-soft);
-    font-size: 0.82rem;
+    font-size: var(--font-sm);
     font-weight: 900;
     cursor: pointer;
 }
@@ -471,7 +541,7 @@ h3 {
 .simulation-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 44px minmax(380px, 1fr);
-    gap: 12px;
+    gap: var(--space-3);
     align-items: start;
 }
 
@@ -479,21 +549,44 @@ h3 {
     min-width: 0;
 }
 
+@media (max-width: 1180px) {
+    .simulation-layout {
+        grid-template-columns: 1fr;
+    }
+    .simulation-layout .simulation-divider {
+        display: none;
+    }
+    .simulation-mobile-switch {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: var(--space-2);
+        margin-bottom: var(--space-3);
+        padding: var(--space-1);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        background: var(--surface);
+    }
+    .simulation-layout[data-active-pane="student"] .instructor-pov,
+    .simulation-layout[data-active-pane="instructor"] .student-pov {
+        display: none;
+    }
+}
+
 .pov-heading {
     display: flex;
     align-items: flex-start;
     justify-content: space-between;
-    gap: 12px;
-    margin-bottom: 16px;
+    gap: var(--space-3);
+    margin-bottom: var(--space-4);
 }
 
 .pov-role-banner {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
-    margin: -20px -20px 18px;
-    padding: 14px 18px;
+    gap: var(--space-3);
+    margin: calc(var(--space-5) * -1) calc(var(--space-5) * -1) var(--space-4);
+    padding: var(--space-3) var(--space-4);
     border-radius: var(--radius) var(--radius) 0 0;
 }
 
@@ -545,23 +638,23 @@ h3 {
 }
 
 .simulation-selectors {
-    margin-bottom: 14px;
+    margin-bottom: var(--space-3);
 }
 
 .student-screen {
     display: grid;
-    gap: 14px;
-    padding: 16px;
+    gap: var(--space-3);
+    padding: var(--space-4);
     border: 1px solid rgba(0, 48, 135, 0.22);
-    border-radius: 8px;
+    border-radius: var(--radius);
     background: #f8faff;
 }
 
 .student-screen-top {
     display: flex;
     justify-content: space-between;
-    gap: 12px;
-    padding-bottom: 12px;
+    gap: var(--space-3);
+    padding-bottom: var(--space-3);
     border-bottom: 1px solid var(--line);
 }
 
@@ -587,7 +680,7 @@ h3 {
 .simulation-progress {
     display: grid;
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    gap: 8px;
+    gap: var(--space-2);
 }
 
 .mini-step {
@@ -595,9 +688,9 @@ h3 {
     justify-items: center;
     gap: 5px;
     min-height: 58px;
-    padding: 8px 6px;
+    padding: var(--space-2) 6px;
     border: 1px solid var(--line);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     color: var(--muted);
     background: var(--surface);
     font-size: 0.72rem;
@@ -1301,9 +1394,9 @@ select {
     min-height: 42px;
     padding: 9px 11px;
     border: 1px solid var(--line);
-    border-radius: 6px;
+    border-radius: var(--radius-sm);
     color: var(--ink);
-    background: #fbfcff;
+    background: var(--input-bg);
 }
 
 input[type="checkbox"] {

@@ -47,7 +47,7 @@ MODEL_REGISTRY = {
     },
     ("face", "hybrid"): {
         "config": _abs("configs/hybrid_face.yaml"),
-        "checkpoint": _abs("results/hybrid_face/checkpoints/best.pth"),
+        "checkpoint": r"C:\Downloads\Model3 Model1_in_gelişmiş_hali\model3\best_face_model.pth",
         "threshold": 0.3000000119,
     },
     ("face", "facenet_proto"): {

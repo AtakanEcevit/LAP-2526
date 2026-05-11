@@ -44,8 +44,8 @@
 
             <nav class="sidebar-nav">
                 <p>Review & Actions</p>
-                <button class="tab-button sidebar-link" data-view="proctor" data-nav-target="pending-review" data-review-filter="needs_review"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 4.3h3.4L21 17.2 19.3 20H4.7L3 17.2 10.3 4.3z"></path></svg></span> Pending Review <b id="sidebar-review-count">0</b></button>
-                <button class="tab-button sidebar-link" data-view="proctor" data-nav-target="flagged-attempts" data-review-filter="Rejected"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 21V5"></path><path d="M5 5h12l-2 4 2 4H5"></path></svg></span> Flagged Attempts <b id="sidebar-blocked-count">0</b></button>
+                <button class="tab-button sidebar-link" data-view="proctor" data-nav-target="pending-review" data-review-filter="needs_review"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 9v4"></path><path d="M12 17h.01"></path><path d="M10.3 4.3h3.4L21 17.2 19.3 20H4.7L3 17.2 10.3 4.3z"></path></svg></span> Pending Review <b id="sidebar-review-count" aria-live="polite" aria-label="Pending review count">0</b></button>
+                <button class="tab-button sidebar-link" data-view="proctor" data-nav-target="flagged-attempts" data-review-filter="Rejected"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M5 21V5"></path><path d="M5 5h12l-2 4 2 4H5"></path></svg></span> Flagged Attempts <b id="sidebar-blocked-count" aria-live="polite" aria-label="Flagged attempts count">0</b></button>
                 <button class="tab-button sidebar-link" data-view="evidence" data-nav-target="audit-logs" data-admin-panel="operation-model-evidence"><span class="nav-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M8 6h13M8 12h13M8 18h13"></path><path d="M3 6h.01M3 12h.01M3 18h.01"></path></svg></span> Audit Logs</button>
             </nav>
 
@@ -147,7 +147,7 @@
             </nav>
 
             <main>
-            <section class="view active workspace-page" id="view-simulation">
+            <section class="view active workspace-page" id="view-simulation" aria-busy="false">
                 <div class="section-header">
                     <div>
                         <p class="eyebrow">Live Simulation</p>
@@ -164,12 +164,12 @@
                     <button class="scenario-chip" data-simulation-scenario="fallback_requested">Fallback requested</button>
                 </section>
 
-                <div class="simulation-mobile-switch" aria-label="Simulation point of view">
-                    <button class="active" data-simulation-pane="student">Student POV</button>
-                    <button data-simulation-pane="instructor">Instructor/Admin POV</button>
+                <div class="simulation-mobile-switch" role="tablist" aria-label="Simulation point of view">
+                    <button class="active" data-simulation-pane="student" role="tab" aria-selected="true" aria-controls="simulation-layout-root">Student POV</button>
+                    <button data-simulation-pane="instructor" role="tab" aria-selected="false" aria-controls="simulation-layout-root">Instructor/Admin POV</button>
                 </div>
 
-                <div class="simulation-layout">
+                <div class="simulation-layout" id="simulation-layout-root" data-active-pane="student">
                     <section class="panel simulation-pane student-pov" aria-label="Student point of view">
                         <div class="pov-role-banner">
                             <span>STUDENT SCREEN</span>
@@ -230,24 +230,25 @@
                                 <input type="checkbox" id="simulation-consent-check">
                                 <span>I consent to this exam access check.</span>
                             </label>
-                            <div class="simulation-callout" id="simulation-student-guidance">Select an exam and student to begin.</div>
-                            <div class="camera-frame" aria-label="Student live camera frame">
-                                <div class="camera-corners"></div>
-                                <div class="camera-preview" id="simulation-student-camera-preview">
+                            <div class="simulation-callout" id="simulation-student-guidance" aria-live="polite">Select an exam and student to begin.</div>
+                            <div class="camera-frame" role="img" aria-label="Student live camera frame">
+                                <div class="camera-corners" aria-hidden="true"></div>
+                                <div class="camera-preview" id="simulation-student-camera-preview" aria-label="Student camera preview">
                                     <span>Camera preview appears after verification</span>
                                 </div>
-                                <div class="camera-status">Please hold still...</div>
+                                <div class="camera-status" aria-hidden="true">Please hold still...</div>
                             </div>
                             <label>
                                 Exam-day selfie
-                                <input type="file" id="simulation-verify-file" accept="image/*" capture="user">
+                                <input type="file" id="simulation-verify-file" accept="image/*" capture="user" aria-describedby="simulation-verify-error">
                             </label>
+                            <div class="field-error" id="simulation-verify-error" role="alert" aria-live="assertive"></div>
                             <div class="preloaded-stage-note hidden" id="simulation-preloaded-stage-note"></div>
                             <button class="primary-action full-width" id="simulation-verify-btn">Verify for Exam Access</button>
                             <button class="secondary-action full-width" id="simulation-preloaded-btn">Load Preloaded Selfie</button>
                         </div>
 
-                        <article class="simulation-result" id="simulation-result-card">
+                        <article class="simulation-result" id="simulation-result-card" aria-live="polite" aria-atomic="true">
                             <p class="eyebrow">Student Message</p>
                             <h3 id="simulation-result-title">No attempt yet</h3>
                             <p class="muted" id="simulation-result-message">The student has not submitted an exam-day selfie in this simulation.</p>

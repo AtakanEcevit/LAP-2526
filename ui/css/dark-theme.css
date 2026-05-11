@@ -16,7 +16,7 @@ html[data-theme="dark"] {
     --line: rgba(255, 255, 255, 0.09);
     --line-soft: rgba(255, 255, 255, 0.055);
     --ink: #f3f4f6;
-    --muted: #9ca3af;
+    --muted: #adb5c2;
     --brand: #3b82f6;
     --brand-dark: #2563eb;
     --success: #10b981;
@@ -37,6 +37,9 @@ html[data-theme="dark"] {
     --security-dark: #1d4ed8;
     --glow-brand: rgba(59, 130, 246, 0.35);
     --glow-success: rgba(16, 185, 129, 0.3);
+    --focus-ring: 0 0 0 3px rgba(59, 130, 246, 0.55);
+    --muted-strong: #c4cbd6;
+    --input-bg: rgba(3, 7, 18, 0.58);
     --radius-sm: 8px;
     --radius: 14px;
     --radius-lg: 20px;
@@ -196,28 +199,20 @@ html[data-theme="dark"] summary{
 }
 
 html[data-theme="dark"] input,
-
-
 html[data-theme="dark"] select,
-
-
-html[data-theme="dark"] textarea{
-    color: var(--ink) !important;
-    background: rgba(3, 7, 18, 0.58) !important;
-    border: 1px solid var(--line) !important;
+html[data-theme="dark"] textarea {
+    color: var(--ink);
+    background: var(--input-bg);
+    border: 1px solid var(--line);
     border-radius: var(--radius-sm);
 }
 
-html[data-theme="dark"] input:focus,
-
-
-html[data-theme="dark"] select:focus,
-
-
-html[data-theme="dark"] textarea:focus{
+html[data-theme="dark"] input:focus-visible,
+html[data-theme="dark"] select:focus-visible,
+html[data-theme="dark"] textarea:focus-visible {
     outline: none;
-    border-color: rgba(59, 130, 246, 0.7) !important;
-    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.16);
+    border-color: rgba(59, 130, 246, 0.7);
+    box-shadow: var(--focus-ring);
 }
 
 html[data-theme="dark"] .platform-shell{
@@ -375,11 +370,11 @@ html[data-theme="dark"] .top-context-pill{
     min-height: 34px;
     max-width: 520px;
     padding: 7px 12px;
-    border: 1px solid var(--line);
+    border: 1px solid rgba(96, 165, 250, 0.45);
     border-radius: 999px;
-    color: #bfdbfe;
-    background: rgba(59, 130, 246, 0.1);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    color: #e0eaff;
+    background: rgba(59, 130, 246, 0.22);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
     font-size: 0.78rem;
     font-weight: 800;
     white-space: nowrap;

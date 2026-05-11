@@ -122,7 +122,16 @@ def _get_engine(modality: str, model_type: str) -> VerificationEngine:
             # Double-check after acquiring lock
             if key not in _engines:
                 engine = VerificationEngine()
-                engine.load(modality, model_type)
+                try:
+                    engine.load(modality, model_type)
+                except FileNotFoundError as exc:
+                    raise HTTPException(
+                        status_code=503,
+                        detail=(
+                            f"Model checkpoint not found for {modality}/{model_type}. "
+                            f"Train the model first. ({exc})"
+                        ),
+                    )
                 _engines[key] = engine
 
     return _engines[key]
@@ -1051,6 +1060,11 @@ async def root():
     if os.path.exists(index_path):
         return FileResponse(index_path)
     return JSONResponse({"message": "API is running. Visit /docs for Swagger UI."})
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    return Response(status_code=204)
 
 
 @app.get("/biyometrik-dashboard.html", include_in_schema=False)

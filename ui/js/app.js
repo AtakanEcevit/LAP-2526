@@ -1079,6 +1079,13 @@ function setVerificationInFlight(inFlight) {
         const button = document.getElementById(id);
         if (button) button.disabled = inFlight;
     });
+    const simulationView = document.getElementById('view-simulation');
+    if (simulationView) {
+        simulationView.setAttribute('aria-busy', inFlight ? 'true' : 'false');
+    }
+    document.querySelectorAll('.student-pov, .simulation-result').forEach(el => {
+        el.classList.toggle('is-loading', inFlight);
+    });
 }
 
 function renderStudentResult(result) {
@@ -1784,11 +1791,18 @@ function formatAuditTime(timestamp) {
 }
 
 function renderSimulationPaneSwitch() {
+    const activePane = state.simulationMobilePane || 'student';
     document.querySelectorAll('[data-simulation-pane]').forEach(button => {
-        button.classList.toggle('active', button.dataset.simulationPane === state.simulationMobilePane);
+        const isActive = button.dataset.simulationPane === activePane;
+        button.classList.toggle('active', isActive);
+        button.setAttribute('aria-selected', isActive ? 'true' : 'false');
     });
-    document.querySelector('.student-pov')?.classList.toggle('mobile-active', state.simulationMobilePane === 'student');
-    document.querySelector('.instructor-pov')?.classList.toggle('mobile-active', state.simulationMobilePane === 'instructor');
+    const layoutRoot = document.getElementById('simulation-layout-root');
+    if (layoutRoot) {
+        layoutRoot.setAttribute('data-active-pane', activePane);
+    }
+    document.querySelector('.student-pov')?.classList.toggle('mobile-active', activePane === 'student');
+    document.querySelector('.instructor-pov')?.classList.toggle('mobile-active', activePane === 'instructor');
 }
 
 function simulationAttempt() {
@@ -1875,6 +1889,7 @@ async function verifySimulationStudent() {
         return;
     }
     if (!confirmVerification(examId, studentId, file ? 'upload' : 'preloaded_demo', file?.name)) return;
+    setTextIfPresent('simulation-verify-error', '');
     try {
         setVerificationInFlight(true);
         setSelectValue('student-select', studentId);
@@ -1889,7 +1904,9 @@ async function verifySimulationStudent() {
         await refreshAll();
         await selectAttempt(result.attempt.attempt_id, { scroll: false });
     } catch (err) {
-        setTextIfPresent('simulation-student-guidance', apiErrorMessage(err));
+        const message = apiErrorMessage(err);
+        setTextIfPresent('simulation-student-guidance', message);
+        setTextIfPresent('simulation-verify-error', message);
         toast(err, 'error');
         renderSimulation();
     } finally {

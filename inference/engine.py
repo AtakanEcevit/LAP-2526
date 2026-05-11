@@ -160,10 +160,8 @@ class VerificationEngine:
         self.model.eval()
 
         self._loaded = True
-        print(
-            f"[Engine] Loaded {model_type}/{modality} "
-            f"from {checkpoint_path} -> {self.device}"
-        )
+        msg = f"[Engine] Loaded {model_type}/{modality} from {checkpoint_path} -> {self.device}"
+        print(msg.encode("ascii", errors="replace").decode("ascii"))
 
     def _ensure_loaded(self):
         if not self._loaded:
