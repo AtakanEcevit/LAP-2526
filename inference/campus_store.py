@@ -42,7 +42,7 @@ DECISION_VERIFIED = "verified"
 DECISION_MANUAL_REVIEW = "manual_review"
 DECISION_REJECTED = "rejected"
 
-DEFAULT_FACE_MODEL = "facenet_contrastive_proto"
+DEFAULT_FACE_MODEL = "facenet_arcface_triplet_model6"
 DEFAULT_FACE_THRESHOLD = MODEL_REGISTRY.get(
     ("face", DEFAULT_FACE_MODEL), {}
 ).get("threshold", 0.65)

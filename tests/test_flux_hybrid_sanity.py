@@ -134,6 +134,58 @@ def test_run_flux_sanity_records_selected_model_type(tmp_path):
     ).read_text(encoding="utf-8")
 
 
+def test_run_flux_sanity_labels_model5_alias(tmp_path):
+    dataset_dir = tmp_path / "flux"
+    output_dir = tmp_path / "out"
+    for idx in range(5):
+        _write_flux_identity(dataset_dir, f"person_{idx:03d}")
+
+    metrics = run_flux_sanity(
+        FluxSanityConfig(
+            dataset_dir=dataset_dir,
+            output_dir=output_dir,
+            model_type="facenet_contrastive_proto_model5",
+            identities=4,
+            seed=42,
+            threshold=0.800884,
+            impostors_per_identity=2,
+        ),
+        _fake_embedding,
+    )
+
+    assert metrics["model_type"] == "facenet_contrastive_proto_model5"
+    assert metrics["model_label"] == "FaceNet Contrastive Proto Model 5"
+    assert "FaceNet Contrastive Proto Model 5 FLUXSynID Sanity Report" in (
+        output_dir / "summary.md"
+    ).read_text(encoding="utf-8")
+
+
+def test_run_flux_sanity_labels_model6(tmp_path):
+    dataset_dir = tmp_path / "flux"
+    output_dir = tmp_path / "out"
+    for idx in range(5):
+        _write_flux_identity(dataset_dir, f"person_{idx:03d}")
+
+    metrics = run_flux_sanity(
+        FluxSanityConfig(
+            dataset_dir=dataset_dir,
+            output_dir=output_dir,
+            model_type="facenet_arcface_triplet_model6",
+            identities=4,
+            seed=42,
+            threshold=0.3000000119,
+            impostors_per_identity=2,
+        ),
+        _fake_embedding,
+    )
+
+    assert metrics["model_type"] == "facenet_arcface_triplet_model6"
+    assert metrics["model_label"] == "FaceNet ArcFace Triplet Model 6"
+    assert "FaceNet ArcFace Triplet Model 6 FLUXSynID Sanity Report" in (
+        output_dir / "summary.md"
+    ).read_text(encoding="utf-8")
+
+
 def test_run_flux_sanity_rejects_impostor_count_equal_to_identity_count(tmp_path):
     for idx in range(3):
         _write_flux_identity(tmp_path, f"person_{idx:03d}")

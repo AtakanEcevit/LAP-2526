@@ -104,6 +104,8 @@ def model_label(model_type: str) -> str:
         "hybrid": "Hybrid FaceNet",
         "facenet_proto": "FaceNet Proto",
         "facenet_contrastive_proto": "FaceNet Contrastive Proto",
+        "facenet_contrastive_proto_model5": "FaceNet Contrastive Proto Model 5",
+        "facenet_arcface_triplet_model6": "FaceNet ArcFace Triplet Model 6",
     }
     return labels.get(model_type, model_type)
 

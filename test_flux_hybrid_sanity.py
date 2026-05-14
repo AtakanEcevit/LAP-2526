@@ -28,7 +28,13 @@ from inference.config import MODEL_REGISTRY  # noqa: E402
 from inference.engine import VerificationEngine  # noqa: E402
 
 
-FACENET_STYLE_MODELS = ("hybrid", "facenet_proto")
+FACENET_STYLE_MODELS = (
+    "hybrid",
+    "facenet_proto",
+    "facenet_contrastive_proto",
+    "facenet_contrastive_proto_model5",
+    "facenet_arcface_triplet_model6",
+)
 
 
 def _build_extractor(model_type: str, device: str | None, validate: bool):
@@ -176,6 +182,9 @@ def _default_output_dir(model_type: str) -> Path:
     result_name = {
         "hybrid": "hybrid_face",
         "facenet_proto": "facenet_proto_face",
+        "facenet_contrastive_proto": "facenet_contrastive_proto_face",
+        "facenet_contrastive_proto_model5": "facenet_contrastive_proto_model5_face",
+        "facenet_arcface_triplet_model6": "facenet_arcface_triplet_model6_face",
     }[model_type]
     return Path("results") / result_name / "flux_sanity"
 

@@ -22,6 +22,8 @@ FACENET_STYLE_MODEL_TYPES = {
     "hybrid",
     "facenet_proto",
     "facenet_contrastive_proto",
+    "facenet_contrastive_proto_model5",
+    "facenet_arcface_triplet_model6",
 }
 
 

@@ -75,9 +75,9 @@
             <div>
                 <p class="eyebrow">Atılım University Demo</p>
                 <h1>Biometric Exam Access Verification</h1>
-                <p class="muted monitor-subtitle">Atılım University Demo - SE 204 Midterm - FaceNet Contrastive Proto - Threshold 0.800884</p>
+                <p class="muted monitor-subtitle">Atılım University Demo - SE 204 Midterm - FaceNet ArcFace Triplet Model 6 - Threshold 0.3000000119</p>
             </div>
-            <span class="top-context-pill" aria-label="Active exam context">SE 204 · Midterm · FaceNet Contrastive Proto · 0.800884</span>
+            <span class="top-context-pill" aria-label="Active exam context">SE 204 · Midterm · FaceNet ArcFace Triplet Model 6 · 0.3000000119</span>
             <div class="monitor-actions">
                 <div class="theme-toggle" role="group" aria-label="Theme">
                     <button type="button" data-theme-option="light" aria-pressed="false">Light</button>
@@ -94,7 +94,7 @@
         </header>
 
         <section class="context-strip" aria-label="Active exam policy">
-                <strong id="context-summary">Atılım University Demo · SE 204 Midterm · FaceNet Contrastive Proto · Threshold 0.800884</strong>
+                <strong id="context-summary">Atılım University Demo · SE 204 Midterm · FaceNet ArcFace Triplet Model 6 · Threshold 0.3000000119</strong>
             <details class="context-details">
                 <summary>Details</summary>
                 <dl>
@@ -759,8 +759,8 @@
                             <div class="form-grid">
                                 <label>Exam ID<input type="text" id="exam-id" value="SE204-MIDTERM"></label>
                                 <label>Exam Name<input type="text" id="exam-name" value="Midterm Exam"></label>
-                                <label>Threshold<input type="number" id="exam-threshold" min="0" max="1" step="0.000001" value="0.800884"></label>
-                                <label>Model<select id="exam-model"><option value="siamese">Siamese</option><option value="prototypical">Prototypical</option><option value="hybrid">Hybrid FaceNet</option><option value="facenet_proto">FaceNet Proto</option><option value="facenet_contrastive_proto" selected>FaceNet Contrastive Proto</option></select></label>
+                                <label>Threshold<input type="number" id="exam-threshold" min="0" max="1" step="0.000001" value="0.3000000119"></label>
+                                <label>Model<select id="exam-model"><option value="siamese">Siamese</option><option value="prototypical">Prototypical</option><option value="hybrid">Hybrid FaceNet</option><option value="facenet_proto">FaceNet Proto</option><option value="facenet_contrastive_proto">FaceNet Contrastive Proto</option><option value="facenet_contrastive_proto_model5">FaceNet Contrastive Proto Model 5</option><option value="facenet_arcface_triplet_model6" selected>FaceNet ArcFace Triplet Model 6</option></select></label>
                             </div>
                             <details class="compact-disclosure top-gap">
                                 <summary>Exam window</summary>
@@ -794,7 +794,7 @@
                             <div class="form-grid">
                                 <label>Count<input type="number" id="flux-count" min="1" max="100" value="25"></label>
                                 <label>Seed<input type="number" id="flux-seed" value="42"></label>
-                                <label>Model<select id="flux-model"><option value="facenet_contrastive_proto" selected>FaceNet Contrastive Proto</option><option value="hybrid">Hybrid FaceNet</option><option value="facenet_proto">FaceNet Proto</option><option value="siamese">Siamese</option><option value="prototypical">Prototypical</option></select></label>
+                                <label>Model<select id="flux-model"><option value="facenet_arcface_triplet_model6" selected>FaceNet ArcFace Triplet Model 6</option><option value="facenet_contrastive_proto">FaceNet Contrastive Proto</option><option value="facenet_contrastive_proto_model5">FaceNet Contrastive Proto Model 5</option><option value="hybrid">Hybrid FaceNet</option><option value="facenet_proto">FaceNet Proto</option><option value="siamese">Siamese</option><option value="prototypical">Prototypical</option></select></label>
                             </div>
                             <p class="notice" id="flux-status">Checking FLUXSynID dataset...</p>
                             <dl class="detail-list compact-details">
@@ -850,7 +850,9 @@
                                             <option value="prototypical">Prototypical</option>
                                             <option value="hybrid">Hybrid FaceNet</option>
                                             <option value="facenet_proto">FaceNet Proto</option>
-                                            <option value="facenet_contrastive_proto" selected>FaceNet Contrastive Proto</option>
+                                            <option value="facenet_contrastive_proto">FaceNet Contrastive Proto</option>
+                                            <option value="facenet_contrastive_proto_model5">FaceNet Contrastive Proto Model 5</option>
+                                            <option value="facenet_arcface_triplet_model6" selected>FaceNet ArcFace Triplet Model 6</option>
                                         </select>
                                     </label>
                                     <label>Face Image A<input type="file" id="lab-file-a" accept="image/*"></label>
@@ -877,7 +879,7 @@
                                     <summary>Model notes</summary>
                                     <div class="evidence-box">
                                         <p><strong>Higher score means stronger match.</strong></p>
-                                        <p class="muted">Hybrid FaceNet, FaceNet Proto, and FaceNet Contrastive Proto use RGB 160x160 input and a 512-d normalized embedding. The current runtime threshold is an initial setting until target-data calibration supports a production value.</p>
+                                        <p class="muted">Hybrid FaceNet, FaceNet Proto, FaceNet Contrastive Proto, FaceNet Contrastive Proto Model 5, and FaceNet ArcFace Triplet Model 6 use RGB 160x160 input and a 512-d normalized embedding. The current runtime threshold is an initial setting until target-data calibration supports a production value.</p>
                                     </div>
                                 </details>
                             </section>

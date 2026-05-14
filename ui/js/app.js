@@ -31,7 +31,7 @@ const DISPLAY_EXAM = 'Ara Sınav';
 const DISPLAY_STUDENT_ID = 'AT-2026-1042';
 const FALLBACK_DEMO_STUDENT_ID = 'NB-2026-1042';
 const FALLBACK_DEMO_EXAM_ID = 'CS204-MIDTERM-1';
-const DEFAULT_FACE_MODEL = 'facenet_contrastive_proto';
+const DEFAULT_FACE_MODEL = 'facenet_arcface_triplet_model6';
 const REVIEW_STATUSES = new Set(['Manual Review', 'Fallback Requested']);
 const REVIEW_ACTION_STATUSES = new Set(['Manual Review', 'Fallback Requested', 'Rejected']);
 const ACCESS_GRANTED_STATUSES = new Set(['Verified', 'Approved by Proctor']);
@@ -466,6 +466,8 @@ function faceModelDefaults() {
         hybrid: { threshold: 0.3000000119 },
         facenet_proto: { threshold: 0.47 },
         facenet_contrastive_proto: { threshold: 0.800884 },
+        facenet_contrastive_proto_model5: { threshold: 0.800884 },
+        facenet_arcface_triplet_model6: { threshold: 0.3000000119 },
         ...(state.health?.face_model_defaults || {})
     };
 }
@@ -2302,7 +2304,9 @@ function modelLabel(modelType) {
         prototypical: 'Prototypical',
         hybrid: 'Hybrid FaceNet',
         facenet_proto: 'FaceNet Proto',
-        facenet_contrastive_proto: 'FaceNet Contrastive Proto'
+        facenet_contrastive_proto: 'FaceNet Contrastive Proto',
+        facenet_contrastive_proto_model5: 'FaceNet Contrastive Proto Model 5',
+        facenet_arcface_triplet_model6: 'FaceNet ArcFace Triplet Model 6'
     };
     return labels[modelType] || String(modelType || '-');
 }

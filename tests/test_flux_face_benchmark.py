@@ -33,12 +33,20 @@ def test_discover_registered_face_models_returns_face_models_only():
     assert "hybrid" in models
     assert "facenet_proto" in models
     assert "facenet_contrastive_proto" in models
+    assert "facenet_contrastive_proto_model5" in models
+    assert "facenet_arcface_triplet_model6" in models
     assert "siamese_signature" not in models
 
 
 def test_expand_model_types_all_is_deterministic():
     assert expand_model_types((ALL_MODELS,)) == benchmark.discover_registered_face_models()
     assert expand_model_types(("facenet_proto",)) == ("facenet_proto",)
+    assert benchmark.model_label("facenet_contrastive_proto_model5") == (
+        "FaceNet Contrastive Proto Model 5"
+    )
+    assert benchmark.model_label("facenet_arcface_triplet_model6") == (
+        "FaceNet ArcFace Triplet Model 6"
+    )
 
     with pytest.raises(FluxSanityError):
         expand_model_types((ALL_MODELS, "hybrid"))

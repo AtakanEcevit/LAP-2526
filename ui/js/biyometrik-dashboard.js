@@ -1630,7 +1630,9 @@
     const HELP_URL = 'https://github.com/AtakanEcevit/LAP-2526#readme';
 
     const MODEL_LABELS = {
-        facenet_contrastive_proto: 'FaceNet Proto',
+        facenet_contrastive_proto: 'FaceNet Contrastive Proto',
+        facenet_contrastive_proto_model5: 'FaceNet Contrastive Proto Model 5',
+        facenet_arcface_triplet_model6: 'FaceNet ArcFace Triplet Model 6',
         facenet_hybrid: 'Hybrid FaceNet',
         facenet_proto: 'FaceNet Proto',
         facenet: 'FaceNet',

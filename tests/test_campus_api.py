@@ -96,13 +96,17 @@ def test_campus_status_shows_face_models(client):
     assert "hybrid" in data["face_models_available"]
     assert "facenet_proto" in data["face_models_available"]
     assert "facenet_contrastive_proto" in data["face_models_available"]
+    assert "facenet_contrastive_proto_model5" in data["face_models_available"]
+    assert "facenet_arcface_triplet_model6" in data["face_models_available"]
     assert data["face_model_defaults"]["hybrid"]["threshold"] == pytest.approx(0.3000000119)
     assert data["face_model_defaults"]["facenet_proto"]["threshold"] == pytest.approx(0.47)
     assert data["face_model_defaults"]["facenet_contrastive_proto"]["threshold"] == pytest.approx(0.800884)
+    assert data["face_model_defaults"]["facenet_contrastive_proto_model5"]["threshold"] == pytest.approx(0.800884)
+    assert data["face_model_defaults"]["facenet_arcface_triplet_model6"]["threshold"] == pytest.approx(0.3000000119)
     assert data["students"] >= 20
     default_exam = client.get("/campus").json()["exams"][0]
-    assert default_exam["model_type"] == "facenet_contrastive_proto"
-    assert default_exam["threshold"] == pytest.approx(0.800884)
+    assert default_exam["model_type"] == "facenet_arcface_triplet_model6"
+    assert default_exam["threshold"] == pytest.approx(0.3000000119)
 
 
 @pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
@@ -141,7 +145,7 @@ def test_flux_preupload_enrolls_students_idempotently(client, tmp_path):
                 "dataset_dir": str(flux_dir),
                 "count": "3",
                 "seed": "42",
-                "model_type": "facenet_contrastive_proto",
+                "model_type": "facenet_arcface_triplet_model6",
             },
         )
         assert resp.status_code == 200
@@ -196,7 +200,7 @@ def test_flux_preupload_enrolls_students_idempotently(client, tmp_path):
         },
     )
     assert verify.status_code == 200
-    assert verify.json()["attempt"]["model_type"] == "facenet_contrastive_proto"
+    assert verify.json()["attempt"]["model_type"] == "facenet_arcface_triplet_model6"
     assert verify.json()["attempt"]["attempt_source"] == "upload"
 
 
@@ -215,7 +219,7 @@ def test_campus_reset_clears_flux_enrollments_attempts_and_test_kit(
             "dataset_dir": str(flux_dir),
             "count": "2",
             "seed": "11",
-            "model_type": "facenet_contrastive_proto",
+            "model_type": "facenet_arcface_triplet_model6",
         },
     )
     assert preupload.status_code == 200
@@ -235,7 +239,7 @@ def test_campus_reset_clears_flux_enrollments_attempts_and_test_kit(
             "start_time": "2026-05-12T10:00",
             "end_time": "2026-05-12T11:30",
             "threshold": "0.95",
-            "model_type": "facenet_contrastive_proto",
+            "model_type": "facenet_arcface_triplet_model6",
         },
     )
     assert review_exam.status_code == 200
@@ -300,7 +304,7 @@ def test_failed_flux_rerun_preserves_existing_enrollment(client, tmp_path):
             "dataset_dir": str(good_flux),
             "count": "1",
             "seed": "1",
-            "model_type": "facenet_contrastive_proto",
+            "model_type": "facenet_arcface_triplet_model6",
         },
     )
     assert good.status_code == 200
@@ -312,7 +316,7 @@ def test_failed_flux_rerun_preserves_existing_enrollment(client, tmp_path):
             "dataset_dir": str(bad_flux),
             "count": "1",
             "seed": "1",
-            "model_type": "facenet_contrastive_proto",
+            "model_type": "facenet_arcface_triplet_model6",
         },
     )
     assert bad.status_code == 200
@@ -342,7 +346,7 @@ def test_verify_preloaded_matching_and_model_mismatch(client, tmp_path):
             "dataset_dir": str(flux_dir),
             "count": "2",
             "seed": "7",
-            "model_type": "facenet_contrastive_proto",
+            "model_type": "facenet_arcface_triplet_model6",
         },
     )
     assert preupload.status_code == 200
@@ -369,7 +373,7 @@ def test_verify_preloaded_matching_and_model_mismatch(client, tmp_path):
     )
     assert verify.status_code == 200
     attempt = verify.json()["attempt"]
-    assert attempt["model_type"] == "facenet_contrastive_proto"
+    assert attempt["model_type"] == "facenet_arcface_triplet_model6"
     assert attempt["attempt_source"] == "preloaded_demo"
     assert attempt["scenario"] == "matching"
     assert attempt["query_preview"].startswith("data:image/jpeg;base64,")
@@ -817,6 +821,196 @@ def test_facenet_contrastive_proto_enrollment_verification_flux_and_lab_paths(
         files=[
             ("image1", ("face-a.png", image_bytes(50), "image/png")),
             ("image2", ("face-b.png", image_bytes(51), "image/png")),
+        ],
+    )
+    assert lab_resp.status_code == 200
+    assert lab_resp.json()["match"] is True
+
+
+@pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
+def test_facenet_contrastive_proto_model5_alias_paths_and_model_mismatch(
+    client,
+    tmp_path,
+):
+    exam_resp = client.post(
+        "/campus/exams",
+        data={
+            "exam_id": "CS204-FACENET-CONTRASTIVE-PROTO-MODEL5",
+            "course_id": "CS204-2026S",
+            "name": "FaceNet Contrastive Proto Model 5 Demo",
+            "start_time": "2026-05-12T10:00",
+            "end_time": "2026-05-12T11:30",
+            "threshold": "0.800884",
+            "model_type": "facenet_contrastive_proto_model5",
+        },
+    )
+    assert exam_resp.status_code == 200
+    assert exam_resp.json()["model_type"] == "facenet_contrastive_proto_model5"
+    assert exam_resp.json()["threshold"] == pytest.approx(0.800884)
+
+    enroll_resp = client.post(
+        "/campus/students/NB-2026-1042/enroll",
+        data={"model_type": "facenet_contrastive_proto_model5"},
+        files=[("images", ("face1.png", image_bytes(60), "image/png"))],
+    )
+    assert enroll_resp.status_code == 200
+    assert enroll_resp.json()["sample_count"] == 1
+
+    verify_resp = client.post(
+        "/campus/exams/CS204-FACENET-CONTRASTIVE-PROTO-MODEL5/verify",
+        data={"student_id": "NB-2026-1042"},
+        files={"image": ("selfie.png", image_bytes(61), "image/png")},
+    )
+    assert verify_resp.status_code == 200
+    attempt = verify_resp.json()["attempt"]
+    assert attempt["model_type"] == "facenet_contrastive_proto_model5"
+    assert attempt["threshold"] == pytest.approx(0.800884)
+    assert attempt["score"] >= attempt["threshold"]
+
+    original_exam = client.post(
+        "/campus/exams",
+        data={
+            "exam_id": "CS204-FACENET-CONTRASTIVE-PROTO-ORIGINAL",
+            "course_id": "CS204-2026S",
+            "name": "FaceNet Contrastive Proto Original",
+            "start_time": "2026-05-12T10:00",
+            "end_time": "2026-05-12T11:30",
+            "threshold": "0.800884",
+            "model_type": "facenet_contrastive_proto",
+        },
+    )
+    assert original_exam.status_code == 200
+    mismatch = client.post(
+        "/campus/exams/CS204-FACENET-CONTRASTIVE-PROTO-ORIGINAL/verify",
+        data={"student_id": "NB-2026-1042"},
+        files={"image": ("selfie.png", image_bytes(62), "image/png")},
+    )
+    assert mismatch.status_code == 409
+    assert "requires facenet_contrastive_proto" in mismatch.json()["detail"]
+
+    flux_dir = tmp_path / "facenet_contrastive_proto_model5_flux"
+    _write_flux_identity(flux_dir, "flux_facenet_contrastive_model5", age="20-29")
+    preupload = client.post(
+        "/campus/flux/preupload",
+        data={
+            "dataset_dir": str(flux_dir),
+            "count": "1",
+            "seed": "5",
+            "model_type": "facenet_contrastive_proto_model5",
+        },
+    )
+    assert preupload.status_code == 200
+    assert preupload.json()["imported_count"] == 1
+    assert preupload.json()["imported"][0]["sample_count"] == 3
+
+    users = client.get("/users").json()
+    assert any(
+        user["model_type"] == "facenet_contrastive_proto_model5"
+        for user in users
+        if user["user_id"].startswith("campus_")
+    )
+
+    lab_resp = client.post(
+        "/campus/model-lab/compare",
+        data={"model_type": "facenet_contrastive_proto_model5"},
+        files=[
+            ("image1", ("face-a.png", image_bytes(70), "image/png")),
+            ("image2", ("face-b.png", image_bytes(71), "image/png")),
+        ],
+    )
+    assert lab_resp.status_code == 200
+    assert lab_resp.json()["match"] is True
+
+
+@pytest.mark.skipif(not HAS_FASTAPI, reason="FastAPI not installed")
+def test_facenet_arcface_triplet_model6_default_paths_and_model_mismatch(
+    client,
+    tmp_path,
+):
+    exam_resp = client.post(
+        "/campus/exams",
+        data={
+            "exam_id": "CS204-FACENET-ARCFACE-TRIPLET-MODEL6",
+            "course_id": "CS204-2026S",
+            "name": "FaceNet ArcFace Triplet Model 6 Demo",
+            "start_time": "2026-05-12T10:00",
+            "end_time": "2026-05-12T11:30",
+            "threshold": "0.3000000119",
+            "model_type": "facenet_arcface_triplet_model6",
+        },
+    )
+    assert exam_resp.status_code == 200
+    assert exam_resp.json()["model_type"] == "facenet_arcface_triplet_model6"
+    assert exam_resp.json()["threshold"] == pytest.approx(0.3000000119)
+
+    enroll_resp = client.post(
+        "/campus/students/NB-2026-1042/enroll",
+        data={"model_type": "facenet_arcface_triplet_model6"},
+        files=[("images", ("face1.png", image_bytes(80), "image/png"))],
+    )
+    assert enroll_resp.status_code == 200
+    assert enroll_resp.json()["sample_count"] == 1
+
+    verify_resp = client.post(
+        "/campus/exams/CS204-FACENET-ARCFACE-TRIPLET-MODEL6/verify",
+        data={"student_id": "NB-2026-1042"},
+        files={"image": ("selfie.png", image_bytes(81), "image/png")},
+    )
+    assert verify_resp.status_code == 200
+    attempt = verify_resp.json()["attempt"]
+    assert attempt["model_type"] == "facenet_arcface_triplet_model6"
+    assert attempt["threshold"] == pytest.approx(0.3000000119)
+    assert attempt["score"] >= attempt["threshold"]
+
+    contrastive_exam = client.post(
+        "/campus/exams",
+        data={
+            "exam_id": "CS204-FACENET-MODEL6-MISMATCH",
+            "course_id": "CS204-2026S",
+            "name": "FaceNet Model 6 Mismatch",
+            "start_time": "2026-05-12T10:00",
+            "end_time": "2026-05-12T11:30",
+            "threshold": "0.800884",
+            "model_type": "facenet_contrastive_proto",
+        },
+    )
+    assert contrastive_exam.status_code == 200
+    mismatch = client.post(
+        "/campus/exams/CS204-FACENET-MODEL6-MISMATCH/verify",
+        data={"student_id": "NB-2026-1042"},
+        files={"image": ("selfie.png", image_bytes(82), "image/png")},
+    )
+    assert mismatch.status_code == 409
+    assert "requires facenet_contrastive_proto" in mismatch.json()["detail"]
+
+    flux_dir = tmp_path / "facenet_arcface_triplet_model6_flux"
+    _write_flux_identity(flux_dir, "flux_facenet_arcface_model6", age="20-29")
+    preupload = client.post(
+        "/campus/flux/preupload",
+        data={
+            "dataset_dir": str(flux_dir),
+            "count": "1",
+            "seed": "6",
+            "model_type": "facenet_arcface_triplet_model6",
+        },
+    )
+    assert preupload.status_code == 200
+    assert preupload.json()["imported_count"] == 1
+    assert preupload.json()["imported"][0]["sample_count"] == 3
+
+    users = client.get("/users").json()
+    assert any(
+        user["model_type"] == "facenet_arcface_triplet_model6"
+        for user in users
+        if user["user_id"].startswith("campus_")
+    )
+
+    lab_resp = client.post(
+        "/campus/model-lab/compare",
+        data={"model_type": "facenet_arcface_triplet_model6"},
+        files=[
+            ("image1", ("face-a.png", image_bytes(90), "image/png")),
+            ("image2", ("face-b.png", image_bytes(91), "image/png")),
         ],
     )
     assert lab_resp.status_code == 200

@@ -47,7 +47,7 @@ MODEL_REGISTRY = {
     },
     ("face", "hybrid"): {
         "config": _abs("configs/hybrid_face.yaml"),
-        "checkpoint": r"C:\Downloads\Model3 Model1_in_gelişmiş_hali\model3\best_face_model.pth",
+        "checkpoint": _abs("results/hybrid_face/checkpoints/best.pth"),
         "threshold": 0.3000000119,
     },
     ("face", "facenet_proto"): {
@@ -62,6 +62,21 @@ MODEL_REGISTRY = {
         ),
         "threshold": 0.800884,
         "threshold_key": "far_threshold",
+    },
+    ("face", "facenet_contrastive_proto_model5"): {
+        "config": _abs("configs/facenet_contrastive_proto_model5_face.yaml"),
+        "checkpoint": _abs(
+            "results/facenet_contrastive_proto_model5_face/checkpoints/best.pth"
+        ),
+        "threshold": 0.800884,
+        "threshold_key": "far_threshold",
+    },
+    ("face", "facenet_arcface_triplet_model6"): {
+        "config": _abs("configs/facenet_arcface_triplet_model6_face.yaml"),
+        "checkpoint": _abs(
+            "results/facenet_arcface_triplet_model6_face/checkpoints/best.pth"
+        ),
+        "threshold": 0.3000000119,
     },
 
     # ── Fingerprint ──────────────────────────────────────────────────────
@@ -87,6 +102,8 @@ VALID_MODEL_TYPES = {
     "hybrid",
     "facenet_proto",
     "facenet_contrastive_proto",
+    "facenet_contrastive_proto_model5",
+    "facenet_arcface_triplet_model6",
 }
 
 
